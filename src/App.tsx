@@ -14,6 +14,7 @@ import {
   buildSoftKeySequence,
   DEFAULT_SOFT_KEY_MODIFIERS,
   FUNCTION_SOFT_KEY_ROWS,
+  flattenSoftKeyRows,
   MAIN_SOFT_KEY_ROWS,
   NAV_SOFT_KEYS,
   type SoftKeyDefinition,
@@ -722,7 +723,22 @@ export function App() {
         {extraKeysOpen && (
           <section className="extra-keys-panel" aria-label="Extra key controls">
             <div className="extra-keys-header">
-              <p className="extra-keys-hint">Tap modifiers, then key. Modifiers reset after one send.</p>
+              {functionKeysOpen ? (
+                <div className="extra-keys-row extra-keys-function-row" role="group" aria-label="Function keys">
+                  {flattenSoftKeyRows(FUNCTION_SOFT_KEY_ROWS).map((key) => (
+                    <button
+                      key={key.id}
+                      type="button"
+                      className="toolbar-button extra-key-button"
+                      onClick={() => handleSoftKeyPress(key)}
+                    >
+                      {key.label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="extra-keys-hint">Tap modifiers, then key. Modifiers reset after one send.</p>
+              )}
               <div className="extra-keys-header-actions">
                 <button
                   type="button"
@@ -734,7 +750,7 @@ export function App() {
                 </button>
                 <button
                   type="button"
-                  className={`toolbar-button extra-keys-function-toggle ${functionKeysOpen ? "toolbar-button-active" : ""}`}
+                  className={`toolbar-button extra-key-button ${functionKeysOpen ? "toolbar-button-active" : ""}`}
                   onClick={() => setFunctionKeysOpen((previous) => !previous)}
                   aria-expanded={functionKeysOpen}
                 >
@@ -941,24 +957,6 @@ export function App() {
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-            {functionKeysOpen && (
-              <div className="extra-keys-grid extra-keys-grid-function" role="group" aria-label="Function keys">
-                {FUNCTION_SOFT_KEY_ROWS.map((row, rowIndex) => (
-                  <div key={`function-soft-key-row-${rowIndex + 1}`} className="extra-keys-row">
-                    {row.map((key) => (
-                      <button
-                        key={key.id}
-                        type="button"
-                        className="toolbar-button extra-key-button"
-                        onClick={() => handleSoftKeyPress(key)}
-                      >
-                        {key.label}
-                      </button>
-                    ))}
-                  </div>
-                ))}
               </div>
             )}
           </section>

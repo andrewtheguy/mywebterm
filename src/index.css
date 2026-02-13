@@ -308,9 +308,10 @@ body {
   gap: 0.2rem;
 }
 
-.extra-keys-grid-function {
-  padding-top: 0.35rem;
-  border-top: 1px dashed rgba(140, 205, 255, 0.3);
+.extra-keys-function-row {
+  flex-wrap: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .extra-key-button {
