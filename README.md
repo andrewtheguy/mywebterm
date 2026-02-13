@@ -7,7 +7,7 @@ Custom web frontend for a running [ttyd](https://github.com/tsl0922/ttyd) instan
 Start ttyd in writable mode so browser input reaches the shell:
 
 ```bash
-ttyd -W -p 7681 bash
+ttyd -W -p 7681 "$SHELL"
 ```
 
 Important:

@@ -10,6 +10,15 @@ import {
 
 import { loadTtydConfig } from "./config";
 import "./index.css";
+import {
+  buildSoftKeySequence,
+  DEFAULT_SOFT_KEY_MODIFIERS,
+  FUNCTION_SOFT_KEY_ROWS,
+  MAIN_SOFT_KEY_ROWS,
+  SOFT_MODIFIER_ORDER,
+  type SoftKeyDefinition,
+  type SoftModifierName,
+} from "./softKeyboard";
 import { useTtydTerminal } from "./useTtydTerminal";
 
 type CopyFeedback =
@@ -24,12 +33,30 @@ function toErrorMessage(error: unknown): string {
   return "Copy failed.";
 }
 
+function toModifierLabel(modifier: SoftModifierName): string {
+  switch (modifier) {
+    case "ctrl":
+      return "Ctrl";
+    case "alt":
+      return "Alt";
+    case "shift":
+      return "Shift";
+    default:
+      return modifier;
+  }
+}
+
 export function App() {
   const config = useMemo(() => loadTtydConfig(), []);
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
+  const [extraKeysOpen, setExtraKeysOpen] = useState(false);
+  const [functionKeysOpen, setFunctionKeysOpen] = useState(false);
+  const [softKeyModifiers, setSoftKeyModifiers] = useState(() => ({
+    ...DEFAULT_SOFT_KEY_MODIFIERS,
+  }));
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperFocusedRef = useRef(false);
@@ -47,6 +74,7 @@ export function App() {
     statusMessage,
     reconnect,
     focusSoftKeyboard,
+    sendSoftKeySequence,
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
     copySelection,
@@ -104,6 +132,17 @@ export function App() {
       window.clearTimeout(timeout);
     };
   }, [copyFeedback]);
+
+  useEffect(() => {
+    if (extraKeysOpen) {
+      return;
+    }
+
+    setFunctionKeysOpen(false);
+    setSoftKeyModifiers({
+      ...DEFAULT_SOFT_KEY_MODIFIERS,
+    });
+  }, [extraKeysOpen]);
 
   const openSelectableText = useCallback(() => {
     const text = getSelectableText();
@@ -176,6 +215,35 @@ export function App() {
       closePasteHelper();
     }
   }, [closePasteHelper, pasteHelperText, pasteTextIntoTerminal]);
+
+  const hasActiveSoftModifiers =
+    softKeyModifiers.ctrl || softKeyModifiers.alt || softKeyModifiers.shift;
+
+  const toggleSoftModifier = useCallback((modifier: SoftModifierName) => {
+    setSoftKeyModifiers(previous => ({
+      ...previous,
+      [modifier]: !previous[modifier],
+    }));
+  }, []);
+
+  const clearSoftModifiers = useCallback(() => {
+    setSoftKeyModifiers({
+      ...DEFAULT_SOFT_KEY_MODIFIERS,
+    });
+  }, []);
+
+  const handleSoftKeyPress = useCallback((key: SoftKeyDefinition) => {
+    const sequence = buildSoftKeySequence(key, softKeyModifiers);
+    if (sequence.ok) {
+      sendSoftKeySequence(sequence.sequence, sequence.description);
+    } else {
+      setCopyFeedback({
+        tone: "error",
+        message: `${sequence.description}: ${sequence.reason}.`,
+      });
+    }
+    clearSoftModifiers();
+  }, [clearSoftModifiers, sendSoftKeySequence, softKeyModifiers]);
 
   const beginSelectionHandleDrag = useCallback(
     (handle: "start" | "end", event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -291,6 +359,14 @@ export function App() {
             <button type="button" className="toolbar-button" onClick={focusSoftKeyboard}>
               Keyboard
             </button>
+            <button
+              type="button"
+              className={`toolbar-button ${extraKeysOpen ? "toolbar-button-active" : ""}`}
+              onClick={() => setExtraKeysOpen(previous => !previous)}
+              aria-pressed={extraKeysOpen}
+            >
+              Extra Keys
+            </button>
             {mobileSelectionState.enabled && (
               <button
                 type="button"
@@ -332,6 +408,76 @@ export function App() {
             </button>
           </div>
         </div>
+        {extraKeysOpen && (
+          <section className="extra-keys-panel" aria-label="Extra key controls">
+            <div className="extra-keys-header">
+              <p className="extra-keys-hint">Tap modifiers, then key. Modifiers reset after one send.</p>
+              <button
+                type="button"
+                className={`toolbar-button extra-keys-function-toggle ${functionKeysOpen ? "toolbar-button-active" : ""}`}
+                onClick={() => setFunctionKeysOpen(previous => !previous)}
+                aria-expanded={functionKeysOpen}
+              >
+                Function
+              </button>
+            </div>
+            <div className="extra-keys-modifier-row" role="group" aria-label="Modifier keys">
+              {SOFT_MODIFIER_ORDER.map(modifier => (
+                <button
+                  key={modifier}
+                  type="button"
+                  className={`toolbar-button extra-key-button ${softKeyModifiers[modifier] ? "toolbar-button-active" : ""}`}
+                  onClick={() => toggleSoftModifier(modifier)}
+                  aria-pressed={softKeyModifiers[modifier]}
+                >
+                  {toModifierLabel(modifier)}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="toolbar-button extra-key-button"
+                onClick={clearSoftModifiers}
+                disabled={!hasActiveSoftModifiers}
+              >
+                Clear Mods
+              </button>
+            </div>
+            <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
+              {MAIN_SOFT_KEY_ROWS.map((row, rowIndex) => (
+                <div key={`main-soft-key-row-${rowIndex + 1}`} className="extra-keys-row">
+                  {row.map(key => (
+                    <button
+                      key={key.id}
+                      type="button"
+                      className={`toolbar-button extra-key-button ${key.label === "Space" ? "extra-key-button-space" : ""}`}
+                      onClick={() => handleSoftKeyPress(key)}
+                    >
+                      {key.label}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+            {functionKeysOpen && (
+              <div className="extra-keys-grid extra-keys-grid-function" role="group" aria-label="Function keys">
+                {FUNCTION_SOFT_KEY_ROWS.map((row, rowIndex) => (
+                  <div key={`function-soft-key-row-${rowIndex + 1}`} className="extra-keys-row">
+                    {row.map(key => (
+                      <button
+                        key={key.id}
+                        type="button"
+                        className="toolbar-button extra-key-button"
+                        onClick={() => handleSoftKeyPress(key)}
+                      >
+                        {key.label}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </header>
 
       <section className="endpoint-card">
