@@ -16,6 +16,15 @@ When a browser connects, the server spawns `$SHELL` (falling back to `/bin/sh`) 
 - Terminal resize — automatic reflow on browser window resize
 - Copy tools — copy selection, copy recent output, selectable text panel
 
+## Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `HOST` | `::` | Hostname/address to bind |
+| `PORT` | `8671` | Port to listen on |
+| `SHELL` | System `$SHELL` or `/bin/sh` | Shell to spawn per session |
+| `EXPERIMENTAL_HSCROLL` | `0` | Set to `1` to enforce a minimum 80-column width with horizontal scrollbar on narrow viewports |
+
 ## Requirements
 
 - [Bun](https://bun.sh) v1.3.5+
