@@ -778,6 +778,12 @@ export function useTtydTerminal({
     terminal.loadAddon(fitAddon);
     terminal.open(container);
 
+    const textarea = terminal.textarea;
+    if (textarea) {
+      textarea.style.setProperty("opacity", "0", "important");
+      textarea.style.setProperty("caret-color", "transparent", "important");
+    }
+
     const customFit = () => {
       const proposed = fitAddon.proposeDimensions();
       if (!proposed || Number.isNaN(proposed.cols) || Number.isNaN(proposed.rows)) {
@@ -841,11 +847,6 @@ export function useTtydTerminal({
         verticalScrollSyncRef.current?.();
 
         const isAtBottom = terminal.buffer.active.viewportY >= terminal.buffer.active.baseY;
-        const textarea = terminal.textarea;
-        if (textarea) {
-          textarea.style.setProperty("opacity", isAtBottom ? "" : "0", "important");
-          textarea.style.setProperty("caret-color", isAtBottom ? "" : "transparent", "important");
-        }
         const cursorLayer = terminal.element?.querySelector(".xterm-cursor-layer") as HTMLElement | null;
         if (cursorLayer) {
           cursorLayer.style.visibility = isAtBottom ? "" : "hidden";
@@ -920,7 +921,6 @@ export function useTtydTerminal({
     fitAddonRef.current = fitAddon;
     terminalDisposablesRef.current = terminalDisposables;
 
-    const textarea = terminal.textarea;
     if (mobileTouchSupported && textarea) {
       textarea.inputMode = "none";
     }
@@ -1380,7 +1380,7 @@ export function useTtydTerminal({
     }
 
     const input = terminal.textarea;
-    if (input && document.activeElement === input) {
+    if (input && document.activeElement === input && (!mobileTouchSupported || input.inputMode !== "none")) {
       input.blur();
       return;
     }

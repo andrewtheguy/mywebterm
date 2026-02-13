@@ -727,10 +727,10 @@ body {
     flex: 2 1 0;
   }
 
-  .extra-key-arrow {
+  .extra-key-button.extra-key-arrow {
     font-size: 0.65rem;
     font-family: "Iosevka Term", "JetBrains Mono", "Consolas", monospace;
-    flex: 0 0 2rem !important;
+    flex: 0 0 2rem;
     width: 2rem;
   }
 
