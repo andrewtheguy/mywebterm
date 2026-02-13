@@ -1,6 +1,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { type IDisposable, type ITerminalOptions, Terminal } from "@xterm/xterm";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import "@xterm/xterm/css/xterm.css";
 
@@ -51,7 +52,7 @@ interface UseTtydTerminalOptions {
 interface UseTtydTerminalResult {
   containerRef: (node: HTMLDivElement | null) => void;
   connectionStatus: ConnectionStatus;
-  statusMessage: string;
+  softKeyboardActive: boolean;
   reconnect: () => void;
   focusSoftKeyboard: () => void;
   sendSoftKeySequence: (sequence: string, label: string) => boolean;
@@ -68,6 +69,8 @@ interface UseTtydTerminalResult {
   toggleMobileMouseMode: () => void;
   horizontalOverflow: boolean;
   containerElement: HTMLDivElement | null;
+  verticalScrollSyncRef: React.MutableRefObject<(() => void) | null>;
+  getVerticalScrollState(): { viewportY: number; baseY: number; rows: number } | null;
 }
 
 const isMobileViewport = typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches;
@@ -204,7 +207,6 @@ function euclideanDistance(pointA: Point, pointB: Point): number {
 export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions): UseTtydTerminalResult {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
-  const [statusMessage, setStatusMessage] = useState("Waiting for terminal.");
   const [reconnectToken, setReconnectToken] = useState(0);
 
   const mobileTouchSupported =
@@ -214,6 +216,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
     createInitialMobileSelectionState(mobileTouchSupported),
   );
   const [mobileMouseMode, setMobileMouseMode] = useState<MobileMouseMode>("nativeScroll");
+  const [softKeyboardActive, setSoftKeyboardActive] = useState(false);
   const [horizontalOverflow, setHorizontalOverflow] = useState(false);
 
   const terminalRef = useRef<Terminal | null>(null);
@@ -236,6 +239,19 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
   const autoScrollLayoutRetryRef = useRef(0);
   const terminalMountedRef = useRef(false);
   const customFitRef = useRef<(() => void) | null>(null);
+  const verticalScrollSyncRef = useRef<(() => void) | null>(null);
+
+  const getVerticalScrollState = useCallback((): { viewportY: number; baseY: number; rows: number } | null => {
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      return null;
+    }
+    return {
+      viewportY: terminal.buffer.active.viewportY,
+      baseY: terminal.buffer.active.baseY,
+      rows: terminal.rows,
+    };
+  }, []);
 
   const getTerminalLayout = useCallback((): TerminalLayout | null => {
     const terminal = terminalRef.current;
@@ -690,7 +706,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
         null,
       );
 
-      setStatusMessage("Selection mode active.");
+      toast.info("Selection mode active.");
     },
     [applySelectionRange, getTerminalLayout, mobileTouchSupported],
   );
@@ -802,7 +818,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
 
     customFitRef.current = customFit;
     customFit();
-    terminal.focus();
+    if (!mobileTouchSupported) {
+      terminal.focus();
+    }
     terminalMountedRef.current = true;
 
     const terminalDisposables: IDisposable[] = [
@@ -816,6 +834,19 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
         }
       }),
       terminal.onScroll(() => {
+        verticalScrollSyncRef.current?.();
+
+        const isAtBottom = terminal.buffer.active.viewportY >= terminal.buffer.active.baseY;
+        const textarea = terminal.textarea;
+        if (textarea) {
+          textarea.style.setProperty("opacity", isAtBottom ? "" : "0", "important");
+          textarea.style.setProperty("caret-color", isAtBottom ? "" : "transparent", "important");
+        }
+        const cursorLayer = terminal.element?.querySelector(".xterm-cursor-layer") as HTMLElement | null;
+        if (cursorLayer) {
+          cursorLayer.style.visibility = isAtBottom ? "" : "hidden";
+        }
+
         const range = selectionRangeRef.current;
         if (!range) {
           return;
@@ -885,7 +916,20 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
     fitAddonRef.current = fitAddon;
     terminalDisposablesRef.current = terminalDisposables;
 
+    const textarea = terminal.textarea;
+    const onTextareaFocus = () => setSoftKeyboardActive(true);
+    const onTextareaBlur = () => setSoftKeyboardActive(false);
+    if (textarea) {
+      textarea.addEventListener("focus", onTextareaFocus);
+      textarea.addEventListener("blur", onTextareaBlur);
+    }
+
     return () => {
+      if (textarea) {
+        textarea.removeEventListener("focus", onTextareaFocus);
+        textarea.removeEventListener("blur", onTextareaBlur);
+      }
+      setSoftKeyboardActive(false);
       terminalMountedRef.current = false;
       closeSocket();
       resizeObserver.disconnect();
@@ -953,10 +997,13 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
       return null;
     };
 
+    let hScrollTouch: { identifier: number; lastX: number } | null = null;
+
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1 || activeHandleRef.current !== null) {
         clearPendingLongPress(true);
         clearScrollGesture();
+        hScrollTouch = null;
         return;
       }
 
@@ -964,6 +1011,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
       if (!touch) {
         return;
       }
+
+      hScrollTouch =
+        container.scrollWidth > container.clientWidth ? { identifier: touch.identifier, lastX: touch.clientX } : null;
 
       const point = { x: touch.clientX, y: touch.clientY };
       if (shouldPassTouchScroll && selectionRangeRef.current === null) {
@@ -992,17 +1042,19 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
         window.clearTimeout(longPressTimerRef.current);
       }
 
-      longPressTimerRef.current = window.setTimeout(() => {
-        const pendingTouch = pendingTouchRef.current;
-        pendingTouchRef.current = null;
-        longPressTimerRef.current = null;
+      if (!shouldPassTouchScroll) {
+        longPressTimerRef.current = window.setTimeout(() => {
+          const pendingTouch = pendingTouchRef.current;
+          pendingTouchRef.current = null;
+          longPressTimerRef.current = null;
 
-        if (!pendingTouch) {
-          return;
-        }
+          if (!pendingTouch) {
+            return;
+          }
 
-        startWordSelectionFromPoint(pendingTouch.latestPoint);
-      }, MOBILE_LONG_PRESS_MS);
+          startWordSelectionFromPoint(pendingTouch.latestPoint);
+        }, MOBILE_LONG_PRESS_MS);
+      }
     };
 
     const onTouchMove = (event: TouchEvent) => {
@@ -1019,6 +1071,19 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
           if (euclideanDistance(nextPoint, pendingTouch.startPoint) >= MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX) {
             clearPendingLongPress(true);
           }
+        }
+      }
+
+      if (hScrollTouch !== null) {
+        const hTouch = findTouchById(event.touches, hScrollTouch.identifier);
+        if (hTouch) {
+          const deltaX = hScrollTouch.lastX - hTouch.clientX;
+          if (deltaX !== 0) {
+            container.scrollLeft += deltaX;
+            hScrollTouch.lastX = hTouch.clientX;
+          }
+        } else {
+          hScrollTouch = null;
         }
       }
 
@@ -1062,11 +1127,13 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
     const onTouchEnd = () => {
       clearPendingLongPress(true);
       clearScrollGesture();
+      hScrollTouch = null;
     };
 
     const onTouchCancel = () => {
       clearPendingLongPress(true);
       clearScrollGesture();
+      hScrollTouch = null;
     };
 
     const onContextMenu = (event: MouseEvent) => {
@@ -1106,20 +1173,19 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
     if (!wsUrl) {
       closeSocket();
       setConnectionStatus("disconnected");
-      setStatusMessage("Missing terminal endpoint configuration.");
+      toast.error("Missing terminal endpoint configuration.", { id: "connection-status" });
       return;
     }
 
     const terminal = terminalRef.current;
     if (!terminal) {
       setConnectionStatus("disconnected");
-      setStatusMessage("Initializing terminal.");
       return;
     }
 
     closeSocket();
     setConnectionStatus("connecting");
-    setStatusMessage("Connecting.");
+    toast.info("Connecting.", { id: "connection-status" });
 
     const socket = new WebSocket(wsUrl);
     socket.binaryType = "arraybuffer";
@@ -1147,6 +1213,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
       switch (frame.command) {
         case ServerCommand.OUTPUT:
           terminal.write(frame.payload);
+          verticalScrollSyncRef.current?.();
           break;
         case ServerCommand.SET_WINDOW_TITLE:
           onTitleChangeRef.current?.(decoderRef.current.decode(frame.payload));
@@ -1163,9 +1230,11 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
 
       socket.send(buildHandshake(terminal.cols, terminal.rows));
       customFitRef.current?.();
-      terminal.focus();
+      if (!mobileTouchSupported) {
+        terminal.focus();
+      }
       setConnectionStatus("connected");
-      setStatusMessage("");
+      toast.dismiss("connection-status");
     };
 
     socket.onmessage = (event) => {
@@ -1200,7 +1269,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
         return;
       }
       setConnectionStatus("error");
-      setStatusMessage("WebSocket error.");
+      toast.error("WebSocket error.", { id: "connection-status" });
     };
 
     socket.onclose = (event) => {
@@ -1209,7 +1278,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
       }
       socketRef.current = null;
       setConnectionStatus("disconnected");
-      setStatusMessage(`Disconnected (code ${event.code}).`);
+      toast.error(`Disconnected (code ${event.code}).`, { id: "connection-status" });
     };
 
     return () => {
@@ -1248,38 +1317,47 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
   }, []);
 
   const focusSoftKeyboard = useCallback(() => {
-    const focused = focusTerminalInput();
-    if (!focused) {
-      if (!terminalRef.current) {
-        setStatusMessage("Terminal not ready for keyboard.");
-      } else {
-        setStatusMessage("Tap terminal area to open keyboard.");
-      }
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      toast.error("Terminal not ready for keyboard.");
       return;
     }
-    setStatusMessage("Requested mobile keyboard.");
+
+    const input = terminal.textarea;
+    if (input && document.activeElement === input) {
+      input.blur();
+      toast.info("Keyboard dismissed.");
+      return;
+    }
+
+    const focused = focusTerminalInput();
+    if (!focused) {
+      toast.info("Tap terminal area to open keyboard.");
+      return;
+    }
+    toast.success("Requested mobile keyboard.");
   }, [focusTerminalInput]);
 
   const sendSoftKeySequence = useCallback(
     (sequence: string, label: string): boolean => {
       if (!terminalRef.current) {
-        setStatusMessage("Terminal not ready for key send.");
+        toast.error("Terminal not ready for key send.", { id: "key-sequence" });
         return false;
       }
 
       if (sequence.length === 0) {
-        setStatusMessage(`Unsupported key combo: ${label}.`);
+        toast.error(`Unsupported key combo: ${label}.`, { id: "key-sequence" });
         return false;
       }
 
       focusTerminalInput();
       const sent = sendInputFrame(sequence);
       if (!sent) {
-        setStatusMessage("Terminal not ready. Wait for connection or reconnect before sending keys.");
+        toast.error("Not connected. Reconnect before sending keys.", { id: "key-sequence" });
         return false;
       }
 
-      setStatusMessage(`Sent ${label}.`);
+      toast.success(`Sent ${label}.`, { id: "key-sequence" });
       return true;
     },
     [focusTerminalInput, sendInputFrame],
@@ -1293,57 +1371,45 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
     const nextMode: MobileMouseMode = mobileMouseMode === "nativeScroll" ? "passToTerminal" : "nativeScroll";
     clearScrollGesture();
     setMobileMouseMode(nextMode);
-    setStatusMessage(
-      nextMode === "passToTerminal"
-        ? "Touch scroll now sends wheel events to remote apps."
-        : "Touch scroll now uses terminal scrollback.",
-    );
   }, [clearScrollGesture, mobileMouseMode, mobileTouchSupported]);
 
   const pasteTextIntoTerminal = useCallback((text: string): boolean => {
     const terminal = terminalRef.current;
     if (!terminal) {
-      setStatusMessage("Terminal not ready for paste.");
+      toast.error("Terminal not ready for paste.");
       return false;
     }
 
     if (text.trim().length === 0) {
-      setStatusMessage("Paste text is empty.");
       return false;
     }
 
     terminal.paste(text);
-    setStatusMessage(`Pasted (${text.length} chars).`);
     return true;
   }, []);
 
   const attemptPasteFromClipboard = useCallback(async (): Promise<PasteResult> => {
     if (!terminalRef.current) {
-      setStatusMessage("Terminal not ready for paste.");
       return "terminal-unavailable";
     }
 
     if (mobileMouseMode !== "nativeScroll") {
-      setStatusMessage("Switch to Mode: Native to paste.");
       return "wrong-mode";
     }
 
     if (typeof navigator === "undefined" || !navigator.clipboard?.readText) {
-      setStatusMessage("Use iOS paste in helper panel.");
       return "fallback-required";
     }
 
     try {
       const text = await navigator.clipboard.readText();
       if (text.trim().length === 0) {
-        setStatusMessage("Clipboard is empty.");
         return "empty";
       }
 
       const pasted = pasteTextIntoTerminal(text);
       return pasted ? "pasted" : "terminal-unavailable";
     } catch {
-      setStatusMessage("Use iOS paste in helper panel.");
       return "fallback-required";
     }
   }, [mobileMouseMode, pasteTextIntoTerminal]);
@@ -1351,51 +1417,41 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
   const copySelection = useCallback(async () => {
     const terminal = terminalRef.current;
     if (!terminal) {
-      setStatusMessage("Terminal not ready for copy.");
       throw new Error("Terminal not ready for copy.");
     }
 
     const selectedText = terminal.getSelection();
     if (selectedText.length === 0) {
-      setStatusMessage("No terminal selection to copy.");
       throw new Error("No terminal selection to copy.");
     }
 
     const copied = await writeClipboardText(selectedText);
     if (!copied) {
-      setStatusMessage("Clipboard copy failed.");
       throw new Error("Clipboard copy failed.");
     }
-
-    setStatusMessage(`Copied selection (${selectedText.length} chars).`);
   }, []);
 
   const copyRecentOutput = useCallback(async () => {
     const terminal = terminalRef.current;
     if (!terminal) {
-      setStatusMessage("Terminal not ready for copy.");
       throw new Error("Terminal not ready for copy.");
     }
 
     const recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
     if (recentOutput.length === 0) {
-      setStatusMessage("No terminal output available to copy.");
       throw new Error("No terminal output available to copy.");
     }
 
     const copied = await writeClipboardText(recentOutput);
     if (!copied) {
-      setStatusMessage("Clipboard copy failed.");
       throw new Error("Clipboard copy failed.");
     }
-
-    setStatusMessage(`Copied recent output (${RECENT_OUTPUT_LINES} lines max).`);
   }, []);
 
   const getSelectableText = useCallback(() => {
     const terminal = terminalRef.current;
     if (!terminal) {
-      setStatusMessage("Terminal not ready for selection.");
+      toast.error("Terminal not ready for selection.");
       return "";
     }
 
@@ -1406,7 +1462,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
 
     const recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
     if (recentOutput.length === 0) {
-      setStatusMessage("No terminal output available.");
+      toast.info("No terminal output available.");
       return "";
     }
 
@@ -1416,7 +1472,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
   return {
     containerRef,
     connectionStatus,
-    statusMessage,
+    softKeyboardActive,
     reconnect,
     focusSoftKeyboard,
     sendSoftKeySequence,
@@ -1433,5 +1489,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
     toggleMobileMouseMode,
     horizontalOverflow,
     containerElement: container,
+    verticalScrollSyncRef,
+    getVerticalScrollState,
   };
 }
