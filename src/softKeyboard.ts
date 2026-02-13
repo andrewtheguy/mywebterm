@@ -32,7 +32,7 @@ export type SpecialSoftKeyId =
   | "insert"
   | "delete";
 
-interface SoftKeyBase {
+export interface SoftKeyBase {
   id: string;
   label: string;
   group: SoftKeyGroup;
@@ -278,6 +278,29 @@ function failure(
   };
 }
 
+function unexpectedSpecialKeyFailure(
+  key: SpecialSoftKeyDefinition,
+  modifiers: SoftKeyModifiers,
+  special: never,
+): BuildSoftKeySequenceResult {
+  return failure(key.label, modifiers, `Unsupported key: ${String(special)}`);
+}
+
+function unexpectedSoftKeyFailure(
+  key: never,
+  modifiers: SoftKeyModifiers,
+): BuildSoftKeySequenceResult {
+  const unknownKey = key as { kind?: string } | null;
+  const suffix = unknownKey?.kind ? `: ${unknownKey.kind}` : "";
+  const modifierDescription = formatChordDescription("Unknown", modifiers);
+
+  return {
+    ok: false,
+    description: modifierDescription,
+    reason: `Unknown key type${suffix}`,
+  };
+}
+
 function applyShiftToPrintable(baseValue: string, shift: boolean): string {
   if (!shift) {
     return baseValue;
@@ -417,9 +440,9 @@ function encodeSpecialKey(
       return success(encodeTildeKey(5, modifiers), key.label, modifiers);
     case "pageDown":
       return success(encodeTildeKey(6, modifiers), key.label, modifiers);
-    default:
-      return failure(key.label, modifiers, "Unsupported key");
   }
+
+  return unexpectedSpecialKeyFailure(key, modifiers, key.special);
 }
 
 function encodeFunctionKey(
@@ -462,13 +485,9 @@ export function buildSoftKeySequence(
       return encodeSpecialKey(key, modifiers);
     case "function":
       return encodeFunctionKey(key, modifiers);
-    default:
-      return {
-        ok: false,
-        description: formatChordDescription(key.label, modifiers),
-        reason: "Unknown key type",
-      };
   }
+
+  return unexpectedSoftKeyFailure(key, modifiers);
 }
 
 export function flattenSoftKeyRows(
