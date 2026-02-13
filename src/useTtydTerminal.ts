@@ -1246,7 +1246,7 @@ export function useTtydTerminal({
     focusTerminalInput();
     const sent = sendInputFrame(sequence);
     if (!sent) {
-      setStatusMessage("Terminal disconnected. Reconnect before sending keys.");
+      setStatusMessage("Terminal not ready. Wait for connection or reconnect before sending keys.");
       return false;
     }
 

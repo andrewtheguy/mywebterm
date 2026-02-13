@@ -2,6 +2,8 @@
   --page-ink: #d8ecff;
   --panel-bg: rgba(4, 23, 41, 0.78);
   --panel-border: rgba(114, 193, 255, 0.36);
+  --extra-keys-bg: var(--panel-bg);
+  --extra-keys-border: var(--panel-border);
   --muted-ink: #86acc9;
   --accent: #6ae8ce;
   --status-connected: #8fffcb;
@@ -162,8 +164,8 @@ body {
   margin-top: 0.15rem;
   padding: 0.7rem;
   border-radius: 12px;
-  border: 1px solid rgba(140, 205, 255, 0.34);
-  background: rgba(2, 16, 28, 0.88);
+  border: 1px solid var(--extra-keys-border, var(--panel-border));
+  background: var(--extra-keys-bg, var(--panel-bg));
 }
 
 .extra-keys-header {

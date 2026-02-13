@@ -234,7 +234,14 @@ export function App() {
 
   const handleSoftKeyPress = useCallback((key: SoftKeyDefinition) => {
     const sequence = buildSoftKeySequence(key, softKeyModifiers);
-    sendSoftKeySequence(sequence.ok ? sequence.sequence : "", sequence.description);
+    if (sequence.ok) {
+      sendSoftKeySequence(sequence.sequence, sequence.description);
+    } else {
+      setCopyFeedback({
+        tone: "error",
+        message: `${sequence.description}: ${sequence.reason}.`,
+      });
+    }
     clearSoftModifiers();
   }, [clearSoftModifiers, sendSoftKeySequence, softKeyModifiers]);
 
