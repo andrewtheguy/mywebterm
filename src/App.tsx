@@ -845,7 +845,7 @@ export function App() {
                   Copy
                 </button>
                 <button type="button" className="toolbar-button" onClick={clearMobileSelection}>
-                  Clear
+                  Cancel
                 </button>
               </div>
             </div>
