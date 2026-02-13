@@ -64,8 +64,9 @@ export function App() {
           setConfig(cfg);
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!cancelled) {
+          console.error("Failed to load configuration:", error);
           toast.error("Failed to load configuration.");
         }
       });
@@ -423,7 +424,7 @@ export function App() {
     const totalLines = state.baseY + state.rows;
     const thumbHeight = Math.max(20, (state.rows / totalLines) * trackHeight);
     const maxThumbTop = trackHeight - thumbHeight;
-    const thumbTop = state.baseY > 0 ? (state.viewportY / state.baseY) * maxThumbTop : 0;
+    const thumbTop = (state.viewportY / state.baseY) * maxThumbTop;
 
     thumb.style.height = `${thumbHeight}px`;
     thumb.style.top = `${thumbTop}px`;
@@ -529,7 +530,19 @@ export function App() {
         <div className="brand">
           <h1>
             MyWebTerm
-            <span className={`status-badge status-${connectionStatus}`}>
+            <span
+              className={`status-badge status-${connectionStatus}`}
+              role="status"
+              aria-label={
+                connectionStatus === "connected"
+                  ? "Connected"
+                  : connectionStatus === "connecting"
+                    ? "Connecting"
+                    : connectionStatus === "error"
+                      ? "Error"
+                      : "Disconnected"
+              }
+            >
               {connectionStatus === "connected" ? "ON" : connectionStatus === "connecting" ? "..." : "OFF"}
             </span>
           </h1>
@@ -580,8 +593,10 @@ export function App() {
               type="button"
               className={`toolbar-button ${mobileMouseMode === "passToTerminal" ? "toolbar-button-active" : ""}`}
               onClick={() => {
-                const nextMode = mobileMouseMode === "nativeScroll" ? "passToTerminal" : "nativeScroll";
-                toggleMobileMouseMode();
+                const nextMode = toggleMobileMouseMode();
+                if (nextMode === null) {
+                  return;
+                }
                 toast.success(
                   nextMode === "passToTerminal"
                     ? "Touch scroll sends wheel events."

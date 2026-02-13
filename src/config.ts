@@ -16,15 +16,19 @@ export async function loadTtydConfig(locationLike: Pick<Location, "origin"> = wi
   proxyWsUrl.protocol = toWebSocketProtocol(proxyWsUrl.protocol);
 
   let experimentalHScroll = false;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
   try {
     const configUrl = new URL("/api/config", locationLike.origin);
-    const res = await fetch(configUrl);
+    const res = await fetch(configUrl, { signal: controller.signal });
     if (res.ok) {
       const json = await res.json();
       experimentalHScroll = json.experimentalHScroll === true;
     }
   } catch {
-    // Endpoint unavailable — keep default.
+    // Endpoint unavailable or timed out — keep default.
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   return {

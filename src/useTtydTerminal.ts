@@ -67,7 +67,7 @@ interface UseTtydTerminalResult {
   clearMobileSelection: () => void;
   setActiveHandle: (handle: MobileSelectionHandle | null) => void;
   updateActiveHandleFromClientPoint: (clientX: number, clientY: number) => void;
-  toggleMobileMouseMode: () => void;
+  toggleMobileMouseMode: () => MobileMouseMode | null;
   horizontalOverflow: boolean;
   containerElement: HTMLDivElement | null;
   verticalScrollSyncRef: React.MutableRefObject<(() => void) | null>;
@@ -711,7 +711,7 @@ export function useTtydTerminal({
         null,
       );
 
-      toast.info("Selection mode active.");
+      toast.info("Selection mode active.", { id: "selection-mode-active" });
     },
     [applySelectionRange, getTerminalLayout, mobileTouchSupported],
   );
@@ -1326,7 +1326,7 @@ export function useTtydTerminal({
         closeSocket();
       }
     };
-  }, [wsUrl, reconnectToken, closeSocket, container]);
+  }, [wsUrl, reconnectToken, closeSocket, container, mobileTouchSupported]);
 
   const reconnect = useCallback(() => {
     if (!wsUrl) {
@@ -1400,14 +1400,15 @@ export function useTtydTerminal({
     [focusTerminalInput, sendInputFrame],
   );
 
-  const toggleMobileMouseMode = useCallback(() => {
+  const toggleMobileMouseMode = useCallback((): MobileMouseMode | null => {
     if (!mobileTouchSupported) {
-      return;
+      return null;
     }
 
     const nextMode: MobileMouseMode = mobileMouseMode === "nativeScroll" ? "passToTerminal" : "nativeScroll";
     clearScrollGesture();
     setMobileMouseMode(nextMode);
+    return nextMode;
   }, [clearScrollGesture, mobileMouseMode, mobileTouchSupported]);
 
   const pasteTextIntoTerminal = useCallback((text: string): boolean => {

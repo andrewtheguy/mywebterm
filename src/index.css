@@ -134,6 +134,12 @@ body {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .status-connecting {
+    animation: none;
+  }
+}
+
 .toolbar-button {
   border: 1px solid rgba(172, 255, 236, 0.6);
   border-radius: 999px;
