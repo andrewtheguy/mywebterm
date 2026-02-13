@@ -7,12 +7,18 @@ interface PtySessionData {
 }
 
 interface PtySession {
-  proc: ReturnType<typeof Bun.spawn>;
+  proc: ReturnType<typeof Bun.spawn> | null;
   ws: ServerWebSocket<PtySessionData>;
   handshakeReceived: boolean;
 }
 
 const shell = process.env.SHELL || "/bin/sh";
+const MAX_COLS = 500;
+const MAX_ROWS = 200;
+
+function clampDimension(value: number | undefined, fallback: number, max: number): number {
+  return Math.max(1, Math.min(max, Math.floor(value ?? fallback)));
+}
 const ptySessions = new Map<string, PtySession>();
 let nextConnectionId = 0;
 
@@ -29,16 +35,18 @@ function cleanupSession(connectionId: string): void {
 
   ptySessions.delete(connectionId);
 
-  try {
-    session.proc.terminal?.close();
-  } catch {
-    // Terminal may already be closed.
-  }
+  if (session.proc) {
+    try {
+      session.proc.terminal?.close();
+    } catch {
+      // Terminal may already be closed.
+    }
 
-  try {
-    session.proc.kill();
-  } catch {
-    // Process may already be dead.
+    try {
+      session.proc.kill();
+    } catch {
+      // Process may already be dead.
+    }
   }
 }
 
@@ -67,30 +75,40 @@ function spawnPtyForSession(
   cols: number,
   rows: number,
 ): void {
-  const proc = Bun.spawn([shell], {
-    terminal: {
-      cols,
-      rows,
-      data(_terminal, data: Uint8Array) {
-        const session = ptySessions.get(connectionId);
-        if (!session) {
-          return;
-        }
-        sendOutputFrame(session.ws, data);
-      },
-      exit(_terminal, _exitCode, _signal) {
-        const session = ptySessions.get(connectionId);
-        if (!session) {
-          return;
-        }
-        ptySessions.delete(connectionId);
-        closeClientSocket(session.ws, 1000, "Shell exited");
-      },
-    },
-    env: { ...process.env, TERM: "xterm-256color" },
-  });
+  const session: PtySession = { proc: null, ws, handshakeReceived: true };
+  ptySessions.set(connectionId, session);
 
-  ptySessions.set(connectionId, { proc, ws, handshakeReceived: true });
+  let proc: ReturnType<typeof Bun.spawn>;
+  try {
+    proc = Bun.spawn([shell], {
+      terminal: {
+        cols,
+        rows,
+        data(_terminal, data: Uint8Array) {
+          const current = ptySessions.get(connectionId);
+          if (!current) {
+            return;
+          }
+          sendOutputFrame(current.ws, data);
+        },
+        exit(_terminal, _exitCode, _signal) {
+          const current = ptySessions.get(connectionId);
+          if (!current) {
+            return;
+          }
+          ptySessions.delete(connectionId);
+          closeClientSocket(current.ws, 1000, "Shell exited");
+        },
+      },
+      env: { ...process.env, TERM: "xterm-256color" },
+    });
+  } catch {
+    ptySessions.delete(connectionId);
+    closeClientSocket(ws, 1011, "Failed to spawn shell");
+    return;
+  }
+
+  session.proc = proc;
 }
 
 function handleWsMessage(ws: ServerWebSocket<PtySessionData>, message: string | Buffer): void {
@@ -108,8 +126,8 @@ function handleWsMessage(ws: ServerWebSocket<PtySessionData>, message: string | 
       return;
     }
 
-    const cols = Math.max(1, Math.floor(handshake.columns ?? 80));
-    const rows = Math.max(1, Math.floor(handshake.rows ?? 24));
+    const cols = clampDimension(handshake.columns, 80, MAX_COLS);
+    const rows = clampDimension(handshake.rows, 24, MAX_ROWS);
 
     spawnPtyForSession(connectionId, ws, cols, rows);
     return;
@@ -132,7 +150,7 @@ function handleWsMessage(ws: ServerWebSocket<PtySessionData>, message: string | 
     return;
   }
 
-  const terminal = session.proc.terminal;
+  const terminal = session.proc?.terminal;
   if (!terminal) {
     return;
   }
@@ -150,8 +168,8 @@ function handleWsMessage(ws: ServerWebSocket<PtySessionData>, message: string | 
         break;
       }
 
-      const newCols = Math.max(1, Math.floor(resize.columns ?? 80));
-      const newRows = Math.max(1, Math.floor(resize.rows ?? 24));
+      const newCols = clampDimension(resize.columns, 80, MAX_COLS);
+      const newRows = clampDimension(resize.rows, 24, MAX_ROWS);
       terminal.resize(newCols, newRows);
       break;
     }
@@ -186,7 +204,7 @@ const server = serve<PtySessionData>({
     open(ws) {
       // Session starts without a PTY — handshake will spawn it.
       ptySessions.set(ws.data.connectionId, {
-        proc: null as unknown as ReturnType<typeof Bun.spawn>,
+        proc: null,
         ws,
         handshakeReceived: false,
       });
