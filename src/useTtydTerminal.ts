@@ -48,6 +48,11 @@ export function useTtydTerminal({
   const socketRef = useRef<WebSocket | null>(null);
   const decoderRef = useRef(new TextDecoder());
   const terminalDisposablesRef = useRef<IDisposable[]>([]);
+  const onTitleChangeRef = useRef(onTitleChange);
+
+  useEffect(() => {
+    onTitleChangeRef.current = onTitleChange;
+  }, [onTitleChange]);
 
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     setContainer(node);
@@ -99,8 +104,30 @@ export function useTtydTerminal({
       }),
     ];
 
-    const onWindowResize = () => fitAddon.fit();
-    window.addEventListener("resize", onWindowResize);
+    const fitThrottleMs = 100;
+    let lastFitTime = 0;
+    let throttledFitTimeout: ReturnType<typeof window.setTimeout> | undefined;
+    const throttledFit = () => {
+      const now = Date.now();
+      const elapsed = now - lastFitTime;
+      if (elapsed >= fitThrottleMs) {
+        lastFitTime = now;
+        fitAddon.fit();
+        return;
+      }
+
+      if (throttledFitTimeout !== undefined) {
+        return;
+      }
+
+      throttledFitTimeout = window.setTimeout(() => {
+        throttledFitTimeout = undefined;
+        lastFitTime = Date.now();
+        fitAddon.fit();
+      }, fitThrottleMs - elapsed);
+    };
+
+    window.addEventListener("resize", throttledFit);
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -108,7 +135,10 @@ export function useTtydTerminal({
 
     return () => {
       closeSocket();
-      window.removeEventListener("resize", onWindowResize);
+      window.removeEventListener("resize", throttledFit);
+      if (throttledFitTimeout !== undefined) {
+        window.clearTimeout(throttledFitTimeout);
+      }
       for (const disposable of terminalDisposablesRef.current) {
         disposable.dispose();
       }
@@ -156,7 +186,7 @@ export function useTtydTerminal({
           terminal.write(frame.payload);
           break;
         case ServerCommand.SET_WINDOW_TITLE:
-          onTitleChange?.(decoderRef.current.decode(frame.payload));
+          onTitleChangeRef.current?.(decoderRef.current.decode(frame.payload));
           break;
         case ServerCommand.SET_PREFERENCES:
         default:
@@ -220,7 +250,7 @@ export function useTtydTerminal({
         closeSocket();
       }
     };
-  }, [wsUrl, reconnectToken, closeSocket, onTitleChange, container]);
+  }, [wsUrl, reconnectToken, closeSocket, container]);
 
   const reconnect = useCallback(() => {
     if (!wsUrl) {
