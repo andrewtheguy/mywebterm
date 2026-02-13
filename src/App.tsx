@@ -9,7 +9,6 @@ import {
 import { Toaster, toast } from "sonner";
 
 import { loadTtydConfig, type TtydConfig } from "./config";
-import "./index.css";
 import {
   buildSoftKeySequence,
   DEFAULT_SOFT_KEY_MODIFIERS,
