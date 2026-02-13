@@ -1,22 +1,32 @@
 # myttyd
 
-Custom web terminal using React + xterm.js with Bun's built-in PTY. No external `ttyd` process required — the server spawns `$SHELL` (or `/bin/sh` fallback) directly.
+> [!WARNING]
+> This program is meant for the original developer's personal use; no backward compatibility, user-friendliness, or multi-user security is required.
+> This project is still experimental: behavior may be unstable, features may change or be removed without notice, and updates may introduce regressions.
 
-## Run
+A web-based terminal that runs your shell in the browser. Built with React, xterm.js, and Bun's built-in PTY.
 
-Install deps:
+When a browser connects, the server spawns `$SHELL` (falling back to `/bin/sh`) as a pseudo-terminal and bridges it to the frontend over WebSocket using the ttyd binary frame protocol.
+
+## Features
+
+- Direct PTY via Bun — no external `ttyd` process needed
+- Mobile support — soft keyboard, touch selection, long-press word select, paste helper for iOS
+- Terminal resize — automatic reflow on browser window resize
+- Copy tools — copy selection, copy recent output, selectable text panel
+
+## Requirements
+
+- [Bun](https://bun.sh) v1.3.5+
+
+## Quick start
 
 ```bash
 bun install
-```
-
-Start dev server:
-
-```bash
 bun dev
 ```
 
-Open the printed URL in a browser. The terminal connects over WebSocket and spawns your shell.
+Open the printed URL in a browser.
 
 ## Build
 

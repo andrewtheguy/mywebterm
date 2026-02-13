@@ -1080,7 +1080,7 @@ export function useTtydTerminal({
     if (!wsUrl) {
       closeSocket();
       setConnectionStatus("disconnected");
-      setStatusMessage("Missing ttyd endpoint configuration.");
+      setStatusMessage("Missing terminal endpoint configuration.");
       return;
     }
 

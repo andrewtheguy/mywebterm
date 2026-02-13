@@ -345,7 +345,7 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <h1>myttyd</h1>
-          <p>Custom xterm.js frontend for ttyd</p>
+          <p>Web terminal powered by Bun PTY</p>
         </div>
         <div className="toolbar">
           <span className={`status-pill status-${connectionStatus}`}>{connectionStatus.toUpperCase()}</span>
