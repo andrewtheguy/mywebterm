@@ -9,6 +9,20 @@ A web-based terminal that runs your shell in the browser. Built with React, xter
 
 When a browser connects, the server spawns `$SHELL` (falling back to `/bin/sh`) as a pseudo-terminal and bridges it to the frontend over WebSocket using the ttyd binary frame protocol.
 
+## Usage
+
+```bash
+mywebterm [-- command [args...]]
+```
+
+By default each session runs `$SHELL`. Pass a command after `--` to override:
+
+```bash
+mywebterm -- fish
+mywebterm -- bash --norc
+mywebterm -- python3
+```
+
 ## Features
 
 - Direct PTY via Bun — no external `ttyd` process needed
@@ -22,8 +36,10 @@ When a browser connects, the server spawns `$SHELL` (falling back to `/bin/sh`) 
 |---|---|---|
 | `HOST` | `::` | Hostname/address to bind |
 | `PORT` | `8671` | Port to listen on |
-| `SHELL` | System `$SHELL` or `/bin/sh` | Shell to spawn per session |
+| `DAEMONIZE` | `0` | Set to `1` to detach from the parent process (strips `ZELLIJ`/`TMUX` env vars from spawned shells) |
 | `EXPERIMENTAL_HSCROLL` | `0` | Set to `1` to enforce a minimum 80-column width with horizontal scrollbar on narrow viewports |
+
+`SHELL` is read from the system environment (set by your OS/login shell) and used as the default command when nothing is passed after `--`. Do not set it manually — use `-- command` to override instead.
 
 ## Install
 
