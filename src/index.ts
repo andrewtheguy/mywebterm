@@ -10,7 +10,6 @@ const VERSION = typeof BUILD_VERSION !== "undefined" ? BUILD_VERSION : "dev";
 const { values, positionals } = parseArgs({
   options: {
     version: { type: "boolean", short: "v" },
-    daemon: { type: "boolean", short: "d" },
   },
   strict: false,
   allowPositionals: true,
@@ -21,16 +20,15 @@ if (values.version) {
   process.exit(0);
 }
 
-if (values.daemon) {
-  const STRIPPED_ENV_PREFIXES = ["ZELLIJ", "TMUX"];
+if (process.env.DAEMONIZE === "1") {
+  const STRIPPED_ENV_PREFIXES = ["ZELLIJ", "TMUX", "DAEMONIZE"];
   const cleanEnv = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => !STRIPPED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))),
   );
-  const args = process.argv.slice(1).filter((a) => a !== "-d" && a !== "--daemon");
 
   let child: ReturnType<typeof cpSpawn>;
   try {
-    child = cpSpawn(process.execPath, args, {
+    child = cpSpawn(process.execPath, process.argv.slice(1), {
       detached: true,
       stdio: "ignore",
       env: cleanEnv,
