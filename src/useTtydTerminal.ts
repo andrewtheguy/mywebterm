@@ -818,7 +818,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
 
     customFitRef.current = customFit;
     customFit();
-    terminal.focus();
+    if (!mobileTouchSupported) {
+      terminal.focus();
+    }
     terminalMountedRef.current = true;
 
     const terminalDisposables: IDisposable[] = [
@@ -1226,7 +1228,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
 
       socket.send(buildHandshake(terminal.cols, terminal.rows));
       customFitRef.current?.();
-      terminal.focus();
+      if (!mobileTouchSupported) {
+        terminal.focus();
+      }
       setConnectionStatus("connected");
       toast.dismiss("connection-status");
     };
