@@ -771,11 +771,10 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
         return;
       }
 
-      if (needsOverflow) {
-        const dims = terminal.dimensions;
-        if (!dims || dims.css.cell.width === 0) {
-          return;
-        }
+      const dims = terminal.dimensions;
+      const canOverflow = needsOverflow && !!dims && dims.css.cell.width > 0;
+
+      if (canOverflow) {
         const cellWidth = dims.css.cell.width;
         const elemStyle = getComputedStyle(element);
         const paddingHor =
@@ -796,7 +795,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
         terminal.resize(finalCols, finalRows);
       }
 
-      setHorizontalOverflow(needsOverflow);
+      setHorizontalOverflow(canOverflow);
     };
 
     customFitRef.current = customFit;

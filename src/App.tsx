@@ -21,7 +21,7 @@ import {
 } from "./softKeyboard";
 import { useTtydTerminal } from "./useTtydTerminal";
 
-type CopyFeedback = { tone: "success"; message: string } | { tone: "error"; message: string };
+type CopyFeedback = { tone: "success" | "error"; message: string };
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
