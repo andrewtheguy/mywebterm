@@ -47,6 +47,7 @@ export interface MobileSelectionState {
 interface UseTtydTerminalOptions {
   wsUrl?: string;
   onTitleChange?: (title: string) => void;
+  experimentalHScroll?: boolean;
 }
 
 interface UseTtydTerminalResult {
@@ -204,7 +205,11 @@ function euclideanDistance(pointA: Point, pointB: Point): number {
   return Math.hypot(pointA.x - pointB.x, pointA.y - pointB.y);
 }
 
-export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions): UseTtydTerminalResult {
+export function useTtydTerminal({
+  wsUrl,
+  onTitleChange,
+  experimentalHScroll,
+}: UseTtydTerminalOptions): UseTtydTerminalResult {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [reconnectToken, setReconnectToken] = useState(0);
@@ -780,7 +785,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
         return;
       }
 
-      const finalCols = Math.max(proposed.cols, MIN_COLS);
+      const finalCols = experimentalHScroll ? Math.max(proposed.cols, MIN_COLS) : proposed.cols;
       const finalRows = proposed.rows;
       const needsOverflow = finalCols > proposed.cols;
 
@@ -962,6 +967,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
     closeSocket,
     container,
     clearScrollGesture,
+    experimentalHScroll,
     mobileTouchSupported,
     sendInputFrame,
     setMobileVisualStateFromRange,
@@ -1013,7 +1019,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
       }
 
       hScrollTouch =
-        container.scrollWidth > container.clientWidth ? { identifier: touch.identifier, lastX: touch.clientX } : null;
+        experimentalHScroll && container.scrollWidth > container.clientWidth
+          ? { identifier: touch.identifier, lastX: touch.clientX }
+          : null;
 
       const point = { x: touch.clientX, y: touch.clientY };
       if (shouldPassTouchScroll && selectionRangeRef.current === null) {
@@ -1124,7 +1132,36 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
       emitWheelDelta(lineDelta * cellHeight);
     };
 
-    const onTouchEnd = () => {
+    const onTouchEnd = (event: TouchEvent) => {
+      const pendingTouch = pendingTouchRef.current;
+
+      // xterm.js's Gesture handler calls preventDefault() on the native
+      // touchstart (registered on document, passive:false), which stops the
+      // browser from ever synthesising mousedown/mouseup/click.  Detect
+      // taps here and dispatch synthetic mouse events so xterm.js's own
+      // mousedown handler fires (focus + mouse-mode reporting).
+      if (
+        pendingTouch !== null &&
+        selectionRangeRef.current === null &&
+        euclideanDistance(pendingTouch.latestPoint, pendingTouch.startPoint) < MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX
+      ) {
+        const endedTouch = findTouchById(event.changedTouches, pendingTouch.identifier);
+        if (endedTouch) {
+          const screenEl = container.querySelector(".xterm-screen") as HTMLElement | null;
+          if (screenEl) {
+            const shared: MouseEventInit = {
+              bubbles: true,
+              cancelable: true,
+              clientX: endedTouch.clientX,
+              clientY: endedTouch.clientY,
+              button: 0,
+            };
+            screenEl.dispatchEvent(new MouseEvent("mousedown", { ...shared, buttons: 1 }));
+            screenEl.dispatchEvent(new MouseEvent("mouseup", { ...shared, buttons: 0 }));
+          }
+        }
+      }
+
       clearPendingLongPress(true);
       clearScrollGesture();
       hScrollTouch = null;
@@ -1161,6 +1198,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
     clearScrollGesture,
     container,
     emitWheelDelta,
+    experimentalHScroll,
     getTerminalLayout,
     mobileMouseMode,
     mobileTouchSupported,

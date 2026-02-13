@@ -89,6 +89,7 @@ export function App() {
   } = useTtydTerminal({
     wsUrl: config.wsUrl,
     onTitleChange: handleTitleChange,
+    experimentalHScroll: config.experimentalHScroll,
   });
 
   const appShellRef = useRef<HTMLDivElement>(null);
