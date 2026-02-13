@@ -23,7 +23,7 @@ body,
 #root {
   margin: 0;
   height: 100%;
-  min-height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -39,7 +39,7 @@ body {
 .app-shell {
   height: 100dvh;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 0.9rem;
   padding: 1rem;
   overflow: hidden;
@@ -68,6 +68,9 @@ body {
   margin: 0;
   font-size: clamp(1.2rem, 2vw, 1.6rem);
   letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .brand p {
@@ -90,13 +93,17 @@ body {
   justify-content: flex-end;
 }
 
-.status-pill {
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 999px;
-  padding: 0.28rem 0.75rem;
-  font-size: 0.74rem;
-  letter-spacing: 0.08em;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
   font-weight: 700;
   color: #02141e;
+  flex-shrink: 0;
 }
 
 .status-connected {
@@ -105,6 +112,7 @@ body {
 
 .status-connecting {
   background: var(--status-connecting);
+  animation: pulse-badge 1.2s ease-in-out infinite;
 }
 
 .status-disconnected {
@@ -113,6 +121,22 @@ body {
 
 .status-error {
   background: var(--status-error);
+}
+
+@keyframes pulse-badge {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-connecting {
+    animation: none;
+  }
 }
 
 .toolbar-button {
@@ -213,32 +237,6 @@ body {
 
 .extra-key-button-space {
   min-width: 5.4rem;
-}
-
-.topbar-feedback {
-  width: 100%;
-  display: grid;
-  gap: 0.3rem;
-}
-
-.status-message {
-  margin: 0;
-  color: var(--accent);
-  font-size: 0.92rem;
-}
-
-.copy-feedback {
-  margin: 0.15rem 0 0;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.copy-feedback-success {
-  color: var(--status-connected);
-}
-
-.copy-feedback-error {
-  color: var(--status-error);
 }
 
 .terminal-card {
@@ -371,53 +369,70 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-.pan-widget {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 12;
+.custom-scrollbar {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 14px 16px;
-  background: linear-gradient(to top, rgba(4, 20, 37, 0.88) 0%, rgba(4, 20, 37, 0) 100%);
-  pointer-events: none;
+  padding: 2px 4px;
 }
 
-.pan-widget-track {
+.custom-scrollbar-track {
   position: relative;
-  width: 90%;
+  width: 100%;
   height: 6px;
   border-radius: 3px;
-  background: rgba(106, 232, 206, 0.18);
-  pointer-events: auto;
+  background: rgba(106, 232, 206, 0.12);
 }
 
-.pan-widget-thumb {
+.custom-scrollbar-thumb {
   position: absolute;
   top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 2px solid rgba(106, 232, 206, 0.6);
-  background: rgba(4, 20, 37, 0.92);
+  left: 0;
+  transform: translateY(-50%);
+  height: 6px;
+  min-width: 20px;
+  border-radius: 3px;
+  background: rgba(106, 232, 206, 0.45);
   cursor: grab;
   touch-action: none;
-  pointer-events: auto;
-  padding: 0;
-  transition: left 0.2s ease-out;
+  padding: 8px 0;
+  background-clip: content-box;
+  box-sizing: content-box;
+  margin-top: -8px;
   -webkit-tap-highlight-color: transparent;
 }
 
-.pan-widget-thumb:active {
+.custom-scrollbar-thumb:active {
   cursor: grabbing;
+  background: rgba(106, 232, 206, 0.7);
+  background-clip: content-box;
 }
 
-.pan-widget-thumb-dragging {
-  transition: none;
+.vertical-scrollbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 10px;
+  z-index: 12;
+  pointer-events: none;
+}
+
+.vertical-scrollbar-track {
+  position: relative;
+  width: 6px;
+  height: 100%;
+  margin-left: auto;
+}
+
+.vertical-scrollbar-thumb {
+  position: absolute;
+  width: 6px;
+  min-height: 20px;
+  background: rgba(106, 232, 206, 0.45);
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .error-card {
@@ -491,11 +506,21 @@ body {
 
 @media (max-width: 768px) {
   .app-shell {
-    padding: 0.75rem;
+    padding: 0;
+    gap: 0;
+  }
+
+  .brand-tagline {
+    display: none;
   }
 
   .topbar {
     align-items: flex-start;
+    border: none;
+    border-radius: 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: 0.6rem 0.75rem;
   }
 
   .toolbar {
@@ -509,7 +534,10 @@ body {
   }
 
   .extra-keys-panel {
-    padding: 0.62rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
   }
 
   .extra-key-button {
@@ -523,8 +551,25 @@ body {
     min-width: 4.8rem;
   }
 
+  .terminal-card {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: 0;
+  }
+
   .terminal-stage {
-    min-height: 300px;
+    min-height: 0;
+  }
+
+  .terminal-viewport {
+    border-radius: 0;
+  }
+
+  .terminal-viewport .xterm {
+    padding: 0.15rem 0 0 0.15rem;
   }
 
   .copy-sheet-textarea {

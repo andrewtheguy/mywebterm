@@ -3,13 +3,12 @@ import {
   type TouchEvent as ReactTouchEvent,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
+import { Toaster, toast } from "sonner";
 
-import { loadTtydConfig } from "./config";
-import "./index.css";
+import { loadTtydConfig, type TtydConfig } from "./config";
 import {
   buildSoftKeySequence,
   DEFAULT_SOFT_KEY_MODIFIERS,
@@ -20,8 +19,6 @@ import {
   type SoftModifierName,
 } from "./softKeyboard";
 import { useTtydTerminal } from "./useTtydTerminal";
-
-type CopyFeedback = { tone: "success" | "error"; message: string };
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -45,11 +42,10 @@ function toModifierLabel(modifier: SoftModifierName): string {
 }
 
 export function App() {
-  const config = useMemo(() => loadTtydConfig(), []);
+  const [config, setConfig] = useState<TtydConfig | null>(null);
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
-  const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const [extraKeysOpen, setExtraKeysOpen] = useState(false);
   const [functionKeysOpen, setFunctionKeysOpen] = useState(false);
   const [softKeyModifiers, setSoftKeyModifiers] = useState(() => ({
@@ -58,6 +54,25 @@ export function App() {
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperFocusedRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadTtydConfig()
+      .then((cfg) => {
+        if (!cancelled) {
+          setConfig(cfg);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          console.error("Failed to load configuration:", error);
+          toast.error("Failed to load configuration.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleTitleChange = useCallback((title: string) => {
     if (title.trim().length === 0) {
@@ -69,7 +84,7 @@ export function App() {
   const {
     containerRef,
     connectionStatus,
-    statusMessage,
+    softKeyboardActive,
     reconnect,
     focusSoftKeyboard,
     sendSoftKeySequence,
@@ -86,16 +101,51 @@ export function App() {
     toggleMobileMouseMode,
     horizontalOverflow,
     containerElement,
+    verticalScrollSyncRef,
+    getVerticalScrollState,
   } = useTtydTerminal({
-    wsUrl: config.wsUrl,
+    wsUrl: config?.wsUrl,
     onTitleChange: handleTitleChange,
+    experimentalHScroll: config?.experimentalHScroll,
   });
 
-  const panTrackRef = useRef<HTMLDivElement>(null);
-  const panThumbRef = useRef<HTMLButtonElement>(null);
-  const panDraggingRef = useRef(false);
-  const panStartXRef = useRef(0);
-  const panStartScrollLeftRef = useRef(0);
+  const appShellRef = useRef<HTMLDivElement>(null);
+  const scrollbarTrackRef = useRef<HTMLDivElement>(null);
+  const scrollbarThumbRef = useRef<HTMLDivElement>(null);
+  const scrollbarDraggingRef = useRef(false);
+  const scrollbarDragStartXRef = useRef(0);
+  const scrollbarDragStartScrollLeftRef = useRef(0);
+  const vScrollbarTrackRef = useRef<HTMLDivElement>(null);
+  const vScrollbarThumbRef = useRef<HTMLDivElement>(null);
+  const vScrollbarHideTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) {
+      return;
+    }
+
+    const syncHeight = () => {
+      const shell = appShellRef.current;
+      if (shell) {
+        shell.style.height = `${vv.height}px`;
+      }
+    };
+
+    const onResize = () => {
+      syncHeight();
+      window.scrollTo(0, 0);
+    };
+
+    onResize();
+
+    vv.addEventListener("resize", onResize);
+    vv.addEventListener("scroll", syncHeight);
+    return () => {
+      vv.removeEventListener("resize", onResize);
+      vv.removeEventListener("scroll", syncHeight);
+    };
+  }, []);
 
   useEffect(() => {
     document.title = remoteTitle ? `${remoteTitle} | MyWebTerm` : "MyWebTerm";
@@ -124,20 +174,6 @@ export function App() {
     pasteHelperRef.current.setSelectionRange(pasteHelperText.length, pasteHelperText.length);
     pasteHelperFocusedRef.current = true;
   }, [pasteHelperText]);
-
-  useEffect(() => {
-    if (!copyFeedback) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      setCopyFeedback(null);
-    }, 2600);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [copyFeedback]);
 
   useEffect(() => {
     if (extraKeysOpen) {
@@ -176,16 +212,10 @@ export function App() {
   const handleCopySelection = useCallback(async (): Promise<boolean> => {
     try {
       await copySelection();
-      setCopyFeedback({
-        tone: "success",
-        message: "Selection copied.",
-      });
+      toast.success("Selection copied.");
       return true;
     } catch (error) {
-      setCopyFeedback({
-        tone: "error",
-        message: toErrorMessage(error),
-      });
+      toast.error(toErrorMessage(error));
       return false;
     }
   }, [copySelection]);
@@ -193,22 +223,24 @@ export function App() {
   const handleCopyRecentOutput = useCallback(async () => {
     try {
       await copyRecentOutput();
-      setCopyFeedback({
-        tone: "success",
-        message: "Recent output copied.",
-      });
+      toast.success("Recent output copied.");
     } catch (error) {
-      setCopyFeedback({
-        tone: "error",
-        message: toErrorMessage(error),
-      });
+      toast.error(toErrorMessage(error));
     }
   }, [copyRecentOutput]);
 
   const handleToolbarPaste = useCallback(async () => {
     const result = await attemptPasteFromClipboard();
-    if (result === "fallback-required") {
+    if (result === "pasted") {
+      toast.success("Pasted from clipboard.");
+    } else if (result === "fallback-required") {
       openPasteHelper();
+    } else if (result === "empty") {
+      toast.error("Clipboard is empty.");
+    } else if (result === "wrong-mode") {
+      toast.error("Switch to Mode: Native to paste.");
+    } else if (result === "terminal-unavailable") {
+      toast.error("Terminal not ready.");
     }
   }, [attemptPasteFromClipboard, openPasteHelper]);
 
@@ -218,6 +250,7 @@ export function App() {
     }
     const pasted = pasteTextIntoTerminal(pasteHelperText);
     if (pasted) {
+      toast.success("Pasted text.");
       closePasteHelper();
     }
   }, [closePasteHelper, pasteHelperText, pasteTextIntoTerminal]);
@@ -243,10 +276,7 @@ export function App() {
       if (sequence.ok) {
         sendSoftKeySequence(sequence.sequence, sequence.description);
       } else {
-        setCopyFeedback({
-          tone: "error",
-          message: `${sequence.description}: ${sequence.reason}.`,
-        });
+        toast.error(`${sequence.description}: ${sequence.reason}.`);
       }
       clearSoftModifiers();
     },
@@ -341,59 +371,143 @@ export function App() {
     setActiveHandle(null);
   }, [clearMobileSelection, handleCopySelection, setActiveHandle]);
 
-  const handlePanPointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
+  const syncScrollbarThumb = useCallback(() => {
+    const track = scrollbarTrackRef.current;
+    const thumb = scrollbarThumbRef.current;
+    const viewport = containerElement;
+    if (!track || !thumb || !viewport) {
+      return;
+    }
+
+    const scrollWidth = viewport.scrollWidth;
+    const clientWidth = viewport.clientWidth;
+    if (scrollWidth <= clientWidth) {
+      return;
+    }
+
+    const trackWidth = track.clientWidth;
+    const thumbWidth = Math.max(20, (clientWidth / scrollWidth) * trackWidth);
+    const maxScrollLeft = scrollWidth - clientWidth;
+    const scrollRatio = maxScrollLeft > 0 ? viewport.scrollLeft / maxScrollLeft : 0;
+    const maxThumbLeft = trackWidth - thumbWidth;
+
+    thumb.style.width = `${thumbWidth}px`;
+    thumb.style.left = `${scrollRatio * maxThumbLeft}px`;
+  }, [containerElement]);
+
+  useEffect(() => {
+    const viewport = containerElement;
+    if (!viewport || !horizontalOverflow) {
+      return;
+    }
+
+    syncScrollbarThumb();
+    viewport.addEventListener("scroll", syncScrollbarThumb);
+    return () => viewport.removeEventListener("scroll", syncScrollbarThumb);
+  }, [containerElement, horizontalOverflow, syncScrollbarThumb]);
+
+  const syncVerticalScrollbarThumb = useCallback(() => {
+    const track = vScrollbarTrackRef.current;
+    const thumb = vScrollbarThumbRef.current;
+    if (!track || !thumb) {
+      return;
+    }
+
+    const state = getVerticalScrollState();
+    if (!state || state.baseY <= 0) {
+      thumb.style.opacity = "0";
+      return;
+    }
+
+    const trackHeight = track.clientHeight;
+    const totalLines = state.baseY + state.rows;
+    const thumbHeight = Math.max(20, (state.rows / totalLines) * trackHeight);
+    const maxThumbTop = trackHeight - thumbHeight;
+    const thumbTop = (state.viewportY / state.baseY) * maxThumbTop;
+
+    thumb.style.height = `${thumbHeight}px`;
+    thumb.style.top = `${thumbTop}px`;
+    thumb.style.opacity = "1";
+
+    if (vScrollbarHideTimerRef.current !== null) {
+      window.clearTimeout(vScrollbarHideTimerRef.current);
+    }
+    vScrollbarHideTimerRef.current = window.setTimeout(() => {
+      thumb.style.opacity = "0";
+      vScrollbarHideTimerRef.current = null;
+    }, 1000);
+  }, [getVerticalScrollState]);
+
+  useEffect(() => {
+    if (!mobileSelectionState.enabled) {
+      return;
+    }
+
+    verticalScrollSyncRef.current = syncVerticalScrollbarThumb;
+    syncVerticalScrollbarThumb();
+
+    return () => {
+      verticalScrollSyncRef.current = null;
+      if (vScrollbarHideTimerRef.current !== null) {
+        window.clearTimeout(vScrollbarHideTimerRef.current);
+        vScrollbarHideTimerRef.current = null;
+      }
+    };
+  }, [mobileSelectionState.enabled, syncVerticalScrollbarThumb, verticalScrollSyncRef]);
+
+  const handleScrollbarPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
       event.currentTarget.setPointerCapture(event.pointerId);
-      panDraggingRef.current = true;
-      panStartXRef.current = event.clientX;
-      panStartScrollLeftRef.current = containerElement?.scrollLeft ?? 0;
-      panThumbRef.current?.classList.add("pan-widget-thumb-dragging");
+      scrollbarDraggingRef.current = true;
+      scrollbarDragStartXRef.current = event.clientX;
+      scrollbarDragStartScrollLeftRef.current = containerElement?.scrollLeft ?? 0;
     },
     [containerElement],
   );
 
-  const handlePanPointerMove = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (!panDraggingRef.current) {
+  const handleScrollbarPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!scrollbarDraggingRef.current) {
         return;
       }
       event.preventDefault();
 
-      const deltaX = event.clientX - panStartXRef.current;
-      const track = panTrackRef.current;
-      const thumb = panThumbRef.current;
+      const track = scrollbarTrackRef.current;
+      const thumb = scrollbarThumbRef.current;
       const viewport = containerElement;
       if (!track || !thumb || !viewport) {
         return;
       }
 
-      const trackHalf = track.clientWidth / 2;
-      const thumbHalf = thumb.clientWidth / 2;
-      const maxThumbOffset = trackHalf - thumbHalf;
-      const clampedOffset = Math.max(-maxThumbOffset, Math.min(maxThumbOffset, deltaX));
+      const scrollWidth = viewport.scrollWidth;
+      const clientWidth = viewport.clientWidth;
+      const maxScrollLeft = scrollWidth - clientWidth;
+      if (maxScrollLeft <= 0) {
+        return;
+      }
 
-      thumb.style.left = `calc(50% + ${clampedOffset}px)`;
+      const trackWidth = track.clientWidth;
+      const thumbWidth = thumb.clientWidth;
+      const maxThumbTravel = trackWidth - thumbWidth;
+      if (maxThumbTravel <= 0) {
+        return;
+      }
 
-      const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth;
-      const scaleFactor = maxThumbOffset > 0 ? maxScrollLeft / maxThumbOffset : 0;
-      viewport.scrollLeft = panStartScrollLeftRef.current - clampedOffset * scaleFactor;
+      const deltaX = event.clientX - scrollbarDragStartXRef.current;
+      const scaleFactor = maxScrollLeft / maxThumbTravel;
+      viewport.scrollLeft = scrollbarDragStartScrollLeftRef.current + deltaX * scaleFactor;
     },
     [containerElement],
   );
 
-  const handlePanPointerUp = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!panDraggingRef.current) {
+  const handleScrollbarPointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!scrollbarDraggingRef.current) {
       return;
     }
     event.preventDefault();
-    panDraggingRef.current = false;
-    const thumb = panThumbRef.current;
-    if (thumb) {
-      thumb.classList.remove("pan-widget-thumb-dragging");
-      thumb.style.left = "50%";
-    }
+    scrollbarDraggingRef.current = false;
   }, []);
 
   const mobileSelectionOverlay =
@@ -410,14 +524,30 @@ export function App() {
       : null;
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" ref={appShellRef}>
       <header className="topbar">
         <div className="brand">
-          <h1>MyWebTerm</h1>
-          <p>Web terminal powered by Bun PTY</p>
+          <h1>
+            MyWebTerm
+            <span
+              className={`status-badge status-${connectionStatus}`}
+              role="status"
+              aria-label={
+                connectionStatus === "connected"
+                  ? "Connected"
+                  : connectionStatus === "connecting"
+                    ? "Connecting"
+                    : connectionStatus === "error"
+                      ? "Error"
+                      : "Disconnected"
+              }
+            >
+              {connectionStatus === "connecting" ? "..." : connectionStatus}
+            </span>
+          </h1>
+          <p className="brand-tagline">Web terminal powered by Bun PTY</p>
         </div>
         <div className="toolbar">
-          <span className={`status-pill status-${connectionStatus}`}>{connectionStatus.toUpperCase()}</span>
           <div className="toolbar-actions">
             <button type="button" className="toolbar-button" onClick={() => void handleCopySelection()}>
               Copy Selection
@@ -425,8 +555,15 @@ export function App() {
             <button type="button" className="toolbar-button" onClick={() => void handleCopyRecentOutput()}>
               Copy Recent
             </button>
-            <button type="button" className="toolbar-button" onClick={focusSoftKeyboard}>
-              Keyboard
+            <button
+              type="button"
+              className={`toolbar-button ${softKeyboardActive ? "toolbar-button-active" : ""}`}
+              onMouseDown={(e) => e.preventDefault()}
+              onTouchStart={(e) => e.preventDefault()}
+              onClick={focusSoftKeyboard}
+              aria-pressed={softKeyboardActive}
+            >
+              {softKeyboardActive ? "Hide KB" : "Keyboard"}
             </button>
             <button
               type="button"
@@ -453,9 +590,12 @@ export function App() {
             )}
             <button
               type="button"
-              className="toolbar-button"
-              onClick={toggleMobileMouseMode}
+              className={`toolbar-button ${mobileMouseMode === "passToTerminal" ? "toolbar-button-active" : ""}`}
+              onClick={() => {
+                toggleMobileMouseMode();
+              }}
               disabled={!mobileSelectionState.enabled}
+              aria-pressed={mobileMouseMode === "passToTerminal"}
               title={
                 mobileMouseMode === "passToTerminal"
                   ? "Current mode: App. Tap to switch touch scrolling back to Native."
@@ -467,14 +607,28 @@ export function App() {
             <button type="button" className="toolbar-button" onClick={openSelectableText}>
               Select Text
             </button>
-            <button
-              type="button"
-              className="toolbar-button reconnect-button"
-              onClick={reconnect}
-              disabled={connectionStatus === "connecting"}
-            >
-              Reconnect
-            </button>
+            {connectionStatus === "connected" ? (
+              <button
+                type="button"
+                className="toolbar-button"
+                onClick={() => {
+                  if (window.confirm("Restart terminal session?")) {
+                    reconnect();
+                  }
+                }}
+              >
+                Restart
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="toolbar-button reconnect-button"
+                onClick={reconnect}
+                disabled={connectionStatus === "connecting"}
+              >
+                Reconnect
+              </button>
+            )}
           </div>
         </div>
         {extraKeysOpen && (
@@ -546,17 +700,6 @@ export function App() {
               </div>
             )}
           </section>
-        )}
-
-        {(statusMessage || copyFeedback !== null) && (
-          <div className="topbar-feedback">
-            {statusMessage && <p className="status-message">{statusMessage}</p>}
-            {copyFeedback !== null && (
-              <p className={`copy-feedback copy-feedback-${copyFeedback.tone}`} role="status" aria-live="polite">
-                {copyFeedback.message}
-              </p>
-            )}
-          </div>
         )}
       </header>
 
@@ -630,25 +773,31 @@ export function App() {
             </div>
           )}
 
-          {horizontalOverflow && (
-            <div className="pan-widget">
-              <div className="pan-widget-track" ref={panTrackRef}>
-                <button
-                  type="button"
-                  className="pan-widget-thumb"
-                  ref={panThumbRef}
-                  onPointerDown={handlePanPointerDown}
-                  onPointerMove={handlePanPointerMove}
-                  onPointerUp={handlePanPointerUp}
-                  onPointerCancel={handlePanPointerUp}
-                  onLostPointerCapture={handlePanPointerUp}
-                  aria-label="Pan terminal horizontally"
-                />
+          {mobileSelectionState.enabled && (
+            <div className="vertical-scrollbar">
+              <div className="vertical-scrollbar-track" ref={vScrollbarTrackRef}>
+                <div className="vertical-scrollbar-thumb" ref={vScrollbarThumbRef} />
               </div>
             </div>
           )}
         </div>
       </main>
+
+      {horizontalOverflow && (
+        <div className="custom-scrollbar">
+          <div className="custom-scrollbar-track" ref={scrollbarTrackRef}>
+            <div
+              className="custom-scrollbar-thumb"
+              ref={scrollbarThumbRef}
+              onPointerDown={handleScrollbarPointerDown}
+              onPointerMove={handleScrollbarPointerMove}
+              onPointerUp={handleScrollbarPointerUp}
+              onPointerCancel={handleScrollbarPointerUp}
+              onLostPointerCapture={handleScrollbarPointerUp}
+            />
+          </div>
+        </div>
+      )}
 
       {selectableText !== null && (
         <section className="copy-sheet" aria-label="Selectable terminal text">
@@ -691,6 +840,7 @@ export function App() {
           </div>
         </section>
       )}
+      <Toaster position="top-right" theme="dark" />
     </div>
   );
 }
