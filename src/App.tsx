@@ -84,6 +84,8 @@ export function App() {
     toggleMobileMouseMode,
     horizontalOverflow,
     containerElement,
+    verticalScrollSyncRef,
+    getVerticalScrollState,
   } = useTtydTerminal({
     wsUrl: config.wsUrl,
     onTitleChange: handleTitleChange,
@@ -95,6 +97,8 @@ export function App() {
   const scrollbarDraggingRef = useRef(false);
   const scrollbarDragStartXRef = useRef(0);
   const scrollbarDragStartScrollLeftRef = useRef(0);
+  const vScrollbarTrackRef = useRef<HTMLDivElement>(null);
+  const vScrollbarThumbRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const vv = window.visualViewport;
@@ -382,6 +386,43 @@ export function App() {
     viewport.addEventListener("scroll", syncScrollbarThumb);
     return () => viewport.removeEventListener("scroll", syncScrollbarThumb);
   }, [containerElement, horizontalOverflow, syncScrollbarThumb]);
+
+  const syncVerticalScrollbarThumb = useCallback(() => {
+    const track = vScrollbarTrackRef.current;
+    const thumb = vScrollbarThumbRef.current;
+    if (!track || !thumb) {
+      return;
+    }
+
+    const state = getVerticalScrollState();
+    if (!state || state.baseY <= 0) {
+      thumb.style.display = "none";
+      return;
+    }
+
+    thumb.style.display = "";
+    const trackHeight = track.clientHeight;
+    const totalLines = state.baseY + state.rows;
+    const thumbHeight = Math.max(20, (state.rows / totalLines) * trackHeight);
+    const maxThumbTop = trackHeight - thumbHeight;
+    const thumbTop = state.baseY > 0 ? (state.viewportY / state.baseY) * maxThumbTop : 0;
+
+    thumb.style.height = `${thumbHeight}px`;
+    thumb.style.top = `${thumbTop}px`;
+  }, [getVerticalScrollState]);
+
+  useEffect(() => {
+    if (!mobileSelectionState.enabled) {
+      return;
+    }
+
+    verticalScrollSyncRef.current = syncVerticalScrollbarThumb;
+    syncVerticalScrollbarThumb();
+
+    return () => {
+      verticalScrollSyncRef.current = null;
+    };
+  }, [mobileSelectionState.enabled, syncVerticalScrollbarThumb, verticalScrollSyncRef]);
 
   const handleScrollbarPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -679,6 +720,14 @@ export function App() {
                 <button type="button" className="toolbar-button" onClick={clearMobileSelection}>
                   Clear
                 </button>
+              </div>
+            </div>
+          )}
+
+          {mobileSelectionState.enabled && (
+            <div className="vertical-scrollbar">
+              <div className="vertical-scrollbar-track" ref={vScrollbarTrackRef}>
+                <div className="vertical-scrollbar-thumb" ref={vScrollbarThumbRef} />
               </div>
             </div>
           )}

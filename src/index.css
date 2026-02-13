@@ -403,6 +403,33 @@ body {
   background-clip: content-box;
 }
 
+.vertical-scrollbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 10px;
+  z-index: 12;
+  pointer-events: none;
+}
+
+.vertical-scrollbar-track {
+  position: relative;
+  width: 6px;
+  height: 100%;
+  margin-left: auto;
+  background: rgba(106, 232, 206, 0.08);
+  border-radius: 3px;
+}
+
+.vertical-scrollbar-thumb {
+  position: absolute;
+  width: 6px;
+  min-height: 20px;
+  background: rgba(106, 232, 206, 0.45);
+  border-radius: 3px;
+}
+
 .error-card {
   padding: 1.4rem;
   display: grid;

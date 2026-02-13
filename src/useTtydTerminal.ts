@@ -69,6 +69,8 @@ interface UseTtydTerminalResult {
   toggleMobileMouseMode: () => void;
   horizontalOverflow: boolean;
   containerElement: HTMLDivElement | null;
+  verticalScrollSyncRef: React.MutableRefObject<(() => void) | null>;
+  getVerticalScrollState(): { viewportY: number; baseY: number; rows: number } | null;
 }
 
 const isMobileViewport = typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches;
@@ -237,6 +239,19 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
   const autoScrollLayoutRetryRef = useRef(0);
   const terminalMountedRef = useRef(false);
   const customFitRef = useRef<(() => void) | null>(null);
+  const verticalScrollSyncRef = useRef<(() => void) | null>(null);
+
+  const getVerticalScrollState = useCallback((): { viewportY: number; baseY: number; rows: number } | null => {
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      return null;
+    }
+    return {
+      viewportY: terminal.buffer.active.viewportY,
+      baseY: terminal.buffer.active.baseY,
+      rows: terminal.rows,
+    };
+  }, []);
 
   const getTerminalLayout = useCallback((): TerminalLayout | null => {
     const terminal = terminalRef.current;
@@ -817,6 +832,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
         }
       }),
       terminal.onScroll(() => {
+        verticalScrollSyncRef.current?.();
         const range = selectionRangeRef.current;
         if (!range) {
           return;
@@ -1160,6 +1176,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
       switch (frame.command) {
         case ServerCommand.OUTPUT:
           terminal.write(frame.payload);
+          verticalScrollSyncRef.current?.();
           break;
         case ServerCommand.SET_WINDOW_TITLE:
           onTitleChangeRef.current?.(decoderRef.current.decode(frame.payload));
@@ -1433,5 +1450,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
     toggleMobileMouseMode,
     horizontalOverflow,
     containerElement: container,
+    verticalScrollSyncRef,
+    getVerticalScrollState,
   };
 }
