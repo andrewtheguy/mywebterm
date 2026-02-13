@@ -52,6 +52,7 @@ interface UseTtydTerminalOptions {
 interface UseTtydTerminalResult {
   containerRef: (node: HTMLDivElement | null) => void;
   connectionStatus: ConnectionStatus;
+  softKeyboardActive: boolean;
   reconnect: () => void;
   focusSoftKeyboard: () => void;
   sendSoftKeySequence: (sequence: string, label: string) => boolean;
@@ -213,6 +214,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
     createInitialMobileSelectionState(mobileTouchSupported),
   );
   const [mobileMouseMode, setMobileMouseMode] = useState<MobileMouseMode>("nativeScroll");
+  const [softKeyboardActive, setSoftKeyboardActive] = useState(false);
   const [horizontalOverflow, setHorizontalOverflow] = useState(false);
 
   const terminalRef = useRef<Terminal | null>(null);
@@ -884,7 +886,20 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
     fitAddonRef.current = fitAddon;
     terminalDisposablesRef.current = terminalDisposables;
 
+    const textarea = terminal.textarea;
+    const onTextareaFocus = () => setSoftKeyboardActive(true);
+    const onTextareaBlur = () => setSoftKeyboardActive(false);
+    if (textarea) {
+      textarea.addEventListener("focus", onTextareaFocus);
+      textarea.addEventListener("blur", onTextareaBlur);
+    }
+
     return () => {
+      if (textarea) {
+        textarea.removeEventListener("focus", onTextareaFocus);
+        textarea.removeEventListener("blur", onTextareaBlur);
+      }
+      setSoftKeyboardActive(false);
       terminalMountedRef.current = false;
       closeSocket();
       resizeObserver.disconnect();
@@ -1401,6 +1416,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
   return {
     containerRef,
     connectionStatus,
+    softKeyboardActive,
     reconnect,
     focusSoftKeyboard,
     sendSoftKeySequence,

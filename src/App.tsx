@@ -67,6 +67,7 @@ export function App() {
   const {
     containerRef,
     connectionStatus,
+    softKeyboardActive,
     reconnect,
     focusSoftKeyboard,
     sendSoftKeySequence,
@@ -463,12 +464,13 @@ export function App() {
             </button>
             <button
               type="button"
-              className="toolbar-button"
+              className={`toolbar-button ${softKeyboardActive ? "toolbar-button-active" : ""}`}
               onMouseDown={(e) => e.preventDefault()}
               onTouchStart={(e) => e.preventDefault()}
               onClick={focusSoftKeyboard}
+              aria-pressed={softKeyboardActive}
             >
-              Keyboard
+              {softKeyboardActive ? "Hide KB" : "Keyboard"}
             </button>
             <button
               type="button"
@@ -495,7 +497,7 @@ export function App() {
             )}
             <button
               type="button"
-              className="toolbar-button"
+              className={`toolbar-button ${mobileMouseMode === "passToTerminal" ? "toolbar-button-active" : ""}`}
               onClick={() => {
                 const nextMode = mobileMouseMode === "nativeScroll" ? "passToTerminal" : "nativeScroll";
                 toggleMobileMouseMode();
@@ -506,6 +508,7 @@ export function App() {
                 );
               }}
               disabled={!mobileSelectionState.enabled}
+              aria-pressed={mobileMouseMode === "passToTerminal"}
               title={
                 mobileMouseMode === "passToTerminal"
                   ? "Current mode: App. Tap to switch touch scrolling back to Native."
