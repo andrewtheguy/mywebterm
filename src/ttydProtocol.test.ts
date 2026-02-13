@@ -32,15 +32,19 @@ describe("ttydProtocol", () => {
     });
   });
 
-  test("decodes output/title/preferences commands", () => {
+  test("decodes OUTPUT command", () => {
     const outputFrame = decodeFrame(createFrame(ServerCommand.OUTPUT, "echo ok"));
     expect(outputFrame.command).toBe(ServerCommand.OUTPUT);
     expect(decoder.decode(outputFrame.payload)).toBe("echo ok");
+  });
 
+  test("decodes SET_WINDOW_TITLE command", () => {
     const titleFrame = decodeFrame(createFrame(ServerCommand.SET_WINDOW_TITLE, "bash"));
     expect(titleFrame.command).toBe(ServerCommand.SET_WINDOW_TITLE);
     expect(decoder.decode(titleFrame.payload)).toBe("bash");
+  });
 
+  test("decodes SET_PREFERENCES command", () => {
     const preferencesFrame = decodeFrame(createFrame(ServerCommand.SET_PREFERENCES, '{"theme":"dark"}'));
     expect(preferencesFrame.command).toBe(ServerCommand.SET_PREFERENCES);
     expect(decoder.decode(preferencesFrame.payload)).toBe('{"theme":"dark"}');
@@ -52,5 +56,21 @@ describe("ttydProtocol", () => {
       columns: 100,
       rows: 33,
     });
+  });
+
+  test("normalizes handshake dimensions to positive integers", () => {
+    const handshake = buildHandshake(100.9, 33.2);
+    expect(JSON.parse(handshake)).toEqual({
+      columns: 100,
+      rows: 33,
+    });
+  });
+
+  test("throws when handshake dimensions are not finite positive numbers", () => {
+    expect(() => buildHandshake(0, 10)).toThrow(TypeError);
+    expect(() => buildHandshake(-1, 10)).toThrow(TypeError);
+    expect(() => buildHandshake(Number.NaN, 10)).toThrow(TypeError);
+    expect(() => buildHandshake(Number.POSITIVE_INFINITY, 10)).toThrow(TypeError);
+    expect(() => buildHandshake(10, 0)).toThrow(TypeError);
   });
 });

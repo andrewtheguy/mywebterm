@@ -36,7 +36,9 @@ export function App() {
         <main className="error-card">
           <h2>Configuration Error</h2>
           <p>{configResult.error}</p>
-          <p>Start with: `BUN_PUBLIC_TTYD_BASE_URL=http://127.0.0.1:7681 bun dev`</p>
+          <p>
+            Start with: <code>BUN_PUBLIC_TTYD_BASE_URL=http://127.0.0.1:7681 bun dev</code>
+          </p>
         </main>
       </div>
     );

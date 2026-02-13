@@ -23,8 +23,23 @@ function encodePrefixedPayload(command: string, payload: Uint8Array): Uint8Array
   return prefixed;
 }
 
+function normalizeHandshakeDimension(name: "columns" | "rows", value: number): number {
+  if (!Number.isFinite(value)) {
+    throw new TypeError(`Invalid ${name}: expected a finite number, got ${value}.`);
+  }
+
+  if (value <= 0) {
+    throw new TypeError(`Invalid ${name}: expected a positive number, got ${value}.`);
+  }
+
+  return Math.max(1, Math.floor(value));
+}
+
 export function buildHandshake(columns: number, rows: number): string {
-  return JSON.stringify({ columns, rows });
+  // Contract: ttyd handshake dimensions must be finite, positive integers.
+  const normalizedColumns = normalizeHandshakeDimension("columns", columns);
+  const normalizedRows = normalizeHandshakeDimension("rows", rows);
+  return JSON.stringify({ columns: normalizedColumns, rows: normalizedRows });
 }
 
 export function encodeInput(data: string | Uint8Array): Uint8Array {
