@@ -224,6 +224,10 @@ body {
   touch-action: pan-y;
 }
 
+.terminal-viewport-pass-through {
+  touch-action: none;
+}
+
 .terminal-viewport .xterm {
   height: 100%;
   padding: 0.5rem;

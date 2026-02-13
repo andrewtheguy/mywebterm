@@ -48,9 +48,11 @@ export function App() {
     copyRecentOutput,
     getSelectableText,
     mobileSelectionState,
+    mobileMouseMode,
     clearMobileSelection,
     setActiveHandle,
     updateActiveHandleFromClientPoint,
+    toggleMobileMouseMode,
   } = useTtydTerminal({
     wsUrl: config.wsUrl,
     onTitleChange: handleTitleChange,
@@ -235,6 +237,14 @@ export function App() {
             <button type="button" className="toolbar-button" onClick={focusSoftKeyboard}>
               Keyboard
             </button>
+            <button
+              type="button"
+              className="toolbar-button"
+              onClick={toggleMobileMouseMode}
+              disabled={!mobileSelectionState.enabled}
+            >
+              {mobileMouseMode === "passToTerminal" ? "Mouse: App" : "Mouse: Native"}
+            </button>
             <button type="button" className="toolbar-button" onClick={openSelectableText}>
               Select Text
             </button>
@@ -269,7 +279,10 @@ export function App() {
 
       <main className="terminal-card">
         <div className="terminal-stage">
-          <div ref={containerRef} className="terminal-viewport" />
+          <div
+            ref={containerRef}
+            className={`terminal-viewport ${mobileMouseMode === "passToTerminal" ? "terminal-viewport-pass-through" : ""}`}
+          />
 
           {hasMobileSelectionOverlay && (
             <div className="mobile-selection-overlay">
