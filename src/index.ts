@@ -1,6 +1,22 @@
+import { parseArgs } from "util";
 import { serve, type Server, type ServerWebSocket } from "bun";
 import index from "./index.html";
 import { ClientCommand, decodeFrame } from "./ttydProtocol";
+
+declare const BUILD_VERSION: string;
+const VERSION = typeof BUILD_VERSION !== "undefined" ? BUILD_VERSION : "dev";
+
+const { values } = parseArgs({
+  options: {
+    version: { type: "boolean", short: "v" },
+  },
+  strict: false,
+});
+
+if (values.version) {
+  console.log(`mywebterm ${VERSION}`);
+  process.exit(0);
+}
 
 interface PtySessionData {
   connectionId: string;

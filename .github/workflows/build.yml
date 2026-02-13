@@ -1,0 +1,72 @@
+name: Build Standalone Binaries
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  create-prerelease:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: tag
+        run: echo "tag=dev-$(date -u +'%Y%m%d%H%M%S')" >> "$GITHUB_OUTPUT"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          prerelease: true
+          generate_release_notes: true
+
+  build:
+    needs: [create-prerelease]
+    if: always() && (needs.create-prerelease.result == 'success' || needs.create-prerelease.result == 'skipped')
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            artifact: mywebterm-linux-amd64
+          - runner: ubuntu-24.04-arm
+            artifact: mywebterm-linux-arm64
+          - runner: macos-latest
+            artifact: mywebterm-darwin-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install
+
+      - name: Compile standalone binary
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="${{ needs.create-prerelease.outputs.tag }}"
+          fi
+          bun build --compile src/index.ts --outfile ${{ matrix.artifact }} --define "BUILD_VERSION='\"$VERSION\"'"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+      - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'release'
+        with:
+          files: ${{ matrix.artifact }}
+
+      - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ needs.create-prerelease.outputs.tag }}
+          files: ${{ matrix.artifact }}
