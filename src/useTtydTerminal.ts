@@ -1209,18 +1209,16 @@ export function useTtydTerminal({
       return;
     }
 
+    const nextMode: MobileMouseMode =
+      mobileMouseMode === "nativeScroll" ? "passToTerminal" : "nativeScroll";
     clearScrollGesture();
-    setMobileMouseMode(previous => {
-      const nextMode: MobileMouseMode =
-        previous === "nativeScroll" ? "passToTerminal" : "nativeScroll";
-      setStatusMessage(
-        nextMode === "passToTerminal"
-          ? "Touch scroll now sends wheel events to remote apps."
-          : "Touch scroll now uses terminal scrollback.",
-      );
-      return nextMode;
-    });
-  }, [clearScrollGesture, mobileTouchSupported]);
+    setMobileMouseMode(nextMode);
+    setStatusMessage(
+      nextMode === "passToTerminal"
+        ? "Touch scroll now sends wheel events to remote apps."
+        : "Touch scroll now uses terminal scrollback.",
+    );
+  }, [clearScrollGesture, mobileMouseMode, mobileTouchSupported]);
 
   const copySelection = useCallback(async () => {
     const terminal = terminalRef.current;
