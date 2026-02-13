@@ -967,7 +967,6 @@ export function App() {
                         )}
                         {rowIndex === 4 && (
                           <>
-                            <div className="extra-key-spacer" style={{ flex: 1 }} />
                             <button
                               type="button"
                               className="toolbar-button extra-key-button extra-key-arrow"

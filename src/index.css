@@ -330,6 +330,7 @@ body {
 }
 
 .extra-key-button-space {
+  flex: 1;
   min-width: 8rem;
 }
 
