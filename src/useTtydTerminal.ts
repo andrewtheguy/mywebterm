@@ -130,6 +130,8 @@ export function useTtydTerminal({
 
     const terminal = terminalRef.current;
     if (!terminal) {
+      setConnectionStatus("disconnected");
+      setStatusMessage("Initializing terminal.");
       return;
     }
 
@@ -218,7 +220,7 @@ export function useTtydTerminal({
         closeSocket();
       }
     };
-  }, [wsUrl, reconnectToken, closeSocket, onTitleChange]);
+  }, [wsUrl, reconnectToken, closeSocket, onTitleChange, container]);
 
   const reconnect = useCallback(() => {
     if (!wsUrl) {
