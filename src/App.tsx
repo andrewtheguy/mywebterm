@@ -279,7 +279,6 @@ export function App() {
     }
   }, [closePasteHelper, pasteHelperText, pasteTextIntoTerminal]);
 
-
   const toggleSoftModifier = useCallback((modifier: SoftModifierName) => {
     setSoftKeyModifiers((previous) => ({
       ...previous,
