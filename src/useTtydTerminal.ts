@@ -1042,17 +1042,19 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
         window.clearTimeout(longPressTimerRef.current);
       }
 
-      longPressTimerRef.current = window.setTimeout(() => {
-        const pendingTouch = pendingTouchRef.current;
-        pendingTouchRef.current = null;
-        longPressTimerRef.current = null;
+      if (!shouldPassTouchScroll) {
+        longPressTimerRef.current = window.setTimeout(() => {
+          const pendingTouch = pendingTouchRef.current;
+          pendingTouchRef.current = null;
+          longPressTimerRef.current = null;
 
-        if (!pendingTouch) {
-          return;
-        }
+          if (!pendingTouch) {
+            return;
+          }
 
-        startWordSelectionFromPoint(pendingTouch.latestPoint);
-      }, MOBILE_LONG_PRESS_MS);
+          startWordSelectionFromPoint(pendingTouch.latestPoint);
+        }, MOBILE_LONG_PRESS_MS);
+      }
     };
 
     const onTouchMove = (event: TouchEvent) => {
