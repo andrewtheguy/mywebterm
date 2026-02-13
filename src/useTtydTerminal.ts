@@ -56,7 +56,8 @@ interface UseTtydTerminalResult {
   softKeyboardActive: boolean;
   reconnect: () => void;
   focusSoftKeyboard: () => void;
-  sendSoftKeySequence: (sequence: string, label: string) => boolean;
+  sendSoftKeySequence: (sequence: string, label: string, skipFocus?: boolean) => boolean;
+  blurTerminalInput: () => void;
   attemptPasteFromClipboard: () => Promise<PasteResult>;
   pasteTextIntoTerminal: (text: string) => boolean;
   copySelection: () => Promise<void>;
@@ -1352,6 +1353,13 @@ export function useTtydTerminal({
     return true;
   }, []);
 
+  const blurTerminalInput = useCallback(() => {
+    const input = terminalRef.current?.textarea;
+    if (input && document.activeElement === input) {
+      input.blur();
+    }
+  }, []);
+
   const focusSoftKeyboard = useCallback(() => {
     const terminal = terminalRef.current;
     if (!terminal) {
@@ -1373,7 +1381,7 @@ export function useTtydTerminal({
   }, [focusTerminalInput]);
 
   const sendSoftKeySequence = useCallback(
-    (sequence: string, label: string): boolean => {
+    (sequence: string, label: string, skipFocus?: boolean): boolean => {
       if (!terminalRef.current) {
         toast.error("Terminal not ready for key send.", { id: "key-sequence" });
         return false;
@@ -1384,7 +1392,9 @@ export function useTtydTerminal({
         return false;
       }
 
-      focusTerminalInput();
+      if (!skipFocus) {
+        focusTerminalInput();
+      }
       const sent = sendInputFrame(sequence);
       if (!sent) {
         toast.error("Not connected. Reconnect before sending keys.", { id: "key-sequence" });
@@ -1510,6 +1520,7 @@ export function useTtydTerminal({
     reconnect,
     focusSoftKeyboard,
     sendSoftKeySequence,
+    blurTerminalInput,
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
     copySelection,
