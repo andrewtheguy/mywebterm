@@ -1,22 +1,77 @@
-import { APITester } from "./APITester";
-import "./index.css";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import logo from "./logo.svg";
-import reactLogo from "./react.svg";
+import { loadTtydConfig } from "./config";
+import "./index.css";
+import { useTtydTerminal } from "./useTtydTerminal";
 
 export function App() {
-  return (
-    <div className="app">
-      <div className="logo-container">
-        <img src={logo} alt="Bun Logo" className="logo bun-logo" />
-        <img src={reactLogo} alt="React Logo" className="logo react-logo" />
-      </div>
+  const configResult = useMemo(() => loadTtydConfig(), []);
+  const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
 
-      <h1>Bun + React</h1>
-      <p>
-        Edit <code>src/App.tsx</code> and save to test HMR
-      </p>
-      <APITester />
+  const handleTitleChange = useCallback((title: string) => {
+    if (title.trim().length === 0) {
+      return;
+    }
+    setRemoteTitle(title);
+  }, []);
+
+  const { containerRef, connectionStatus, statusMessage, reconnect } = useTtydTerminal({
+    wsUrl: configResult.ok ? configResult.config.wsUrl : undefined,
+    onTitleChange: handleTitleChange,
+  });
+
+  useEffect(() => {
+    document.title = remoteTitle ? `${remoteTitle} | myttyd` : "myttyd";
+  }, [remoteTitle]);
+
+  if (!configResult.ok) {
+    return (
+      <div className="app-shell">
+        <header className="topbar">
+          <div className="brand">
+            <h1>myttyd</h1>
+            <p>Custom xterm.js frontend for ttyd</p>
+          </div>
+        </header>
+        <main className="error-card">
+          <h2>Configuration Error</h2>
+          <p>{configResult.error}</p>
+          <p>Start with: `BUN_PUBLIC_TTYD_BASE_URL=http://127.0.0.1:7681 bun dev`</p>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="brand">
+          <h1>myttyd</h1>
+          <p>Custom xterm.js frontend for ttyd</p>
+        </div>
+        <div className="toolbar">
+          <span className={`status-pill status-${connectionStatus}`}>{connectionStatus.toUpperCase()}</span>
+          <button type="button" className="reconnect-button" onClick={reconnect} disabled={connectionStatus === "connecting"}>
+            Reconnect
+          </button>
+        </div>
+      </header>
+
+      <section className="endpoint-card">
+        <div className="endpoint-row">
+          <span>ttyd HTTP</span>
+          <code>{configResult.config.baseUrl}</code>
+        </div>
+        <div className="endpoint-row">
+          <span>ttyd WS</span>
+          <code>{configResult.config.wsUrl}</code>
+        </div>
+        <p className="status-message">{statusMessage}</p>
+      </section>
+
+      <main className="terminal-card">
+        <div ref={containerRef} className="terminal-viewport" />
+      </main>
     </div>
   );
 }
