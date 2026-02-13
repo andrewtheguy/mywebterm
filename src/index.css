@@ -184,6 +184,44 @@ body {
   cursor: wait;
 }
 
+.overflow-menu {
+  position: relative;
+  margin-left: auto;
+}
+
+.overflow-menu-trigger {
+  min-width: 2rem;
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 0.3rem 0.35rem;
+  border: none;
+  background: transparent;
+  color: var(--muted-ink);
+}
+
+.overflow-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.45rem;
+  z-index: 20;
+  border-radius: 12px;
+  border: 1px solid rgba(172, 255, 236, 0.36);
+  background: rgba(4, 18, 31, 0.94);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  min-width: 10rem;
+}
+
+.overflow-menu-item {
+  width: 100%;
+  text-align: left;
+  border-radius: 8px;
+}
+
 .extra-keys-panel {
   width: 100%;
   display: grid;
@@ -531,6 +569,14 @@ body {
   .toolbar-actions {
     width: 100%;
     justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 0.3rem;
+  }
+
+  .toolbar-actions > .toolbar-button {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
   }
 
   .extra-keys-panel {
