@@ -1178,7 +1178,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
       customFitRef.current?.();
       terminal.focus();
       setConnectionStatus("connected");
-      toast.success("Connected.", { id: "connection-status" });
+      toast.dismiss("connection-status");
     };
 
     socket.onmessage = (event) => {

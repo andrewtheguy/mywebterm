@@ -450,11 +450,13 @@ export function App() {
     <div className="app-shell" ref={appShellRef}>
       <header className="topbar">
         <div className="brand">
-          <h1>MyWebTerm</h1>
+          <h1>
+            MyWebTerm
+            <span className={`status-pill status-${connectionStatus}`}>{connectionStatus.toUpperCase()}</span>
+          </h1>
           <p>Web terminal powered by Bun PTY</p>
         </div>
         <div className="toolbar">
-          <span className={`status-pill status-${connectionStatus}`}>{connectionStatus.toUpperCase()}</span>
           <div className="toolbar-actions">
             <button type="button" className="toolbar-button" onClick={() => void handleCopySelection()}>
               Copy Selection
@@ -520,14 +522,16 @@ export function App() {
             <button type="button" className="toolbar-button" onClick={openSelectableText}>
               Select Text
             </button>
-            <button
-              type="button"
-              className="toolbar-button reconnect-button"
-              onClick={reconnect}
-              disabled={connectionStatus === "connecting"}
-            >
-              Reconnect
-            </button>
+            {connectionStatus !== "connected" && (
+              <button
+                type="button"
+                className="toolbar-button reconnect-button"
+                onClick={reconnect}
+                disabled={connectionStatus === "connecting"}
+              >
+                Reconnect
+              </button>
+            )}
           </div>
         </div>
         {extraKeysOpen && (

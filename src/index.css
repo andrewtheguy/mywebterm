@@ -68,6 +68,9 @@ body {
   margin: 0;
   font-size: clamp(1.2rem, 2vw, 1.6rem);
   letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .brand p {
