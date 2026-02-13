@@ -7,7 +7,12 @@ function trimTrailingSlash(pathname: string): string {
 
 function joinPath(basePathname: string, proxySuffixPathname: string): string {
   const normalizedBase = trimTrailingSlash(basePathname);
-  const normalizedSuffix = proxySuffixPathname === "" ? "/" : proxySuffixPathname;
+  const normalizedSuffix =
+    proxySuffixPathname === ""
+      ? "/"
+      : proxySuffixPathname.startsWith("/")
+        ? proxySuffixPathname
+        : `/${proxySuffixPathname}`;
 
   if (normalizedBase === "/") {
     return normalizedSuffix;

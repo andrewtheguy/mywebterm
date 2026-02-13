@@ -106,8 +106,12 @@ function proxyUpstreamMessage(connectionId: string, data: unknown): void {
         }
         activeClient.send(buffer);
       })
-      .catch(() => {
-        // Ignore malformed frames.
+      .catch(error => {
+        // Ignore malformed frames, but keep debug visibility for proxy troubleshooting.
+        console.debug("Failed to forward upstream Blob frame", {
+          connectionId,
+          error,
+        });
       });
   }
 }
@@ -115,6 +119,36 @@ function proxyUpstreamMessage(connectionId: string, data: unknown): void {
 function createConnectionId(): string {
   nextConnectionId += 1;
   return `${Date.now()}-${nextConnectionId}`;
+}
+
+function describeReadyState(readyState: number): "CONNECTING" | "OPEN" | "CLOSING" | "CLOSED" | "UNKNOWN" {
+  switch (readyState) {
+    case WebSocket.CONNECTING:
+      return "CONNECTING";
+    case WebSocket.OPEN:
+      return "OPEN";
+    case WebSocket.CLOSING:
+      return "CLOSING";
+    case WebSocket.CLOSED:
+      return "CLOSED";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+function describeMessagePayload(message: string | Buffer): Record<string, number | string> {
+  if (typeof message === "string") {
+    return {
+      type: "string",
+      length: message.length,
+      preview: message.slice(0, 120),
+    };
+  }
+
+  return {
+    type: "buffer",
+    length: message.byteLength,
+  };
 }
 
 function openUpstreamSocket(connectionId: string, upstreamWsUrl: URL): WebSocket {
@@ -238,6 +272,12 @@ const server = serve<ProxySocketData>({
     message(ws, message) {
       const upstreamSocket = upstreamSockets.get(ws.data.connectionId);
       if (!upstreamSocket) {
+        console.warn("Dropping client message because upstream socket is missing", {
+          connectionId: ws.data.connectionId,
+          readyState: "MISSING",
+          message: describeMessagePayload(message),
+        });
+        ws.close(1011, "Upstream WebSocket unavailable");
         return;
       }
 
@@ -250,7 +290,15 @@ const server = serve<ProxySocketData>({
         const queue = pendingClientMessages.get(ws.data.connectionId) ?? [];
         queue.push(message);
         pendingClientMessages.set(ws.data.connectionId, queue);
+        return;
       }
+
+      console.warn("Dropping client message because upstream socket is not writable", {
+        connectionId: ws.data.connectionId,
+        readyState: describeReadyState(upstreamSocket.readyState),
+        message: describeMessagePayload(message),
+      });
+      ws.close(1011, "Upstream WebSocket not writable");
     },
     close(ws) {
       const { upstreamSocket } = removeConnection(ws.data.connectionId);
