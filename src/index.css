@@ -242,8 +242,8 @@ body {
 
 .mobile-selection-handle {
   position: absolute;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: 0;
   background: transparent;
   padding: 0;
@@ -263,7 +263,7 @@ body {
   left: 50%;
   top: 11px;
   transform: translateX(-50%);
-  background: #8fffcb;
+  background: var(--status-connected);
   border-radius: 999px;
 }
 
@@ -275,7 +275,7 @@ body {
   height: 13px;
   transform: translateX(-50%);
   border-radius: 50%;
-  background: #8fffcb;
+  background: var(--status-connected);
   box-shadow: 0 0 0 2px rgba(4, 20, 37, 0.75);
 }
 
@@ -375,10 +375,6 @@ body {
   .toolbar-actions {
     width: 100%;
     justify-content: flex-start;
-  }
-
-  .terminal-viewport {
-    min-height: 300px;
   }
 
   .terminal-stage {

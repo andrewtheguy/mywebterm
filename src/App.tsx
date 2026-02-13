@@ -343,9 +343,6 @@ export function App() {
                 <button type="button" className="toolbar-button" onClick={clearMobileSelection}>
                   Clear
                 </button>
-                <button type="button" className="toolbar-button" onClick={clearMobileSelection}>
-                  Done
-                </button>
               </div>
             </div>
           )}

@@ -126,8 +126,19 @@ export function getWordRangeInLine(
   separators: string,
   maxColumns: number,
 ): { startCol: number; endCol: number } {
-  const maxIndex = Math.max(0, maxColumns - 1);
+  const normalizedMaxColumns = Number.isFinite(maxColumns)
+    ? Math.max(0, Math.floor(maxColumns))
+    : 0;
+  const maxIndex = normalizedMaxColumns > 0 ? normalizedMaxColumns - 1 : 0;
   const safeColumn = clamp(column, 0, maxIndex);
+
+  if (normalizedMaxColumns <= 0) {
+    return {
+      startCol: safeColumn,
+      endCol: safeColumn,
+    };
+  }
+
   if (line.length === 0) {
     return {
       startCol: safeColumn,

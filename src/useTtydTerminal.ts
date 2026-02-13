@@ -95,6 +95,7 @@ const MOBILE_TOOLBAR_SAFE_BOTTOM_PX = 8;
 const MOBILE_TOOLBAR_SIDE_PADDING_PX = 16;
 const MOBILE_HANDLE_SAFE_EDGE_PX = 8;
 const AUTO_SCROLL_LAYOUT_MAX_RETRIES = 24;
+const FALLBACK_PIXELS_PER_LINE = 12;
 
 type TerminalLayout = {
   containerRect: DOMRect;
@@ -289,7 +290,10 @@ export function useTtydTerminal({
         return;
       }
 
-      const fallbackLineDelta = deltaY >= 0 ? Math.floor(deltaY / 12) : Math.ceil(deltaY / 12);
+      const fallbackLineDelta =
+        deltaY >= 0
+          ? Math.floor(deltaY / FALLBACK_PIXELS_PER_LINE)
+          : Math.ceil(deltaY / FALLBACK_PIXELS_PER_LINE);
       if (fallbackLineDelta !== 0) {
         terminal.scrollLines(fallbackLineDelta);
       }
