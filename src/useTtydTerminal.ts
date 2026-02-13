@@ -1161,8 +1161,8 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
         return;
       }
 
-      customFitRef.current?.();
       socket.send(buildHandshake(terminal.cols, terminal.rows));
+      customFitRef.current?.();
       terminal.focus();
       setConnectionStatus("connected");
       setStatusMessage("");

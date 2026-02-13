@@ -378,7 +378,7 @@ export function App() {
 
       const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth;
       const scaleFactor = maxThumbOffset > 0 ? maxScrollLeft / maxThumbOffset : 0;
-      viewport.scrollLeft = panStartScrollLeftRef.current - clampedOffset * scaleFactor;
+      viewport.scrollLeft = panStartScrollLeftRef.current + clampedOffset * scaleFactor;
     },
     [containerElement],
   );
@@ -629,26 +629,26 @@ export function App() {
               </div>
             </div>
           )}
-
-          {horizontalOverflow && (
-            <div className="pan-widget">
-              <div className="pan-widget-track" ref={panTrackRef}>
-                <button
-                  type="button"
-                  className="pan-widget-thumb"
-                  ref={panThumbRef}
-                  onPointerDown={handlePanPointerDown}
-                  onPointerMove={handlePanPointerMove}
-                  onPointerUp={handlePanPointerUp}
-                  onPointerCancel={handlePanPointerUp}
-                  onLostPointerCapture={handlePanPointerUp}
-                  aria-label="Pan terminal horizontally"
-                />
-              </div>
-            </div>
-          )}
         </div>
       </main>
+
+      {horizontalOverflow && (
+        <div className="pan-widget">
+          <div className="pan-widget-track" ref={panTrackRef}>
+            <button
+              type="button"
+              className="pan-widget-thumb"
+              ref={panThumbRef}
+              onPointerDown={handlePanPointerDown}
+              onPointerMove={handlePanPointerMove}
+              onPointerUp={handlePanPointerUp}
+              onPointerCancel={handlePanPointerUp}
+              onLostPointerCapture={handlePanPointerUp}
+              aria-label="Pan terminal horizontally"
+            />
+          </div>
+        </div>
+      )}
 
       {selectableText !== null && (
         <section className="copy-sheet" aria-label="Selectable terminal text">
