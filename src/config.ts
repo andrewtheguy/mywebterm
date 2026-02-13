@@ -3,7 +3,9 @@ export interface TtydConfig {
   wsUrl: string;
 }
 
-export type TtydConfigResult = { ok: true; config: TtydConfig } | { ok: false; error: string };
+export type TtydConfigResult =
+  | { ok: true; config: TtydConfig }
+  | { ok: false; error: string };
 
 const ALLOWED_PROTOCOLS = new Set(["http:", "https:", "ws:", "wss:"]);
 
@@ -26,7 +28,8 @@ export function loadTtydConfig(): TtydConfigResult {
   if (!rawValue) {
     return {
       ok: false,
-      error: "Missing BUN_PUBLIC_TTYD_BASE_URL. Example: BUN_PUBLIC_TTYD_BASE_URL=http://127.0.0.1:7681",
+      error:
+        "Missing BUN_PUBLIC_TTYD_BASE_URL. Example: BUN_PUBLIC_TTYD_BASE_URL=http://127.0.0.1:7681",
     };
   }
 
@@ -63,15 +66,12 @@ export function loadTtydConfig(): TtydConfigResult {
     case "wss:":
       break;
     default:
-      return {
-        ok: false,
-        error: `Unsupported protocol "${wsUrl.protocol}". Use http(s) or ws(s).`,
-      };
+      throw new Error(
+        `Unreachable protocol in wsUrl switch: ${wsUrl.protocol}`,
+      );
   }
 
   wsUrl.pathname = buildPath(parsed.pathname, "ws");
-  wsUrl.search = "";
-  wsUrl.hash = "";
 
   return {
     ok: true,
