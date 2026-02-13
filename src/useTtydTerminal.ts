@@ -58,6 +58,7 @@ interface UseTtydTerminalResult {
   focusSoftKeyboard: () => void;
   sendSoftKeySequence: (sequence: string, label: string, skipFocus?: boolean) => boolean;
   blurTerminalInput: () => void;
+  suppressMobileKeyboard: (suppress: boolean) => void;
   attemptPasteFromClipboard: () => Promise<PasteResult>;
   pasteTextIntoTerminal: (text: string) => boolean;
   copySelection: () => Promise<void>;
@@ -1360,6 +1361,13 @@ export function useTtydTerminal({
     }
   }, []);
 
+  const suppressMobileKeyboard = useCallback((suppress: boolean) => {
+    const textarea = terminalRef.current?.textarea;
+    if (textarea) {
+      textarea.inputMode = suppress ? "none" : "";
+    }
+  }, []);
+
   const focusSoftKeyboard = useCallback(() => {
     const terminal = terminalRef.current;
     if (!terminal) {
@@ -1521,6 +1529,7 @@ export function useTtydTerminal({
     focusSoftKeyboard,
     sendSoftKeySequence,
     blurTerminalInput,
+    suppressMobileKeyboard,
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
     copySelection,

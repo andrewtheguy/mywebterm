@@ -121,6 +121,7 @@ export function App() {
     focusSoftKeyboard,
     sendSoftKeySequence,
     blurTerminalInput,
+    suppressMobileKeyboard,
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
     copySelection,
@@ -212,6 +213,8 @@ export function App() {
   }, [pasteHelperText]);
 
   useEffect(() => {
+    suppressMobileKeyboard(extraKeysOpen);
+
     if (extraKeysOpen) {
       return;
     }
@@ -229,7 +232,7 @@ export function App() {
       repeatIntervalRef.current = null;
     }
     repeatModifiersRef.current = null;
-  }, [extraKeysOpen]);
+  }, [extraKeysOpen, suppressMobileKeyboard]);
 
   const openSelectableText = useCallback(() => {
     const text = getSelectableText();
@@ -628,6 +631,7 @@ export function App() {
                 onTouchStart={(e) => e.preventDefault()}
                 onClick={() => {
                   setExtraKeysOpen(false);
+                  suppressMobileKeyboard(false);
                   focusSoftKeyboard();
                 }}
                 aria-pressed={softKeyboardActive}
