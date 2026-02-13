@@ -18,6 +18,9 @@ interface UseTtydTerminalResult {
   connectionStatus: ConnectionStatus;
   statusMessage: string;
   reconnect: () => void;
+  copySelection: () => Promise<void>;
+  copyRecentOutput: () => Promise<void>;
+  getSelectableText: () => string;
 }
 
 const terminalOptions: ITerminalOptions = {
@@ -33,6 +36,59 @@ const terminalOptions: ITerminalOptions = {
     selectionBackground: "#17416a",
   },
 };
+
+const RECENT_OUTPUT_LINES = 120;
+
+function collectRecentOutput(terminal: Terminal, maxLines = RECENT_OUTPUT_LINES): string {
+  const activeBuffer = terminal.buffer.active;
+  const endLine = activeBuffer.baseY + activeBuffer.cursorY;
+  const startLine = Math.max(0, endLine - maxLines + 1);
+  const outputLines: string[] = [];
+
+  for (let lineIndex = startLine; lineIndex <= endLine; lineIndex += 1) {
+    const bufferLine = activeBuffer.getLine(lineIndex);
+    if (!bufferLine) {
+      continue;
+    }
+    outputLines.push(bufferLine.translateToString(true));
+  }
+
+  return outputLines.join("\n").trimEnd();
+}
+
+async function writeClipboardText(text: string): Promise<boolean> {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through to legacy copy flow.
+    }
+  }
+
+  if (typeof document === "undefined") {
+    return false;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "readonly");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, text.length);
+
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
 
 export function useTtydTerminal({
   wsUrl,
@@ -277,10 +333,78 @@ export function useTtydTerminal({
     setReconnectToken(previous => previous + 1);
   }, [closeSocket, wsUrl]);
 
+  const copySelection = useCallback(async () => {
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      setStatusMessage("Terminal not ready for copy.");
+      return;
+    }
+
+    const selectedText = terminal.getSelection();
+    if (selectedText.length === 0) {
+      setStatusMessage("No terminal selection to copy.");
+      return;
+    }
+
+    const copied = await writeClipboardText(selectedText);
+    if (!copied) {
+      setStatusMessage("Clipboard copy failed.");
+      return;
+    }
+
+    setStatusMessage(`Copied selection (${selectedText.length} chars).`);
+  }, []);
+
+  const copyRecentOutput = useCallback(async () => {
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      setStatusMessage("Terminal not ready for copy.");
+      return;
+    }
+
+    const recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
+    if (recentOutput.length === 0) {
+      setStatusMessage("No terminal output available to copy.");
+      return;
+    }
+
+    const copied = await writeClipboardText(recentOutput);
+    if (!copied) {
+      setStatusMessage("Clipboard copy failed.");
+      return;
+    }
+
+    setStatusMessage(`Copied recent output (${RECENT_OUTPUT_LINES} lines max).`);
+  }, []);
+
+  const getSelectableText = useCallback(() => {
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      setStatusMessage("Terminal not ready for selection.");
+      return "";
+    }
+
+    const selectedText = terminal.getSelection();
+    if (selectedText.length > 0) {
+      return selectedText;
+    }
+
+    const recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
+    if (recentOutput.length === 0) {
+      setStatusMessage("No terminal output available.");
+      return "";
+    }
+
+    return recentOutput;
+  }, []);
+
   return {
     containerRef,
     connectionStatus,
     statusMessage,
     reconnect,
+    copySelection,
+    copyRecentOutput,
+    getSelectableText,
   };
 }
