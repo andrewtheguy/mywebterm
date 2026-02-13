@@ -49,6 +49,7 @@ export function useTtydTerminal({
   const decoderRef = useRef(new TextDecoder());
   const terminalDisposablesRef = useRef<IDisposable[]>([]);
   const onTitleChangeRef = useRef(onTitleChange);
+  const connectionEpochRef = useRef(0);
 
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
@@ -172,8 +173,19 @@ export function useTtydTerminal({
     const socket = new WebSocket(wsUrl, ["tty"]);
     socket.binaryType = "arraybuffer";
     socketRef.current = socket;
+    const connectionEpoch = connectionEpochRef.current + 1;
+    connectionEpochRef.current = connectionEpoch;
+
+    const isCurrentConnection = () =>
+      connectionEpochRef.current === connectionEpoch &&
+      socket === socketRef.current &&
+      terminalRef.current === terminal;
 
     const handleFrame = (arrayBuffer: ArrayBuffer) => {
+      if (!isCurrentConnection()) {
+        return;
+      }
+
       let frame: ReturnType<typeof decodeFrame>;
       try {
         frame = decodeFrame(arrayBuffer);
@@ -195,7 +207,7 @@ export function useTtydTerminal({
     };
 
     socket.onopen = () => {
-      if (socket !== socketRef.current) {
+      if (!isCurrentConnection()) {
         return;
       }
 
@@ -207,7 +219,7 @@ export function useTtydTerminal({
     };
 
     socket.onmessage = event => {
-      if (socket !== socketRef.current) {
+      if (!isCurrentConnection()) {
         return;
       }
 
@@ -217,7 +229,9 @@ export function useTtydTerminal({
       }
 
       if (event.data instanceof Blob) {
-        void event.data.arrayBuffer().then(handleFrame).catch(() => {
+        void event.data.arrayBuffer().then(arrayBuffer => {
+          handleFrame(arrayBuffer);
+        }).catch(() => {
           // Ignore malformed binary frames.
         });
         return;
@@ -229,7 +243,7 @@ export function useTtydTerminal({
     };
 
     socket.onerror = () => {
-      if (socket !== socketRef.current) {
+      if (!isCurrentConnection()) {
         return;
       }
       setConnectionStatus("error");
@@ -237,7 +251,7 @@ export function useTtydTerminal({
     };
 
     socket.onclose = event => {
-      if (socket !== socketRef.current) {
+      if (!isCurrentConnection()) {
         return;
       }
       socketRef.current = null;
@@ -246,6 +260,9 @@ export function useTtydTerminal({
     };
 
     return () => {
+      if (connectionEpochRef.current === connectionEpoch) {
+        connectionEpochRef.current += 1;
+      }
       if (socket === socketRef.current) {
         closeSocket();
       }
