@@ -244,6 +244,29 @@ const server = serve<PtySessionData>({
         return Response.json({ ok: true });
       },
     },
+    "/api/sessions": async () => {
+      const ppid = process.pid;
+      const children: { pid: number; command: string }[] = [];
+      try {
+        const result = await Bun.$`ps -ax -o pid=,ppid=,command=`.quiet().nothrow();
+        const output = result.stdout.toString().trim();
+        if (output) {
+          for (const line of output.split("\n")) {
+            const trimmed = line.trim();
+            const parts = trimmed.split(/\s+/);
+            const pid = Number(parts[0]);
+            const parentPid = Number(parts[1]);
+            if (parentPid === ppid) {
+              children.push({ pid, command: parts.slice(2).join(" ") });
+            }
+          }
+        }
+      } catch {
+        // ps may not be available
+      }
+
+      return Response.json({ ppid, children });
+    },
     "/api/config": () =>
       Response.json({
         experimentalHScroll: process.env.EXPERIMENTAL_HSCROLL === "1",

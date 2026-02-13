@@ -47,6 +47,7 @@ export function App() {
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
+  const [sessionsText, setSessionsText] = useState<string | null>(null);
   const [extraKeysOpen, setExtraKeysOpen] = useState(false);
   const [softKeyModifiers, setSoftKeyModifiers] = useState(() => ({
     ...DEFAULT_SOFT_KEY_MODIFIERS,
@@ -433,6 +434,39 @@ export function App() {
     [setActiveHandle],
   );
 
+  const fetchSessionsText = useCallback(async (): Promise<string> => {
+    const res = await fetch("/api/sessions");
+    const data = await res.json();
+    const children = (data.children as { pid: number; command: string }[]) ?? [];
+    const lines = [`Server PID: ${data.ppid}`, "", `Child processes (${children.length}):`];
+
+    if (children.length === 0) {
+      lines.push("  (none)");
+    } else {
+      for (const c of children) {
+        lines.push(`  ${c.pid}  ${c.command}`);
+      }
+    }
+
+    return lines.join("\n");
+  }, []);
+
+  const inspectSessions = useCallback(async () => {
+    try {
+      setSessionsText(await fetchSessionsText());
+    } catch {
+      toast.error("Failed to fetch sessions.");
+    }
+  }, [fetchSessionsText]);
+
+  const refreshSessions = useCallback(async () => {
+    try {
+      setSessionsText(await fetchSessionsText());
+    } catch {
+      toast.error("Failed to refresh sessions.");
+    }
+  }, [fetchSessionsText]);
+
   const handleMobileCopySelection = useCallback(async () => {
     const copied = await handleCopySelection();
     if (copied) {
@@ -722,6 +756,7 @@ export function App() {
                         onClick={() =>
                           overflowAction(() => {
                             if (window.confirm("Restart terminal session?")) {
+                              setSessionsText(null);
                               reconnect();
                             }
                           })
@@ -739,6 +774,13 @@ export function App() {
                         Reconnect
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className="toolbar-button overflow-menu-item"
+                      onClick={() => overflowAction(() => void inspectSessions())}
+                    >
+                      Sessions
+                    </button>
                   </div>
                 )}
               </div>
@@ -759,6 +801,7 @@ export function App() {
                     className="toolbar-button"
                     onClick={() => {
                       if (window.confirm("Restart terminal session?")) {
+                        setSessionsText(null);
                         reconnect();
                       }
                     }}
@@ -775,6 +818,9 @@ export function App() {
                     Reconnect
                   </button>
                 )}
+                <button type="button" className="toolbar-button" onClick={() => void inspectSessions()}>
+                  Sessions
+                </button>
               </>
             )}
           </div>
@@ -1165,6 +1211,24 @@ export function App() {
               Send
             </button>
           </div>
+        </section>
+      )}
+
+      {sessionsText !== null && (
+        <section className="copy-sheet" aria-label="Server sessions">
+          <div className="copy-sheet-header">
+            <h2>Sessions</h2>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button type="button" className="toolbar-button" onClick={() => void refreshSessions()}>
+                Refresh
+              </button>
+              <button type="button" className="toolbar-button" onClick={() => setSessionsText(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+          <p className="copy-sheet-hint">Child processes of the server. Empty after restart = no leaks.</p>
+          <textarea className="copy-sheet-textarea" value={sessionsText} readOnly />
         </section>
       )}
       <Toaster position="top-right" theme="dark" duration={3000} />
