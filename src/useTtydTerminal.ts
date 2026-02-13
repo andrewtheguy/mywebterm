@@ -1248,13 +1248,22 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
   }, []);
 
   const focusSoftKeyboard = useCallback(() => {
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      setStatusMessage("Terminal not ready for keyboard.");
+      return;
+    }
+
+    const input = terminal.textarea;
+    if (input && document.activeElement === input) {
+      input.blur();
+      setStatusMessage("Keyboard dismissed.");
+      return;
+    }
+
     const focused = focusTerminalInput();
     if (!focused) {
-      if (!terminalRef.current) {
-        setStatusMessage("Terminal not ready for keyboard.");
-      } else {
-        setStatusMessage("Tap terminal area to open keyboard.");
-      }
+      setStatusMessage("Tap terminal area to open keyboard.");
       return;
     }
     setStatusMessage("Requested mobile keyboard.");

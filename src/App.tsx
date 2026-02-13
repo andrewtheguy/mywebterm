@@ -484,7 +484,13 @@ export function App() {
             <button type="button" className="toolbar-button" onClick={() => void handleCopyRecentOutput()}>
               Copy Recent
             </button>
-            <button type="button" className="toolbar-button" onClick={focusSoftKeyboard}>
+            <button
+              type="button"
+              className="toolbar-button"
+              onMouseDown={(e) => e.preventDefault()}
+              onTouchStart={(e) => e.preventDefault()}
+              onClick={focusSoftKeyboard}
+            >
               Keyboard
             </button>
             <button
