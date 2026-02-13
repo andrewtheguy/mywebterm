@@ -710,8 +710,6 @@ export function useTtydTerminal({
         "selecting",
         null,
       );
-
-      toast.info("Selection mode active.", { id: "selection-mode-active" });
     },
     [applySelectionRange, getTerminalLayout, mobileTouchSupported],
   );
@@ -1363,16 +1361,14 @@ export function useTtydTerminal({
     const input = terminal.textarea;
     if (input && document.activeElement === input) {
       input.blur();
-      toast.info("Keyboard dismissed.");
       return;
     }
 
     const focused = focusTerminalInput();
     if (!focused) {
-      toast.info("Tap terminal area to open keyboard.");
+      toast.error("Tap terminal area to open keyboard.");
       return;
     }
-    toast.success("Requested mobile keyboard.");
   }, [focusTerminalInput]);
 
   const sendSoftKeySequence = useCallback(

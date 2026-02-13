@@ -593,15 +593,7 @@ export function App() {
               type="button"
               className={`toolbar-button ${mobileMouseMode === "passToTerminal" ? "toolbar-button-active" : ""}`}
               onClick={() => {
-                const nextMode = toggleMobileMouseMode();
-                if (nextMode === null) {
-                  return;
-                }
-                toast.success(
-                  nextMode === "passToTerminal"
-                    ? "Touch scroll sends wheel events."
-                    : "Touch scroll uses terminal scrollback.",
-                );
+                toggleMobileMouseMode();
               }}
               disabled={!mobileSelectionState.enabled}
               aria-pressed={mobileMouseMode === "passToTerminal"}
