@@ -1331,6 +1331,7 @@ export function useTtydTerminal({
       return;
     }
     closeSocket();
+    terminalRef.current?.reset();
     setReconnectToken((previous) => previous + 1);
   }, [closeSocket, wsUrl]);
 

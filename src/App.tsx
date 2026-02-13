@@ -607,7 +607,19 @@ export function App() {
             <button type="button" className="toolbar-button" onClick={openSelectableText}>
               Select Text
             </button>
-            {connectionStatus !== "connected" && (
+            {connectionStatus === "connected" ? (
+              <button
+                type="button"
+                className="toolbar-button"
+                onClick={() => {
+                  if (window.confirm("Restart terminal session?")) {
+                    reconnect();
+                  }
+                }}
+              >
+                Restart
+              </button>
+            ) : (
               <button
                 type="button"
                 className="toolbar-button reconnect-button"
