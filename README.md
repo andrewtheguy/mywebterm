@@ -1,19 +1,8 @@
-# myttyd frontend
+# myttyd
 
-Custom web frontend for a running [ttyd](https://github.com/tsl0922/ttyd) instance using React + latest xterm.js packages.
+Custom web terminal using React + xterm.js with Bun's built-in PTY. No external `ttyd` process required — the server spawns `$SHELL` (or `/bin/sh` fallback) directly.
 
-## Run ttyd (backend)
-
-Start ttyd in writable mode so browser input reaches the shell:
-
-```bash
-ttyd -W -p 7681 "$SHELL"
-```
-
-Important:
-- This frontend currently does not implement ttyd auth token flow (`/token`), so run ttyd without credential auth in v1.
-
-## Run this frontend (external app server)
+## Run
 
 Install deps:
 
@@ -21,13 +10,13 @@ Install deps:
 bun install
 ```
 
-Start dev server with required ttyd upstream endpoint:
+Start dev server:
 
 ```bash
-TTYD_BASE_URL=http://127.0.0.1:7681 bun dev
+bun dev
 ```
 
-The browser always connects to the Bun app host at `/ttyd/*`, and Bun proxies those requests to `TTYD_BASE_URL`.
+Open the printed URL in a browser. The terminal connects over WebSocket and spawns your shell.
 
 ## Build
 

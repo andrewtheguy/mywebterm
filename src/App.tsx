@@ -482,11 +482,7 @@ export function App() {
 
       <section className="endpoint-card">
         <div className="endpoint-row">
-          <span>ttyd HTTP</span>
-          <code>{config.baseUrl}</code>
-        </div>
-        <div className="endpoint-row">
-          <span>ttyd WS</span>
+          <span>Terminal WS</span>
           <code>{config.wsUrl}</code>
         </div>
         <p className="status-message">{statusMessage}</p>
