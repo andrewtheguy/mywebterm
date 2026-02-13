@@ -32,6 +32,7 @@ export function App() {
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
+  const pasteHelperFocusedRef = useRef(false);
 
   const handleTitleChange = useCallback((title: string) => {
     if (title.trim().length === 0) {
@@ -76,12 +77,18 @@ export function App() {
   }, [selectableText]);
 
   useEffect(() => {
-    if (!pasteHelperRef.current || pasteHelperText === null) {
+    if (pasteHelperText === null) {
+      pasteHelperFocusedRef.current = false;
+      return;
+    }
+
+    if (!pasteHelperRef.current || pasteHelperFocusedRef.current) {
       return;
     }
 
     pasteHelperRef.current.focus();
     pasteHelperRef.current.setSelectionRange(pasteHelperText.length, pasteHelperText.length);
+    pasteHelperFocusedRef.current = true;
   }, [pasteHelperText]);
 
   useEffect(() => {
@@ -117,6 +124,7 @@ export function App() {
   }, []);
 
   const closePasteHelper = useCallback(() => {
+    pasteHelperFocusedRef.current = false;
     setPasteHelperText(null);
   }, []);
 
@@ -457,9 +465,6 @@ export function App() {
               disabled={pasteHelperText.trim().length === 0}
             >
               Send
-            </button>
-            <button type="button" className="toolbar-button" onClick={closePasteHelper}>
-              Close
             </button>
           </div>
         </section>

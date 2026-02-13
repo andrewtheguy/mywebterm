@@ -1274,7 +1274,7 @@ export function useTtydTerminal({
 
     try {
       const text = await navigator.clipboard.readText();
-      if (text.length === 0) {
+      if (text.trim().length === 0) {
         setStatusMessage("Clipboard is empty.");
         return "empty";
       }
