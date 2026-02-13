@@ -905,6 +905,14 @@ export function App() {
                             </button>
                           );
                         })}
+                        {rowIndex === 3 && <div className="extra-key-spacer extra-key-wide-xl" />}
+                        {rowIndex === 4 && (
+                          <>
+                            <div className="extra-key-spacer extra-key-wide-sm" />
+                            <div className="extra-key-spacer extra-key-wide-sm" />
+                            <div className="extra-key-spacer extra-key-wide-sm" />
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
