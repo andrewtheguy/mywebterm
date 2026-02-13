@@ -160,10 +160,10 @@ export const MAIN_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
 ];
 
 export const ARROW_SOFT_KEYS = [
-  createSpecialKey("arrowUp", "\u2191"),
-  createSpecialKey("arrowDown", "\u2193"),
-  createSpecialKey("arrowLeft", "\u2190"),
-  createSpecialKey("arrowRight", "\u2192"),
+  createSpecialKey("arrowUp", "▲"),
+  createSpecialKey("arrowDown", "▼"),
+  createSpecialKey("arrowLeft", "◀"),
+  createSpecialKey("arrowRight", "▶"),
 ] as const;
 
 export const DELETE_SOFT_KEY: SoftKeyDefinition = createSpecialKey("delete", "Del");
