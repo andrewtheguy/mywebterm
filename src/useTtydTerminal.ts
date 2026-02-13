@@ -58,7 +58,6 @@ interface UseTtydTerminalResult {
   focusSoftKeyboard: () => void;
   sendSoftKeySequence: (sequence: string, label: string, skipFocus?: boolean) => boolean;
   blurTerminalInput: () => void;
-  suppressMobileKeyboard: (suppress: boolean) => void;
   attemptPasteFromClipboard: () => Promise<PasteResult>;
   pasteTextIntoTerminal: (text: string) => boolean;
   copySelection: () => Promise<void>;
@@ -922,16 +921,28 @@ export function useTtydTerminal({
     terminalDisposablesRef.current = terminalDisposables;
 
     const textarea = terminal.textarea;
-    const onTextareaFocus = () => setSoftKeyboardActive(true);
-    const onTextareaBlur = () => setSoftKeyboardActive(false);
+    if (mobileTouchSupported && textarea) {
+      textarea.inputMode = "none";
+    }
+    const onTextareaFocus = mobileTouchSupported ? null : () => setSoftKeyboardActive(true);
+    const onTextareaBlur = () => {
+      setSoftKeyboardActive(false);
+      if (mobileTouchSupported && textarea) {
+        textarea.inputMode = "none";
+      }
+    };
     if (textarea) {
-      textarea.addEventListener("focus", onTextareaFocus);
+      if (onTextareaFocus) {
+        textarea.addEventListener("focus", onTextareaFocus);
+      }
       textarea.addEventListener("blur", onTextareaBlur);
     }
 
     return () => {
       if (textarea) {
-        textarea.removeEventListener("focus", onTextareaFocus);
+        if (onTextareaFocus) {
+          textarea.removeEventListener("focus", onTextareaFocus);
+        }
         textarea.removeEventListener("blur", onTextareaBlur);
       }
       setSoftKeyboardActive(false);
@@ -1361,13 +1372,6 @@ export function useTtydTerminal({
     }
   }, []);
 
-  const suppressMobileKeyboard = useCallback((suppress: boolean) => {
-    const textarea = terminalRef.current?.textarea;
-    if (textarea) {
-      textarea.inputMode = suppress ? "none" : "";
-    }
-  }, []);
-
   const focusSoftKeyboard = useCallback(() => {
     const terminal = terminalRef.current;
     if (!terminal) {
@@ -1381,12 +1385,16 @@ export function useTtydTerminal({
       return;
     }
 
-    const focused = focusTerminalInput();
-    if (!focused) {
-      toast.error("Tap terminal area to open keyboard.", { id: "keyboard" });
-      return;
+    if (mobileTouchSupported && input) {
+      input.inputMode = "";
     }
-  }, [focusTerminalInput]);
+    const focused = focusTerminalInput();
+    if (focused) {
+      setSoftKeyboardActive(true);
+    } else {
+      toast.error("Tap terminal area to open keyboard.", { id: "keyboard" });
+    }
+  }, [focusTerminalInput, mobileTouchSupported]);
 
   const sendSoftKeySequence = useCallback(
     (sequence: string, label: string, skipFocus?: boolean): boolean => {
@@ -1529,7 +1537,6 @@ export function useTtydTerminal({
     focusSoftKeyboard,
     sendSoftKeySequence,
     blurTerminalInput,
-    suppressMobileKeyboard,
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
     copySelection,
