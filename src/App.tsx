@@ -99,6 +99,7 @@ export function App() {
   const scrollbarDragStartScrollLeftRef = useRef(0);
   const vScrollbarTrackRef = useRef<HTMLDivElement>(null);
   const vScrollbarThumbRef = useRef<HTMLDivElement>(null);
+  const vScrollbarHideTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const vv = window.visualViewport;
@@ -396,11 +397,10 @@ export function App() {
 
     const state = getVerticalScrollState();
     if (!state || state.baseY <= 0) {
-      thumb.style.display = "none";
+      thumb.style.opacity = "0";
       return;
     }
 
-    thumb.style.display = "";
     const trackHeight = track.clientHeight;
     const totalLines = state.baseY + state.rows;
     const thumbHeight = Math.max(20, (state.rows / totalLines) * trackHeight);
@@ -409,6 +409,15 @@ export function App() {
 
     thumb.style.height = `${thumbHeight}px`;
     thumb.style.top = `${thumbTop}px`;
+    thumb.style.opacity = "1";
+
+    if (vScrollbarHideTimerRef.current !== null) {
+      window.clearTimeout(vScrollbarHideTimerRef.current);
+    }
+    vScrollbarHideTimerRef.current = window.setTimeout(() => {
+      thumb.style.opacity = "0";
+      vScrollbarHideTimerRef.current = null;
+    }, 1000);
   }, [getVerticalScrollState]);
 
   useEffect(() => {
@@ -421,6 +430,10 @@ export function App() {
 
     return () => {
       verticalScrollSyncRef.current = null;
+      if (vScrollbarHideTimerRef.current !== null) {
+        window.clearTimeout(vScrollbarHideTimerRef.current);
+        vScrollbarHideTimerRef.current = null;
+      }
     };
   }, [mobileSelectionState.enabled, syncVerticalScrollbarThumb, verticalScrollSyncRef]);
 

@@ -418,8 +418,6 @@ body {
   width: 6px;
   height: 100%;
   margin-left: auto;
-  background: rgba(106, 232, 206, 0.08);
-  border-radius: 3px;
 }
 
 .vertical-scrollbar-thumb {
@@ -428,6 +426,8 @@ body {
   min-height: 20px;
   background: rgba(106, 232, 206, 0.45);
   border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .error-card {

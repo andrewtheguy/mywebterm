@@ -833,6 +833,18 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
       }),
       terminal.onScroll(() => {
         verticalScrollSyncRef.current?.();
+
+        const isAtBottom = terminal.buffer.active.viewportY >= terminal.buffer.active.baseY;
+        const textarea = terminal.textarea;
+        if (textarea) {
+          textarea.style.setProperty("opacity", isAtBottom ? "" : "0", "important");
+          textarea.style.setProperty("caret-color", isAtBottom ? "" : "transparent", "important");
+        }
+        const cursorLayer = terminal.element?.querySelector(".xterm-cursor-layer") as HTMLElement | null;
+        if (cursorLayer) {
+          cursorLayer.style.visibility = isAtBottom ? "" : "hidden";
+        }
+
         const range = selectionRangeRef.current;
         if (!range) {
           return;
