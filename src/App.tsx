@@ -399,12 +399,18 @@ export function App() {
     [],
   );
 
-  const hasMobileSelectionOverlay =
+  const mobileSelectionOverlay =
     mobileSelectionState.enabled &&
     mobileSelectionState.range !== null &&
     mobileSelectionState.startHandle !== null &&
     mobileSelectionState.endHandle !== null &&
-    mobileSelectionState.toolbarAnchor !== null;
+    mobileSelectionState.toolbarAnchor !== null
+      ? {
+          startHandle: mobileSelectionState.startHandle,
+          endHandle: mobileSelectionState.endHandle,
+          toolbarAnchor: mobileSelectionState.toolbarAnchor,
+        }
+      : null;
 
   return (
     <div className="app-shell">
@@ -564,14 +570,14 @@ export function App() {
             className={`terminal-viewport ${mobileMouseMode === "passToTerminal" ? "terminal-viewport-pass-through" : ""} ${horizontalOverflow ? "terminal-viewport-overflow" : ""}`}
           />
 
-          {hasMobileSelectionOverlay && (
+          {mobileSelectionOverlay !== null && (
             <div className="mobile-selection-overlay">
               <button
                 type="button"
                 className="mobile-selection-handle mobile-selection-handle-start"
                 style={{
-                  left: `${mobileSelectionState.startHandle!.left}px`,
-                  top: `${mobileSelectionState.startHandle!.top}px`,
+                  left: `${mobileSelectionOverlay.startHandle.left}px`,
+                  top: `${mobileSelectionOverlay.startHandle.top}px`,
                 }}
                 onPointerDown={event => beginSelectionHandleDrag("start", event)}
                 onPointerMove={handleSelectionHandleMove}
@@ -591,8 +597,8 @@ export function App() {
                 type="button"
                 className="mobile-selection-handle mobile-selection-handle-end"
                 style={{
-                  left: `${mobileSelectionState.endHandle!.left}px`,
-                  top: `${mobileSelectionState.endHandle!.top}px`,
+                  left: `${mobileSelectionOverlay.endHandle.left}px`,
+                  top: `${mobileSelectionOverlay.endHandle.top}px`,
                 }}
                 onPointerDown={event => beginSelectionHandleDrag("end", event)}
                 onPointerMove={handleSelectionHandleMove}
@@ -611,8 +617,8 @@ export function App() {
               <div
                 className="mobile-selection-toolbar"
                 style={{
-                  left: `${mobileSelectionState.toolbarAnchor!.left}px`,
-                  top: `${mobileSelectionState.toolbarAnchor!.top}px`,
+                  left: `${mobileSelectionOverlay.toolbarAnchor.left}px`,
+                  top: `${mobileSelectionOverlay.toolbarAnchor.top}px`,
                 }}
                 role="group"
                 aria-label="Selection actions"

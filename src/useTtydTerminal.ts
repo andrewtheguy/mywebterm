@@ -803,8 +803,8 @@ export function useTtydTerminal({
         const cellWidth = dims.css.cell.width;
         const elemStyle = getComputedStyle(element);
         const paddingHor =
-          parseInt(elemStyle.getPropertyValue("padding-left")) +
-          parseInt(elemStyle.getPropertyValue("padding-right"));
+          (parseInt(elemStyle.getPropertyValue("padding-left")) || 0) +
+          (parseInt(elemStyle.getPropertyValue("padding-right")) || 0);
         const showScrollbar = terminal.options.scrollbar?.showScrollbar ?? true;
         const scrollbarWidth =
           terminal.options.scrollback === 0 || !showScrollbar
