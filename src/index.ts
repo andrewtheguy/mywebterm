@@ -47,21 +47,13 @@ function createConnectionId(): string {
   return `${Date.now()}-${nextConnectionId}`;
 }
 
-function cleanupSession(connectionId: string): void {
-  const session = ptySessions.get(connectionId);
-  if (!session) {
-    return;
-  }
-
-  ptySessions.delete(connectionId);
-
+function cleanupProcessResources(session: PtySession): void {
   if (session.proc) {
     try {
       session.proc.terminal?.close();
     } catch {
       // Terminal may already be closed.
     }
-
     try {
       session.proc.kill();
     } catch {
@@ -70,23 +62,20 @@ function cleanupSession(connectionId: string): void {
   }
 }
 
+function cleanupSession(connectionId: string): void {
+  const session = ptySessions.get(connectionId);
+  if (!session) {
+    return;
+  }
+
+  ptySessions.delete(connectionId);
+  cleanupProcessResources(session);
+}
+
 function cleanupAllSessions(): void {
   for (const [connectionId, session] of ptySessions) {
     ptySessions.delete(connectionId);
-
-    if (session.proc) {
-      try {
-        session.proc.terminal?.close();
-      } catch {
-        // Terminal may already be closed.
-      }
-      try {
-        session.proc.kill();
-      } catch {
-        // Process may already be dead.
-      }
-    }
-
+    cleanupProcessResources(session);
     closeClientSocket(session.ws, RESTART_CLOSE_CODE, "Restart");
   }
 }
@@ -244,28 +233,30 @@ const server = serve<PtySessionData>({
         return Response.json({ ok: true });
       },
     },
-    "/api/sessions": async () => {
-      const ppid = process.pid;
-      const children: { pid: number; command: string }[] = [];
-      try {
-        const result = await Bun.$`ps -ax -o pid=,ppid=,command=`.quiet().nothrow();
-        const output = result.stdout.toString().trim();
-        if (output) {
-          for (const line of output.split("\n")) {
-            const trimmed = line.trim();
-            const parts = trimmed.split(/\s+/);
-            const pid = Number(parts[0]);
-            const parentPid = Number(parts[1]);
-            if (parentPid === ppid) {
-              children.push({ pid, command: parts.slice(2).join(" ") });
+    "/api/sessions": {
+      GET: async () => {
+        const ppid = process.pid;
+        const children: { pid: number; command: string }[] = [];
+        try {
+          const result = await Bun.$`ps -ax -o pid=,ppid=,command=`.quiet().nothrow();
+          const output = result.stdout.toString().trim();
+          if (output) {
+            for (const line of output.split("\n")) {
+              const match = line.trim().match(/^\s*(\d+)\s+(\d+)\s+(.*)$/);
+              if (!match) continue;
+              const pid = Number(match[1]);
+              const parentPid = Number(match[2]);
+              if (parentPid === ppid) {
+                children.push({ pid, command: match[3] ?? "" });
+              }
             }
           }
+        } catch {
+          // ps may not be available
         }
-      } catch {
-        // ps may not be available
-      }
 
-      return Response.json({ ppid, children });
+        return Response.json({ ppid, children });
+      },
     },
     "/api/config": () =>
       Response.json({
