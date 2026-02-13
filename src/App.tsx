@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { loadTtydConfig } from "./config";
 import "./index.css";
@@ -30,7 +30,20 @@ export function App() {
     setRemoteTitle(title);
   }, []);
 
-  const { containerRef, connectionStatus, statusMessage, reconnect, focusSoftKeyboard, copySelection, copyRecentOutput, getSelectableText } = useTtydTerminal({
+  const {
+    containerRef,
+    connectionStatus,
+    statusMessage,
+    reconnect,
+    focusSoftKeyboard,
+    copySelection,
+    copyRecentOutput,
+    getSelectableText,
+    mobileSelectionState,
+    clearMobileSelection,
+    setActiveHandle,
+    updateActiveHandleFromClientPoint,
+  } = useTtydTerminal({
     wsUrl: config.wsUrl,
     onTitleChange: handleTitleChange,
   });
@@ -104,6 +117,46 @@ export function App() {
     }
   }, [copyRecentOutput]);
 
+  const beginSelectionHandleDrag = useCallback(
+    (handle: "start" | "end", event: ReactPointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveHandle(handle);
+      updateActiveHandleFromClientPoint(event.clientX, event.clientY);
+      if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+    },
+    [setActiveHandle, updateActiveHandleFromClientPoint],
+  );
+
+  const handleSelectionHandleMove = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (mobileSelectionState.activeHandle === null) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    updateActiveHandleFromClientPoint(event.clientX, event.clientY);
+  }, [mobileSelectionState.activeHandle, updateActiveHandleFromClientPoint]);
+
+  const finishSelectionHandleDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setActiveHandle(null);
+  }, [setActiveHandle]);
+
+  const handleMobileCopySelection = useCallback(async () => {
+    await handleCopySelection();
+    setActiveHandle(null);
+  }, [handleCopySelection, setActiveHandle]);
+
+  const hasMobileSelectionOverlay =
+    mobileSelectionState.enabled &&
+    mobileSelectionState.range !== null &&
+    mobileSelectionState.startHandle !== null &&
+    mobileSelectionState.endHandle !== null &&
+    mobileSelectionState.toolbarAnchor !== null;
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -156,7 +209,67 @@ export function App() {
       </section>
 
       <main className="terminal-card">
-        <div ref={containerRef} className="terminal-viewport" />
+        <div className="terminal-stage">
+          <div ref={containerRef} className="terminal-viewport" />
+
+          {hasMobileSelectionOverlay && (
+            <div className="mobile-selection-overlay">
+              <button
+                type="button"
+                className="mobile-selection-handle mobile-selection-handle-start"
+                style={{
+                  left: `${mobileSelectionState.startHandle.left}px`,
+                  top: `${mobileSelectionState.startHandle.top}px`,
+                }}
+                onPointerDown={event => beginSelectionHandleDrag("start", event)}
+                onPointerMove={handleSelectionHandleMove}
+                onPointerUp={finishSelectionHandleDrag}
+                onPointerCancel={finishSelectionHandleDrag}
+                onLostPointerCapture={finishSelectionHandleDrag}
+                aria-label="Adjust selection start"
+              >
+                <span className="mobile-selection-handle-knob" />
+              </button>
+
+              <button
+                type="button"
+                className="mobile-selection-handle mobile-selection-handle-end"
+                style={{
+                  left: `${mobileSelectionState.endHandle.left}px`,
+                  top: `${mobileSelectionState.endHandle.top}px`,
+                }}
+                onPointerDown={event => beginSelectionHandleDrag("end", event)}
+                onPointerMove={handleSelectionHandleMove}
+                onPointerUp={finishSelectionHandleDrag}
+                onPointerCancel={finishSelectionHandleDrag}
+                onLostPointerCapture={finishSelectionHandleDrag}
+                aria-label="Adjust selection end"
+              >
+                <span className="mobile-selection-handle-knob" />
+              </button>
+
+              <div
+                className="mobile-selection-toolbar"
+                style={{
+                  left: `${mobileSelectionState.toolbarAnchor.left}px`,
+                  top: `${mobileSelectionState.toolbarAnchor.top}px`,
+                }}
+                role="group"
+                aria-label="Selection actions"
+              >
+                <button type="button" className="toolbar-button" onClick={() => void handleMobileCopySelection()}>
+                  Copy
+                </button>
+                <button type="button" className="toolbar-button" onClick={clearMobileSelection}>
+                  Clear
+                </button>
+                <button type="button" className="toolbar-button" onClick={clearMobileSelection}>
+                  Done
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </main>
 
       {selectableText !== null && (

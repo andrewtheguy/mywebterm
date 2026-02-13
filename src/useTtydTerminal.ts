@@ -4,9 +4,47 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import "@xterm/xterm/css/xterm.css";
 
+import {
+  clientPointToBufferCoord,
+  computeEdgeAutoScrollVelocity,
+  getWordRangeInLine,
+  getWordSeparators,
+  isLikelyIOS,
+  normalizeSelectionRange,
+  selectionRangeToXtermSelectArgs,
+  toHandleAnchorClientPoint,
+  type BufferCoord,
+  type Point,
+  type SelectionRange,
+} from "./mobileTouchSelection";
 import { ServerCommand, buildHandshake, decodeFrame, encodeInput, encodeResize } from "./ttydProtocol";
 
+export type { BufferCoord, SelectionRange } from "./mobileTouchSelection";
+
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
+
+export type MobileSelectionHandle = "start" | "end";
+export type MobileSelectionMode =
+  | "idle"
+  | "pendingLongPress"
+  | "selecting"
+  | "draggingStart"
+  | "draggingEnd";
+
+export interface MobileOverlayAnchor {
+  left: number;
+  top: number;
+}
+
+export interface MobileSelectionState {
+  enabled: boolean;
+  mode: MobileSelectionMode;
+  activeHandle: MobileSelectionHandle | null;
+  range: SelectionRange | null;
+  startHandle: MobileOverlayAnchor | null;
+  endHandle: MobileOverlayAnchor | null;
+  toolbarAnchor: MobileOverlayAnchor | null;
+}
 
 interface UseTtydTerminalOptions {
   wsUrl?: string;
@@ -22,6 +60,10 @@ interface UseTtydTerminalResult {
   copySelection: () => Promise<void>;
   copyRecentOutput: () => Promise<void>;
   getSelectableText: () => string;
+  mobileSelectionState: MobileSelectionState;
+  clearMobileSelection: () => void;
+  setActiveHandle: (handle: MobileSelectionHandle | null) => void;
+  updateActiveHandleFromClientPoint: (clientX: number, clientY: number) => void;
 }
 
 const terminalOptions: ITerminalOptions = {
@@ -39,6 +81,27 @@ const terminalOptions: ITerminalOptions = {
 };
 
 const RECENT_OUTPUT_LINES = 120;
+const MOBILE_LONG_PRESS_MS = 420;
+const MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX = 8;
+const MOBILE_TOOLBAR_OFFSET_PX = 44;
+const MOBILE_TOOLBAR_MIN_TOP_PX = 10;
+const MOBILE_TOOLBAR_SIDE_PADDING_PX = 16;
+
+type TerminalLayout = {
+  containerRect: DOMRect;
+  screenRect: DOMRect;
+  cols: number;
+  rows: number;
+  viewportY: number;
+  cellWidth: number;
+  cellHeight: number;
+};
+
+type PendingTouch = {
+  identifier: number;
+  startPoint: Point;
+  latestPoint: Point;
+};
 
 function collectRecentOutput(terminal: Terminal, maxLines = RECENT_OUTPUT_LINES): string {
   const activeBuffer = terminal.buffer.active;
@@ -91,6 +154,32 @@ async function writeClipboardText(text: string): Promise<boolean> {
   }
 }
 
+function createInitialMobileSelectionState(enabled: boolean): MobileSelectionState {
+  return {
+    enabled,
+    mode: "idle",
+    activeHandle: null,
+    range: null,
+    startHandle: null,
+    endHandle: null,
+    toolbarAnchor: null,
+  };
+}
+
+function getDragMode(handle: MobileSelectionHandle | null): MobileSelectionMode {
+  if (handle === "start") {
+    return "draggingStart";
+  }
+  if (handle === "end") {
+    return "draggingEnd";
+  }
+  return "selecting";
+}
+
+function euclideanDistance(pointA: Point, pointB: Point): number {
+  return Math.hypot(pointA.x - pointB.x, pointA.y - pointB.y);
+}
+
 export function useTtydTerminal({
   wsUrl,
   onTitleChange,
@@ -100,6 +189,14 @@ export function useTtydTerminal({
   const [statusMessage, setStatusMessage] = useState("Waiting for terminal.");
   const [reconnectToken, setReconnectToken] = useState(0);
 
+  const mobileTouchSupported =
+    typeof navigator !== "undefined" &&
+    isLikelyIOS(navigator.userAgent, navigator.maxTouchPoints ?? 0);
+
+  const [mobileSelectionState, setMobileSelectionState] = useState<MobileSelectionState>(() =>
+    createInitialMobileSelectionState(mobileTouchSupported),
+  );
+
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
@@ -108,9 +205,423 @@ export function useTtydTerminal({
   const onTitleChangeRef = useRef(onTitleChange);
   const connectionEpochRef = useRef(0);
 
+  const pendingTouchRef = useRef<PendingTouch | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const activeHandleRef = useRef<MobileSelectionHandle | null>(null);
+  const selectionRangeRef = useRef<SelectionRange | null>(null);
+  const dragPointRef = useRef<Point | null>(null);
+  const autoScrollAnimationRef = useRef<number | null>(null);
+  const autoScrollLastTimestampRef = useRef<number | null>(null);
+  const autoScrollRemainderPxRef = useRef(0);
+
+  const getTerminalLayout = useCallback((): TerminalLayout | null => {
+    const terminal = terminalRef.current;
+    if (!terminal || !container) {
+      return null;
+    }
+
+    const dimensions = terminal.dimensions;
+    if (!dimensions) {
+      return null;
+    }
+
+    const screenElement = container.querySelector(".xterm-screen") as HTMLElement | null;
+    if (!screenElement) {
+      return null;
+    }
+
+    const cellWidth = dimensions.css.cell.width;
+    const cellHeight = dimensions.css.cell.height;
+    if (cellWidth <= 0 || cellHeight <= 0) {
+      return null;
+    }
+
+    return {
+      containerRect: container.getBoundingClientRect(),
+      screenRect: screenElement.getBoundingClientRect(),
+      cols: terminal.cols,
+      rows: terminal.rows,
+      viewportY: terminal.buffer.active.viewportY,
+      cellWidth,
+      cellHeight,
+    };
+  }, [container]);
+
+  const stopAutoScrollLoop = useCallback(() => {
+    if (autoScrollAnimationRef.current !== null) {
+      window.cancelAnimationFrame(autoScrollAnimationRef.current);
+      autoScrollAnimationRef.current = null;
+    }
+    autoScrollLastTimestampRef.current = null;
+    autoScrollRemainderPxRef.current = 0;
+  }, []);
+
+  const setMobileVisualStateFromRange = useCallback(
+    (
+      range: SelectionRange | null,
+      mode: MobileSelectionMode,
+      activeHandle: MobileSelectionHandle | null,
+    ) => {
+      if (!mobileTouchSupported) {
+        setMobileSelectionState(createInitialMobileSelectionState(false));
+        return;
+      }
+
+      if (!range) {
+        setMobileSelectionState({
+          enabled: true,
+          mode,
+          activeHandle,
+          range: null,
+          startHandle: null,
+          endHandle: null,
+          toolbarAnchor: null,
+        });
+        return;
+      }
+
+      const layout = getTerminalLayout();
+      if (!layout) {
+        setMobileSelectionState({
+          enabled: true,
+          mode,
+          activeHandle,
+          range,
+          startHandle: null,
+          endHandle: null,
+          toolbarAnchor: null,
+        });
+        return;
+      }
+
+      const startAnchor = toHandleAnchorClientPoint({
+        coord: range.start,
+        side: "start",
+        screenRect: layout.screenRect,
+        viewportY: layout.viewportY,
+        rows: layout.rows,
+        cellWidth: layout.cellWidth,
+        cellHeight: layout.cellHeight,
+      });
+
+      const endAnchor = toHandleAnchorClientPoint({
+        coord: range.end,
+        side: "end",
+        screenRect: layout.screenRect,
+        viewportY: layout.viewportY,
+        rows: layout.rows,
+        cellWidth: layout.cellWidth,
+        cellHeight: layout.cellHeight,
+      });
+
+      const startHandle = {
+        left: startAnchor.x - layout.containerRect.left,
+        top: startAnchor.y - layout.containerRect.top,
+      };
+      const endHandle = {
+        left: endAnchor.x - layout.containerRect.left,
+        top: endAnchor.y - layout.containerRect.top,
+      };
+
+      const topViewportRow = Math.max(
+        0,
+        Math.min(layout.rows - 1, range.start.row - layout.viewportY),
+      );
+      const toolbarTop = Math.max(
+        MOBILE_TOOLBAR_MIN_TOP_PX,
+        Math.min(
+          layout.containerRect.height - MOBILE_TOOLBAR_MIN_TOP_PX,
+          topViewportRow * layout.cellHeight - MOBILE_TOOLBAR_OFFSET_PX,
+        ),
+      );
+      const toolbarLeft = Math.max(
+        MOBILE_TOOLBAR_SIDE_PADDING_PX,
+        Math.min(
+          layout.containerRect.width - MOBILE_TOOLBAR_SIDE_PADDING_PX,
+          (startHandle.left + endHandle.left) / 2,
+        ),
+      );
+
+      setMobileSelectionState({
+        enabled: true,
+        mode,
+        activeHandle,
+        range,
+        startHandle,
+        endHandle,
+        toolbarAnchor: {
+          left: toolbarLeft,
+          top: toolbarTop,
+        },
+      });
+    },
+    [getTerminalLayout, mobileTouchSupported],
+  );
+
+  const applySelectionRange = useCallback(
+    (
+      range: SelectionRange,
+      mode: MobileSelectionMode = "selecting",
+      activeHandle: MobileSelectionHandle | null = null,
+    ) => {
+      const terminal = terminalRef.current;
+      if (!terminal || !mobileTouchSupported) {
+        return;
+      }
+
+      const normalized = normalizeSelectionRange(range.start, range.end);
+      const selectArgs = selectionRangeToXtermSelectArgs(normalized, terminal.cols);
+
+      terminal.select(selectArgs.column, selectArgs.row, selectArgs.length);
+      selectionRangeRef.current = normalized;
+      setMobileVisualStateFromRange(normalized, mode, activeHandle);
+    },
+    [mobileTouchSupported, setMobileVisualStateFromRange],
+  );
+
+  const runAutoScrollFrame = useCallback(
+    (timestamp: number) => {
+      if (!mobileTouchSupported) {
+        stopAutoScrollLoop();
+        return;
+      }
+
+      const activeHandle = activeHandleRef.current;
+      const dragPoint = dragPointRef.current;
+      const existingRange = selectionRangeRef.current;
+      const terminal = terminalRef.current;
+      if (!activeHandle || !dragPoint || !existingRange || !terminal) {
+        stopAutoScrollLoop();
+        return;
+      }
+
+      const layout = getTerminalLayout();
+      if (!layout) {
+        autoScrollAnimationRef.current = window.requestAnimationFrame(runAutoScrollFrame);
+        return;
+      }
+
+      const velocityPxPerSecond = computeEdgeAutoScrollVelocity({
+        clientY: dragPoint.y,
+        top: layout.screenRect.top,
+        bottom: layout.screenRect.bottom,
+      });
+
+      const previousTimestamp = autoScrollLastTimestampRef.current;
+      const elapsedMs = previousTimestamp === null ? 16 : Math.max(1, Math.min(48, timestamp - previousTimestamp));
+      autoScrollLastTimestampRef.current = timestamp;
+
+      if (velocityPxPerSecond !== 0) {
+        const deltaPx = autoScrollRemainderPxRef.current + (velocityPxPerSecond * elapsedMs) / 1000;
+        let nextRemainderPx = deltaPx;
+        const lineDelta =
+          deltaPx >= 0
+            ? Math.floor(deltaPx / layout.cellHeight)
+            : Math.ceil(deltaPx / layout.cellHeight);
+
+        if (lineDelta !== 0) {
+          terminal.scrollLines(lineDelta);
+          nextRemainderPx = deltaPx - lineDelta * layout.cellHeight;
+        }
+
+        autoScrollRemainderPxRef.current = nextRemainderPx;
+
+        const updatedLayout = getTerminalLayout();
+        if (updatedLayout) {
+          const coord = clientPointToBufferCoord({
+            clientPoint: dragPoint,
+            screenRect: updatedLayout.screenRect,
+            cols: updatedLayout.cols,
+            rows: updatedLayout.rows,
+            viewportY: updatedLayout.viewportY,
+            cellWidth: updatedLayout.cellWidth,
+            cellHeight: updatedLayout.cellHeight,
+          });
+
+          const nextRange =
+            activeHandle === "start"
+              ? {
+                start: coord,
+                end: existingRange.end,
+              }
+              : {
+                start: existingRange.start,
+                end: coord,
+              };
+
+          applySelectionRange(nextRange, getDragMode(activeHandle), activeHandle);
+        }
+      } else {
+        autoScrollRemainderPxRef.current = 0;
+      }
+
+      if (activeHandleRef.current !== null) {
+        autoScrollAnimationRef.current = window.requestAnimationFrame(runAutoScrollFrame);
+      } else {
+        stopAutoScrollLoop();
+      }
+    },
+    [applySelectionRange, getTerminalLayout, mobileTouchSupported, stopAutoScrollLoop],
+  );
+
+  const ensureAutoScrollLoop = useCallback(() => {
+    if (autoScrollAnimationRef.current !== null) {
+      return;
+    }
+    autoScrollLastTimestampRef.current = null;
+    autoScrollAnimationRef.current = window.requestAnimationFrame(runAutoScrollFrame);
+  }, [runAutoScrollFrame]);
+
+  const clearMobileSelection = useCallback(() => {
+    const terminal = terminalRef.current;
+    if (terminal) {
+      terminal.clearSelection();
+    }
+
+    pendingTouchRef.current = null;
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    activeHandleRef.current = null;
+    selectionRangeRef.current = null;
+    dragPointRef.current = null;
+    stopAutoScrollLoop();
+    setMobileVisualStateFromRange(null, "idle", null);
+  }, [setMobileVisualStateFromRange, stopAutoScrollLoop]);
+
+  const updateActiveHandleFromClientPoint = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!mobileTouchSupported) {
+        return;
+      }
+
+      const activeHandle = activeHandleRef.current;
+      const existingRange = selectionRangeRef.current;
+      if (!activeHandle || !existingRange) {
+        return;
+      }
+
+      const layout = getTerminalLayout();
+      if (!layout) {
+        return;
+      }
+
+      const point = { x: clientX, y: clientY };
+      dragPointRef.current = point;
+
+      const coord = clientPointToBufferCoord({
+        clientPoint: point,
+        screenRect: layout.screenRect,
+        cols: layout.cols,
+        rows: layout.rows,
+        viewportY: layout.viewportY,
+        cellWidth: layout.cellWidth,
+        cellHeight: layout.cellHeight,
+      });
+
+      const nextRange =
+        activeHandle === "start"
+          ? {
+            start: coord,
+            end: existingRange.end,
+          }
+          : {
+            start: existingRange.start,
+            end: coord,
+          };
+
+      applySelectionRange(nextRange, getDragMode(activeHandle), activeHandle);
+      ensureAutoScrollLoop();
+    },
+    [applySelectionRange, ensureAutoScrollLoop, getTerminalLayout, mobileTouchSupported],
+  );
+
+  const setActiveHandle = useCallback(
+    (handle: MobileSelectionHandle | null) => {
+      if (!mobileTouchSupported) {
+        return;
+      }
+
+      activeHandleRef.current = handle;
+      if (handle === null) {
+        dragPointRef.current = null;
+        stopAutoScrollLoop();
+        setMobileVisualStateFromRange(selectionRangeRef.current, selectionRangeRef.current ? "selecting" : "idle", null);
+        return;
+      }
+
+      setMobileVisualStateFromRange(selectionRangeRef.current, getDragMode(handle), handle);
+    },
+    [mobileTouchSupported, setMobileVisualStateFromRange, stopAutoScrollLoop],
+  );
+
+  const startWordSelectionFromPoint = useCallback(
+    (point: Point) => {
+      const terminal = terminalRef.current;
+      if (!terminal || !mobileTouchSupported) {
+        return;
+      }
+
+      const layout = getTerminalLayout();
+      if (!layout) {
+        return;
+      }
+
+      const coord = clientPointToBufferCoord({
+        clientPoint: point,
+        screenRect: layout.screenRect,
+        cols: layout.cols,
+        rows: layout.rows,
+        viewportY: layout.viewportY,
+        cellWidth: layout.cellWidth,
+        cellHeight: layout.cellHeight,
+      });
+
+      const line = terminal.buffer.active.getLine(coord.row);
+      if (!line) {
+        return;
+      }
+
+      const lineText = line.translateToString(false);
+      const separators = getWordSeparators(terminal);
+      const word = getWordRangeInLine(lineText, coord.col, separators, terminal.cols);
+
+      applySelectionRange(
+        {
+          start: {
+            col: word.startCol,
+            row: coord.row,
+          },
+          end: {
+            col: word.endCol,
+            row: coord.row,
+          },
+        },
+        "selecting",
+        null,
+      );
+
+      setStatusMessage("Selection mode active.");
+    },
+    [applySelectionRange, getTerminalLayout, mobileTouchSupported],
+  );
+
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
   }, [onTitleChange]);
+
+  useEffect(() => {
+    if (!mobileTouchSupported) {
+      setMobileSelectionState(createInitialMobileSelectionState(false));
+      return;
+    }
+
+    setMobileSelectionState(previous => ({
+      ...previous,
+      enabled: true,
+    }));
+  }, [mobileTouchSupported]);
 
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     setContainer(node);
@@ -160,6 +671,36 @@ export function useTtydTerminal({
           socket.send(encodeResize(cols, rows));
         }
       }),
+      terminal.onScroll(() => {
+        const range = selectionRangeRef.current;
+        if (!range) {
+          return;
+        }
+
+        setMobileVisualStateFromRange(range, getDragMode(activeHandleRef.current), activeHandleRef.current);
+      }),
+      terminal.onSelectionChange(() => {
+        if (!mobileTouchSupported) {
+          return;
+        }
+
+        const selectionText = terminal.getSelection();
+        if (selectionText.length === 0) {
+          selectionRangeRef.current = null;
+          activeHandleRef.current = null;
+          dragPointRef.current = null;
+          stopAutoScrollLoop();
+          setMobileVisualStateFromRange(null, "idle", null);
+          return;
+        }
+
+        const range = selectionRangeRef.current;
+        if (!range) {
+          return;
+        }
+
+        setMobileVisualStateFromRange(range, getDragMode(activeHandleRef.current), activeHandleRef.current);
+      }),
     ];
 
     const fitThrottleMs = 100;
@@ -171,6 +712,10 @@ export function useTtydTerminal({
       if (elapsed >= fitThrottleMs) {
         lastFitTime = now;
         fitAddon.fit();
+        const range = selectionRangeRef.current;
+        if (range) {
+          setMobileVisualStateFromRange(range, getDragMode(activeHandleRef.current), activeHandleRef.current);
+        }
         return;
       }
 
@@ -182,6 +727,10 @@ export function useTtydTerminal({
         throttledFitTimeout = undefined;
         lastFitTime = Date.now();
         fitAddon.fit();
+        const range = selectionRangeRef.current;
+        if (range) {
+          setMobileVisualStateFromRange(range, getDragMode(activeHandleRef.current), activeHandleRef.current);
+        }
       }, fitThrottleMs - elapsed);
     };
 
@@ -205,8 +754,149 @@ export function useTtydTerminal({
       terminal.dispose();
       fitAddonRef.current = null;
       terminalRef.current = null;
+
+      if (longPressTimerRef.current !== null) {
+        window.clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+      pendingTouchRef.current = null;
+      selectionRangeRef.current = null;
+      activeHandleRef.current = null;
+      dragPointRef.current = null;
+      stopAutoScrollLoop();
+      setMobileVisualStateFromRange(null, "idle", null);
     };
-  }, [container, closeSocket]);
+  }, [
+    closeSocket,
+    container,
+    mobileTouchSupported,
+    setMobileVisualStateFromRange,
+    stopAutoScrollLoop,
+  ]);
+
+  useEffect(() => {
+    if (!container || !mobileTouchSupported) {
+      return;
+    }
+
+    const clearPendingLongPress = (setIdleIfNoSelection: boolean) => {
+      if (longPressTimerRef.current !== null) {
+        window.clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+      const hadPendingTouch = pendingTouchRef.current !== null;
+      pendingTouchRef.current = null;
+
+      if (setIdleIfNoSelection && hadPendingTouch && selectionRangeRef.current === null) {
+        setMobileVisualStateFromRange(null, "idle", activeHandleRef.current);
+      }
+    };
+
+    const findTouchById = (touches: TouchList, identifier: number): Touch | null => {
+      for (let index = 0; index < touches.length; index += 1) {
+        const touch = touches.item(index);
+        if (touch?.identifier === identifier) {
+          return touch;
+        }
+      }
+      return null;
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1 || activeHandleRef.current !== null) {
+        clearPendingLongPress(true);
+        return;
+      }
+
+      const touch = event.touches.item(0);
+      if (!touch) {
+        return;
+      }
+
+      const point = { x: touch.clientX, y: touch.clientY };
+      pendingTouchRef.current = {
+        identifier: touch.identifier,
+        startPoint: point,
+        latestPoint: point,
+      };
+
+      setMobileVisualStateFromRange(
+        selectionRangeRef.current,
+        selectionRangeRef.current ? "selecting" : "pendingLongPress",
+        activeHandleRef.current,
+      );
+
+      if (longPressTimerRef.current !== null) {
+        window.clearTimeout(longPressTimerRef.current);
+      }
+
+      longPressTimerRef.current = window.setTimeout(() => {
+        const pendingTouch = pendingTouchRef.current;
+        pendingTouchRef.current = null;
+        longPressTimerRef.current = null;
+
+        if (!pendingTouch) {
+          return;
+        }
+
+        startWordSelectionFromPoint(pendingTouch.latestPoint);
+      }, MOBILE_LONG_PRESS_MS);
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      const pendingTouch = pendingTouchRef.current;
+      if (!pendingTouch) {
+        return;
+      }
+
+      const matchingTouch = findTouchById(event.touches, pendingTouch.identifier);
+      if (!matchingTouch) {
+        return;
+      }
+
+      const nextPoint = {
+        x: matchingTouch.clientX,
+        y: matchingTouch.clientY,
+      };
+      pendingTouch.latestPoint = nextPoint;
+
+      if (
+        euclideanDistance(nextPoint, pendingTouch.startPoint) >=
+        MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX
+      ) {
+        clearPendingLongPress(true);
+      }
+    };
+
+    const onTouchEnd = () => {
+      clearPendingLongPress(true);
+    };
+
+    const onTouchCancel = () => {
+      clearPendingLongPress(true);
+    };
+
+    const onContextMenu = (event: MouseEvent) => {
+      if (pendingTouchRef.current !== null || selectionRangeRef.current !== null) {
+        event.preventDefault();
+      }
+    };
+
+    container.addEventListener("touchstart", onTouchStart, { passive: true });
+    container.addEventListener("touchmove", onTouchMove, { passive: true });
+    container.addEventListener("touchend", onTouchEnd, { passive: true });
+    container.addEventListener("touchcancel", onTouchCancel, { passive: true });
+    container.addEventListener("contextmenu", onContextMenu);
+
+    return () => {
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", onTouchEnd);
+      container.removeEventListener("touchcancel", onTouchCancel);
+      container.removeEventListener("contextmenu", onContextMenu);
+      clearPendingLongPress(false);
+    };
+  }, [container, mobileTouchSupported, setMobileVisualStateFromRange, startWordSelectionFromPoint]);
 
   useEffect(() => {
     if (!wsUrl) {
@@ -427,5 +1117,9 @@ export function useTtydTerminal({
     copySelection,
     copyRecentOutput,
     getSelectableText,
+    mobileSelectionState,
+    clearMobileSelection,
+    setActiveHandle,
+    updateActiveHandleFromClientPoint,
   };
 }
