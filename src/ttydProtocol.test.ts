@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { ServerCommand, buildHandshake, decodeFrame, encodeInput, encodeResize } from "./ttydProtocol";
+import { buildHandshake, decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttydProtocol";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

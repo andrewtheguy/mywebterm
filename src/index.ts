@@ -1,5 +1,5 @@
-import { parseArgs } from "util";
-import { serve, type Server, type ServerWebSocket } from "bun";
+import { parseArgs } from "node:util";
+import { type Server, type ServerWebSocket, serve } from "bun";
 import index from "./index.html";
 import { ClientCommand, decodeFrame } from "./ttydProtocol";
 
