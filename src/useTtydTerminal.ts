@@ -93,7 +93,7 @@ const terminalOptions: ITerminalOptions = {
   },
 };
 
-const RECENT_OUTPUT_LINES = 120;
+const RECENT_OUTPUT_LINES = 2000;
 const MOBILE_LONG_PRESS_MS = 420;
 const MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX = 8;
 const MOBILE_TOOLBAR_GAP_PX = 10;
