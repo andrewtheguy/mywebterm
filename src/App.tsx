@@ -27,6 +27,13 @@ import {
 } from "./softKeyboard";
 import { useTtydTerminal } from "./useTtydTerminal";
 
+function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
+  if (key.kind === "printable" && /^[a-z]$/.test(key.value)) {
+    return shiftActive ? key.value.toUpperCase() : key.value;
+  }
+  return key.label;
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
@@ -951,7 +958,7 @@ export function App() {
                           onPointerLeave={stopKeyRepeat}
                           onPointerCancel={stopKeyRepeat}
                         >
-                          {key.label}
+                          {softKeyLabel(key, softKeyModifiers.shift)}
                         </button>
                       );
                     })}
