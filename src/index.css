@@ -186,13 +186,17 @@ body {
 
 .overflow-menu {
   position: relative;
+  margin-left: auto;
 }
 
 .overflow-menu-trigger {
-  min-width: 2.4rem;
-  font-size: 1.2rem;
+  min-width: 2rem;
+  font-size: 1.3rem;
   line-height: 1;
-  padding: 0.42rem 0.5rem;
+  padding: 0.3rem 0.35rem;
+  border: none;
+  background: transparent;
+  color: var(--muted-ink);
 }
 
 .overflow-menu-panel {
@@ -565,6 +569,14 @@ body {
   .toolbar-actions {
     width: 100%;
     justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 0.3rem;
+  }
+
+  .toolbar-actions > .toolbar-button {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
   }
 
   .extra-keys-panel {
