@@ -10,11 +10,13 @@ import { Toaster, toast } from "sonner";
 
 import { loadTtydConfig, type TtydConfig } from "./config";
 import {
+  ARROW_SOFT_KEYS,
   buildSoftKeySequence,
   DEFAULT_SOFT_KEY_MODIFIERS,
   FUNCTION_SOFT_KEY_ROWS,
+  flattenSoftKeyRows,
   MAIN_SOFT_KEY_ROWS,
-  SOFT_MODIFIER_ORDER,
+  NAV_SOFT_KEYS,
   type SoftKeyDefinition,
   type SoftModifierName,
 } from "./softKeyboard";
@@ -26,19 +28,6 @@ function toErrorMessage(error: unknown): string {
   }
 
   return "Copy failed.";
-}
-
-function toModifierLabel(modifier: SoftModifierName): string {
-  switch (modifier) {
-    case "ctrl":
-      return "Ctrl";
-    case "alt":
-      return "Alt";
-    case "shift":
-      return "Shift";
-    default:
-      return modifier;
-  }
 }
 
 export function App() {
@@ -581,16 +570,18 @@ export function App() {
         </div>
         <div className="toolbar">
           <div className="toolbar-actions">
-            <button
-              type="button"
-              className={`toolbar-button ${softKeyboardActive ? "toolbar-button-active" : ""}`}
-              onMouseDown={(e) => e.preventDefault()}
-              onTouchStart={(e) => e.preventDefault()}
-              onClick={focusSoftKeyboard}
-              aria-pressed={softKeyboardActive}
-            >
-              {softKeyboardActive ? "Hide KB" : "Keyboard"}
-            </button>
+            {isMobile && (
+              <button
+                type="button"
+                className={`toolbar-button ${softKeyboardActive ? "toolbar-button-active" : ""}`}
+                onMouseDown={(e) => e.preventDefault()}
+                onTouchStart={(e) => e.preventDefault()}
+                onClick={focusSoftKeyboard}
+                aria-pressed={softKeyboardActive}
+              >
+                {softKeyboardActive ? "Hide KB" : "Keyboard"}
+              </button>
+            )}
             <button
               type="button"
               className={`toolbar-button ${extraKeysOpen ? "toolbar-button-active" : ""}`}
@@ -732,58 +723,195 @@ export function App() {
         {extraKeysOpen && (
           <section className="extra-keys-panel" aria-label="Extra key controls">
             <div className="extra-keys-header">
-              <p className="extra-keys-hint">Tap modifiers, then key. Modifiers reset after one send.</p>
-              <button
-                type="button"
-                className={`toolbar-button extra-keys-function-toggle ${functionKeysOpen ? "toolbar-button-active" : ""}`}
-                onClick={() => setFunctionKeysOpen((previous) => !previous)}
-                aria-expanded={functionKeysOpen}
-              >
-                Function
-              </button>
-            </div>
-            <div className="extra-keys-modifier-row" role="group" aria-label="Modifier keys">
-              {SOFT_MODIFIER_ORDER.map((modifier) => (
-                <button
-                  key={modifier}
-                  type="button"
-                  className={`toolbar-button extra-key-button ${softKeyModifiers[modifier] ? "toolbar-button-active" : ""}`}
-                  onClick={() => toggleSoftModifier(modifier)}
-                  aria-pressed={softKeyModifiers[modifier]}
-                >
-                  {toModifierLabel(modifier)}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="toolbar-button extra-key-button"
-                onClick={clearSoftModifiers}
-                disabled={!hasActiveSoftModifiers}
-              >
-                Clear Mods
-              </button>
-            </div>
-            <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
-              {MAIN_SOFT_KEY_ROWS.map((row, rowIndex) => (
-                <div key={`main-soft-key-row-${rowIndex + 1}`} className="extra-keys-row">
-                  {row.map((key) => (
+              {functionKeysOpen ? (
+                <div className="extra-keys-row extra-keys-function-row" role="group" aria-label="Function keys">
+                  {flattenSoftKeyRows(FUNCTION_SOFT_KEY_ROWS).map((key) => (
                     <button
                       key={key.id}
                       type="button"
-                      className={`toolbar-button extra-key-button ${key.label === "Space" ? "extra-key-button-space" : ""}`}
+                      className="toolbar-button extra-key-button"
                       onClick={() => handleSoftKeyPress(key)}
                     >
                       {key.label}
                     </button>
                   ))}
                 </div>
-              ))}
+              ) : (
+                <p className="extra-keys-hint">Tap modifiers, then key. Modifiers reset after one send.</p>
+              )}
+              <div className="extra-keys-header-actions">
+                <button
+                  type="button"
+                  className="toolbar-button extra-key-button"
+                  onClick={clearSoftModifiers}
+                  disabled={!hasActiveSoftModifiers}
+                >
+                  Clear Mods
+                </button>
+                <button
+                  type="button"
+                  className={`toolbar-button extra-key-button ${functionKeysOpen ? "toolbar-button-active" : ""}`}
+                  onClick={() => setFunctionKeysOpen((previous) => !previous)}
+                  aria-expanded={functionKeysOpen}
+                >
+                  Function
+                </button>
+              </div>
             </div>
-            {functionKeysOpen && (
-              <div className="extra-keys-grid extra-keys-grid-function" role="group" aria-label="Function keys">
-                {FUNCTION_SOFT_KEY_ROWS.map((row, rowIndex) => (
-                  <div key={`function-soft-key-row-${rowIndex + 1}`} className="extra-keys-row">
-                    {row.map((key) => (
+            {isMobile ? (
+              <>
+                <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
+                  {MAIN_SOFT_KEY_ROWS.map((row, rowIndex) => (
+                    <div key={`main-soft-key-row-${rowIndex + 1}`} className="extra-keys-row">
+                      {rowIndex === 3 && (
+                        <button
+                          type="button"
+                          className={`toolbar-button extra-key-button extra-key-wide-xl ${softKeyModifiers.shift ? "toolbar-button-active" : ""}`}
+                          onClick={() => toggleSoftModifier("shift")}
+                          aria-pressed={softKeyModifiers.shift}
+                        >
+                          Shift
+                        </button>
+                      )}
+                      {rowIndex === 4 && (
+                        <>
+                          <button
+                            type="button"
+                            className={`toolbar-button extra-key-button extra-key-wide-sm ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
+                            onClick={() => toggleSoftModifier("ctrl")}
+                            aria-pressed={softKeyModifiers.ctrl}
+                          >
+                            Ctrl
+                          </button>
+                          <button
+                            type="button"
+                            className={`toolbar-button extra-key-button extra-key-wide-sm ${softKeyModifiers.alt ? "toolbar-button-active" : ""}`}
+                            onClick={() => toggleSoftModifier("alt")}
+                            aria-pressed={softKeyModifiers.alt}
+                          >
+                            Alt
+                          </button>
+                        </>
+                      )}
+                      {row.map((key) => {
+                        const wideClass =
+                          key.label === "Tab"
+                            ? "extra-key-wide-md"
+                            : key.label === "Bksp"
+                              ? "extra-key-wide-lg"
+                              : key.label === "Enter"
+                                ? "extra-key-wide-xl"
+                                : key.label === "Space"
+                                  ? "extra-key-button-space"
+                                  : "";
+                        return (
+                          <button
+                            key={key.id}
+                            type="button"
+                            className={`toolbar-button extra-key-button ${wideClass}`}
+                            onClick={() => handleSoftKeyPress(key)}
+                          >
+                            {key.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+                <div
+                  className="extra-keys-row extra-keys-mobile-bottom"
+                  role="group"
+                  aria-label="Navigation and arrow keys"
+                >
+                  {ARROW_SOFT_KEYS.map((key) => (
+                    <button
+                      key={key.id}
+                      type="button"
+                      className="toolbar-button extra-key-button extra-key-arrow"
+                      onClick={() => handleSoftKeyPress(key)}
+                    >
+                      {key.label}
+                    </button>
+                  ))}
+                  {NAV_SOFT_KEYS.map((key) => (
+                    <button
+                      key={key.id}
+                      type="button"
+                      className="toolbar-button extra-key-button"
+                      onClick={() => handleSoftKeyPress(key)}
+                    >
+                      {key.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="keyboard-layout">
+                <div className="keyboard-rows-area">
+                  <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
+                    {MAIN_SOFT_KEY_ROWS.map((row, rowIndex) => (
+                      <div key={`main-soft-key-row-${rowIndex + 1}`} className="extra-keys-row">
+                        {rowIndex === 2 && <div className="extra-key-spacer extra-key-wide-lg" />}
+                        {rowIndex === 3 && (
+                          <button
+                            type="button"
+                            className={`toolbar-button extra-key-button extra-key-wide-xl ${softKeyModifiers.shift ? "toolbar-button-active" : ""}`}
+                            onClick={() => toggleSoftModifier("shift")}
+                            aria-pressed={softKeyModifiers.shift}
+                          >
+                            Shift
+                          </button>
+                        )}
+                        {rowIndex === 4 && (
+                          <>
+                            <button
+                              type="button"
+                              className={`toolbar-button extra-key-button extra-key-wide-sm ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
+                              onClick={() => toggleSoftModifier("ctrl")}
+                              aria-pressed={softKeyModifiers.ctrl}
+                            >
+                              Ctrl
+                            </button>
+                            <button
+                              type="button"
+                              className={`toolbar-button extra-key-button extra-key-wide-sm ${softKeyModifiers.alt ? "toolbar-button-active" : ""}`}
+                              onClick={() => toggleSoftModifier("alt")}
+                              aria-pressed={softKeyModifiers.alt}
+                            >
+                              Alt
+                            </button>
+                            <div className="extra-key-spacer extra-key-wide-sm" />
+                          </>
+                        )}
+                        {row.map((key) => {
+                          const wideClass =
+                            key.label === "Tab"
+                              ? "extra-key-wide-md"
+                              : key.label === "Bksp"
+                                ? "extra-key-wide-lg"
+                                : key.label === "Enter"
+                                  ? "extra-key-wide-xl"
+                                  : key.label === "Space"
+                                    ? "extra-key-button-space"
+                                    : "";
+                          return (
+                            <button
+                              key={key.id}
+                              type="button"
+                              className={`toolbar-button extra-key-button ${wideClass}`}
+                              onClick={() => handleSoftKeyPress(key)}
+                            >
+                              {key.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="keyboard-right-area">
+                  <div className="nav-keys-grid" role="group" aria-label="Navigation keys">
+                    {NAV_SOFT_KEYS.map((key) => (
                       <button
                         key={key.id}
                         type="button"
@@ -794,7 +922,41 @@ export function App() {
                       </button>
                     ))}
                   </div>
-                ))}
+                  <div className="arrow-cluster" role="group" aria-label="Arrow keys">
+                    <div className="arrow-cluster-top">
+                      <button
+                        type="button"
+                        className="toolbar-button extra-key-button extra-key-arrow"
+                        onClick={() => handleSoftKeyPress(ARROW_SOFT_KEYS[0])}
+                      >
+                        {ARROW_SOFT_KEYS[0].label}
+                      </button>
+                    </div>
+                    <div className="arrow-cluster-bottom">
+                      <button
+                        type="button"
+                        className="toolbar-button extra-key-button extra-key-arrow"
+                        onClick={() => handleSoftKeyPress(ARROW_SOFT_KEYS[2])}
+                      >
+                        {ARROW_SOFT_KEYS[2].label}
+                      </button>
+                      <button
+                        type="button"
+                        className="toolbar-button extra-key-button extra-key-arrow"
+                        onClick={() => handleSoftKeyPress(ARROW_SOFT_KEYS[1])}
+                      >
+                        {ARROW_SOFT_KEYS[1].label}
+                      </button>
+                      <button
+                        type="button"
+                        className="toolbar-button extra-key-button extra-key-arrow"
+                        onClick={() => handleSoftKeyPress(ARROW_SOFT_KEYS[3])}
+                      >
+                        {ARROW_SOFT_KEYS[3].label}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </section>
