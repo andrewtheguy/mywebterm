@@ -6,11 +6,12 @@ import { ClientCommand, decodeFrame } from "./ttydProtocol";
 declare const BUILD_VERSION: string;
 const VERSION = typeof BUILD_VERSION !== "undefined" ? BUILD_VERSION : "dev";
 
-const { values } = parseArgs({
+const { values, positionals } = parseArgs({
   options: {
     version: { type: "boolean", short: "v" },
   },
   strict: false,
+  allowPositionals: true,
 });
 
 if (values.version) {
@@ -28,7 +29,7 @@ interface PtySession {
   handshakeReceived: boolean;
 }
 
-const shell = process.env.SHELL || "/bin/sh";
+const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh"];
 const hostname = process.env.HOST || "::";
 const port = parseInt(process.env.PORT || "8671", 10);
 const MAX_COLS = 500;
@@ -98,7 +99,7 @@ function spawnPtyForSession(
 
   let proc: ReturnType<typeof Bun.spawn>;
   try {
-    proc = Bun.spawn([shell], {
+    proc = Bun.spawn(command, {
       terminal: {
         cols,
         rows,
@@ -248,4 +249,4 @@ const server = serve<PtySessionData>({
   },
 });
 
-console.log(`Server running at ${server.url} (shell: ${shell})`);
+console.log(`Server running at ${server.url} (command: ${command.join(" ")})`);
