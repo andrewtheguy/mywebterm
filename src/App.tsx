@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  type TouchEvent as ReactTouchEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { loadTtydConfig } from "./config";
 import "./index.css";
@@ -20,8 +28,11 @@ export function App() {
   const config = useMemo(() => loadTtydConfig(), []);
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
   const [selectableText, setSelectableText] = useState<string | null>(null);
+  const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
+  const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
+  const pasteHelperFocusedRef = useRef(false);
 
   const handleTitleChange = useCallback((title: string) => {
     if (title.trim().length === 0) {
@@ -30,7 +41,24 @@ export function App() {
     setRemoteTitle(title);
   }, []);
 
-  const { containerRef, connectionStatus, statusMessage, reconnect, focusSoftKeyboard, copySelection, copyRecentOutput, getSelectableText } = useTtydTerminal({
+  const {
+    containerRef,
+    connectionStatus,
+    statusMessage,
+    reconnect,
+    focusSoftKeyboard,
+    attemptPasteFromClipboard,
+    pasteTextIntoTerminal,
+    copySelection,
+    copyRecentOutput,
+    getSelectableText,
+    mobileSelectionState,
+    mobileMouseMode,
+    clearMobileSelection,
+    setActiveHandle,
+    updateActiveHandleFromClientPoint,
+    toggleMobileMouseMode,
+  } = useTtydTerminal({
     wsUrl: config.wsUrl,
     onTitleChange: handleTitleChange,
   });
@@ -47,6 +75,21 @@ export function App() {
     selectableTextRef.current.focus();
     selectableTextRef.current.setSelectionRange(0, selectableText.length);
   }, [selectableText]);
+
+  useEffect(() => {
+    if (pasteHelperText === null) {
+      pasteHelperFocusedRef.current = false;
+      return;
+    }
+
+    if (!pasteHelperRef.current || pasteHelperFocusedRef.current) {
+      return;
+    }
+
+    pasteHelperRef.current.focus();
+    pasteHelperRef.current.setSelectionRange(pasteHelperText.length, pasteHelperText.length);
+    pasteHelperFocusedRef.current = true;
+  }, [pasteHelperText]);
 
   useEffect(() => {
     if (!copyFeedback) {
@@ -67,6 +110,7 @@ export function App() {
     if (text.length === 0) {
       return;
     }
+    setPasteHelperText(null);
     setSelectableText(text);
   }, [getSelectableText]);
 
@@ -74,18 +118,30 @@ export function App() {
     setSelectableText(null);
   }, []);
 
-  const handleCopySelection = useCallback(async () => {
+  const openPasteHelper = useCallback(() => {
+    setSelectableText(null);
+    setPasteHelperText("");
+  }, []);
+
+  const closePasteHelper = useCallback(() => {
+    pasteHelperFocusedRef.current = false;
+    setPasteHelperText(null);
+  }, []);
+
+  const handleCopySelection = useCallback(async (): Promise<boolean> => {
     try {
       await copySelection();
       setCopyFeedback({
         tone: "success",
         message: "Selection copied.",
       });
+      return true;
     } catch (error) {
       setCopyFeedback({
         tone: "error",
         message: toErrorMessage(error),
       });
+      return false;
     }
   }, [copySelection]);
 
@@ -103,6 +159,118 @@ export function App() {
       });
     }
   }, [copyRecentOutput]);
+
+  const handleToolbarPaste = useCallback(async () => {
+    const result = await attemptPasteFromClipboard();
+    if (result === "fallback-required") {
+      openPasteHelper();
+    }
+  }, [attemptPasteFromClipboard, openPasteHelper]);
+
+  const submitPasteHelperText = useCallback(() => {
+    if (pasteHelperText === null) {
+      return;
+    }
+    const pasted = pasteTextIntoTerminal(pasteHelperText);
+    if (pasted) {
+      closePasteHelper();
+    }
+  }, [closePasteHelper, pasteHelperText, pasteTextIntoTerminal]);
+
+  const beginSelectionHandleDrag = useCallback(
+    (handle: "start" | "end", event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType === "touch") {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveHandle(handle);
+      updateActiveHandleFromClientPoint(event.clientX, event.clientY);
+      if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+    },
+    [setActiveHandle, updateActiveHandleFromClientPoint],
+  );
+
+  const handleSelectionHandleMove = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType === "touch" || mobileSelectionState.activeHandle === null) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      updateActiveHandleFromClientPoint(event.clientX, event.clientY);
+    },
+    [mobileSelectionState.activeHandle, updateActiveHandleFromClientPoint],
+  );
+
+  const finishSelectionHandleDrag = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType === "touch") {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveHandle(null);
+    },
+    [setActiveHandle],
+  );
+
+  const beginSelectionHandleTouch = useCallback(
+    (handle: "start" | "end", event: ReactTouchEvent<HTMLButtonElement>) => {
+      const touch = event.touches.item(0);
+      if (!touch) {
+        return;
+      }
+
+      event.stopPropagation();
+      setActiveHandle(handle);
+      updateActiveHandleFromClientPoint(touch.clientX, touch.clientY);
+    },
+    [setActiveHandle, updateActiveHandleFromClientPoint],
+  );
+
+  const handleSelectionHandleTouchMove = useCallback(
+    (event: ReactTouchEvent<HTMLButtonElement>) => {
+      if (mobileSelectionState.activeHandle === null) {
+        return;
+      }
+
+      const touch = event.touches.item(0);
+      if (!touch) {
+        return;
+      }
+
+      event.stopPropagation();
+      updateActiveHandleFromClientPoint(touch.clientX, touch.clientY);
+    },
+    [mobileSelectionState.activeHandle, updateActiveHandleFromClientPoint],
+  );
+
+  const finishSelectionHandleTouch = useCallback(
+    (event: ReactTouchEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      setActiveHandle(null);
+    },
+    [setActiveHandle],
+  );
+
+  const handleMobileCopySelection = useCallback(async () => {
+    const copied = await handleCopySelection();
+    if (copied) {
+      clearMobileSelection();
+      return;
+    }
+    setActiveHandle(null);
+  }, [clearMobileSelection, handleCopySelection, setActiveHandle]);
+
+  const hasMobileSelectionOverlay =
+    mobileSelectionState.enabled &&
+    mobileSelectionState.range !== null &&
+    mobileSelectionState.startHandle !== null &&
+    mobileSelectionState.endHandle !== null &&
+    mobileSelectionState.toolbarAnchor !== null;
 
   return (
     <div className="app-shell">
@@ -122,6 +290,34 @@ export function App() {
             </button>
             <button type="button" className="toolbar-button" onClick={focusSoftKeyboard}>
               Keyboard
+            </button>
+            {mobileSelectionState.enabled && (
+              <button
+                type="button"
+                className="toolbar-button"
+                onClick={() => void handleToolbarPaste()}
+                disabled={mobileMouseMode !== "nativeScroll"}
+                title={
+                  mobileMouseMode === "nativeScroll"
+                    ? "Paste from clipboard. If blocked, a helper panel opens for iOS paste."
+                    : "Switch to Mode: Native to paste."
+                }
+              >
+                Paste
+              </button>
+            )}
+            <button
+              type="button"
+              className="toolbar-button"
+              onClick={toggleMobileMouseMode}
+              disabled={!mobileSelectionState.enabled}
+              title={
+                mobileMouseMode === "passToTerminal"
+                  ? "Current mode: App. Tap to switch touch scrolling back to Native."
+                  : "Current mode: Native. Tap to pass touch scrolling to the App."
+              }
+            >
+              {mobileMouseMode === "passToTerminal" ? "Mode: App" : "Mode: Native"}
             </button>
             <button type="button" className="toolbar-button" onClick={openSelectableText}>
               Select Text
@@ -156,7 +352,75 @@ export function App() {
       </section>
 
       <main className="terminal-card">
-        <div ref={containerRef} className="terminal-viewport" />
+        <div className="terminal-stage">
+          <div
+            ref={containerRef}
+            className={`terminal-viewport ${mobileMouseMode === "passToTerminal" ? "terminal-viewport-pass-through" : ""}`}
+          />
+
+          {hasMobileSelectionOverlay && (
+            <div className="mobile-selection-overlay">
+              <button
+                type="button"
+                className="mobile-selection-handle mobile-selection-handle-start"
+                style={{
+                  left: `${mobileSelectionState.startHandle.left}px`,
+                  top: `${mobileSelectionState.startHandle.top}px`,
+                }}
+                onPointerDown={event => beginSelectionHandleDrag("start", event)}
+                onPointerMove={handleSelectionHandleMove}
+                onPointerUp={finishSelectionHandleDrag}
+                onPointerCancel={finishSelectionHandleDrag}
+                onLostPointerCapture={finishSelectionHandleDrag}
+                onTouchStart={event => beginSelectionHandleTouch("start", event)}
+                onTouchMove={handleSelectionHandleTouchMove}
+                onTouchEnd={finishSelectionHandleTouch}
+                onTouchCancel={finishSelectionHandleTouch}
+                aria-label="Adjust selection start"
+              >
+                <span className="mobile-selection-handle-knob" />
+              </button>
+
+              <button
+                type="button"
+                className="mobile-selection-handle mobile-selection-handle-end"
+                style={{
+                  left: `${mobileSelectionState.endHandle.left}px`,
+                  top: `${mobileSelectionState.endHandle.top}px`,
+                }}
+                onPointerDown={event => beginSelectionHandleDrag("end", event)}
+                onPointerMove={handleSelectionHandleMove}
+                onPointerUp={finishSelectionHandleDrag}
+                onPointerCancel={finishSelectionHandleDrag}
+                onLostPointerCapture={finishSelectionHandleDrag}
+                onTouchStart={event => beginSelectionHandleTouch("end", event)}
+                onTouchMove={handleSelectionHandleTouchMove}
+                onTouchEnd={finishSelectionHandleTouch}
+                onTouchCancel={finishSelectionHandleTouch}
+                aria-label="Adjust selection end"
+              >
+                <span className="mobile-selection-handle-knob" />
+              </button>
+
+              <div
+                className="mobile-selection-toolbar"
+                style={{
+                  left: `${mobileSelectionState.toolbarAnchor.left}px`,
+                  top: `${mobileSelectionState.toolbarAnchor.top}px`,
+                }}
+                role="group"
+                aria-label="Selection actions"
+              >
+                <button type="button" className="toolbar-button" onClick={() => void handleMobileCopySelection()}>
+                  Copy
+                </button>
+                <button type="button" className="toolbar-button" onClick={clearMobileSelection}>
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </main>
 
       {selectableText !== null && (
@@ -174,6 +438,35 @@ export function App() {
             value={selectableText}
             readOnly
           />
+        </section>
+      )}
+
+      {pasteHelperText !== null && (
+        <section className="copy-sheet" aria-label="Paste helper">
+          <div className="copy-sheet-header">
+            <h2>Paste Into Terminal</h2>
+            <button type="button" className="toolbar-button" onClick={closePasteHelper}>
+              Close
+            </button>
+          </div>
+          <p className="copy-sheet-hint">Long-press in this field, tap Paste, then Send.</p>
+          <textarea
+            ref={pasteHelperRef}
+            className="copy-sheet-textarea"
+            value={pasteHelperText}
+            onChange={event => setPasteHelperText(event.target.value)}
+            spellCheck={false}
+          />
+          <div className="copy-sheet-actions">
+            <button
+              type="button"
+              className="toolbar-button"
+              onClick={submitPasteHelperText}
+              disabled={pasteHelperText.trim().length === 0}
+            >
+              Send
+            </button>
+          </div>
         </section>
       )}
     </div>
