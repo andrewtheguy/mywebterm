@@ -34,6 +34,36 @@ function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
   return key.label;
 }
 
+function ExtraKeyButton({
+  softKey,
+  className,
+  children,
+  startKeyRepeat,
+  stopKeyRepeat,
+}: {
+  softKey: SoftKeyDefinition;
+  className?: string;
+  children: React.ReactNode;
+  startKeyRepeat: (key: SoftKeyDefinition) => void;
+  stopKeyRepeat: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`toolbar-button extra-key-button ${className ?? ""}`}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        startKeyRepeat(softKey);
+      }}
+      onPointerUp={stopKeyRepeat}
+      onPointerLeave={stopKeyRepeat}
+      onPointerCancel={stopKeyRepeat}
+    >
+      {children}
+    </button>
+  );
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
@@ -436,6 +466,9 @@ export function App() {
 
   const fetchSessionsText = useCallback(async (): Promise<string> => {
     const res = await fetch("/api/sessions");
+    if (!res.ok) {
+      throw new Error(`Failed to fetch sessions: ${res.status} ${res.statusText}`);
+    }
     const data = await res.json();
     const children = (data.children as { pid: number; command: string }[]) ?? [];
     const lines = [`Server PID: ${data.ppid}`, "", `Child processes (${children.length}):`];
@@ -930,20 +963,14 @@ export function App() {
               <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
                 <div className="extra-keys-row extra-keys-function-row">
                   {flattenSoftKeyRows(FUNCTION_SOFT_KEY_ROWS).map((key) => (
-                    <button
+                    <ExtraKeyButton
                       key={key.id}
-                      type="button"
-                      className="toolbar-button extra-key-button"
-                      onPointerDown={(e) => {
-                        e.preventDefault();
-                        startKeyRepeat(key);
-                      }}
-                      onPointerUp={stopKeyRepeat}
-                      onPointerLeave={stopKeyRepeat}
-                      onPointerCancel={stopKeyRepeat}
+                      softKey={key}
+                      startKeyRepeat={startKeyRepeat}
+                      stopKeyRepeat={stopKeyRepeat}
                     >
                       {key.label}
-                    </button>
+                    </ExtraKeyButton>
                   ))}
                 </div>
                 {MAIN_SOFT_KEY_ROWS.map((row, rowIndex) => (
@@ -992,82 +1019,57 @@ export function App() {
                                 ? "extra-key-button-space"
                                 : "";
                       return (
-                        <button
+                        <ExtraKeyButton
                           key={key.id}
-                          type="button"
-                          className={`toolbar-button extra-key-button ${wideClass}`}
-                          onPointerDown={(e) => {
-                            e.preventDefault();
-                            startKeyRepeat(key);
-                          }}
-                          onPointerUp={stopKeyRepeat}
-                          onPointerLeave={stopKeyRepeat}
-                          onPointerCancel={stopKeyRepeat}
+                          softKey={key}
+                          className={wideClass}
+                          startKeyRepeat={startKeyRepeat}
+                          stopKeyRepeat={stopKeyRepeat}
                         >
                           {softKeyLabel(key, softKeyModifiers.shift)}
-                        </button>
+                        </ExtraKeyButton>
                       );
                     })}
                     {rowIndex === 3 && (
                       <>
                         <div className="extra-key-spacer" style={{ flex: 1 }} />
-                        <button
-                          type="button"
-                          className="toolbar-button extra-key-button extra-key-arrow"
-                          onPointerDown={(e) => {
-                            e.preventDefault();
-                            startKeyRepeat(ARROW_SOFT_KEYS[0]);
-                          }}
-                          onPointerUp={stopKeyRepeat}
-                          onPointerLeave={stopKeyRepeat}
-                          onPointerCancel={stopKeyRepeat}
+                        <ExtraKeyButton
+                          softKey={ARROW_SOFT_KEYS[0]}
+                          className="extra-key-arrow"
+                          startKeyRepeat={startKeyRepeat}
+                          stopKeyRepeat={stopKeyRepeat}
                         >
                           {ARROW_SOFT_KEYS[0].label}
-                        </button>
+                        </ExtraKeyButton>
                         <div className="extra-key-spacer extra-key-arrow" />
                       </>
                     )}
                     {rowIndex === 4 && (
                       <>
-                        <button
-                          type="button"
-                          className="toolbar-button extra-key-button extra-key-arrow"
-                          onPointerDown={(e) => {
-                            e.preventDefault();
-                            startKeyRepeat(ARROW_SOFT_KEYS[2]);
-                          }}
-                          onPointerUp={stopKeyRepeat}
-                          onPointerLeave={stopKeyRepeat}
-                          onPointerCancel={stopKeyRepeat}
+                        <ExtraKeyButton
+                          softKey={ARROW_SOFT_KEYS[2]}
+                          className="extra-key-arrow"
+                          startKeyRepeat={startKeyRepeat}
+                          stopKeyRepeat={stopKeyRepeat}
                         >
                           {ARROW_SOFT_KEYS[2].label}
-                        </button>
-                        <button
-                          type="button"
-                          className="toolbar-button extra-key-button extra-key-arrow"
-                          onPointerDown={(e) => {
-                            e.preventDefault();
-                            startKeyRepeat(ARROW_SOFT_KEYS[1]);
-                          }}
-                          onPointerUp={stopKeyRepeat}
-                          onPointerLeave={stopKeyRepeat}
-                          onPointerCancel={stopKeyRepeat}
+                        </ExtraKeyButton>
+                        <ExtraKeyButton
+                          softKey={ARROW_SOFT_KEYS[1]}
+                          className="extra-key-arrow"
+                          startKeyRepeat={startKeyRepeat}
+                          stopKeyRepeat={stopKeyRepeat}
                         >
                           {ARROW_SOFT_KEYS[1].label}
-                        </button>
-                        <button
-                          type="button"
-                          className="toolbar-button extra-key-button extra-key-arrow"
-                          onPointerDown={(e) => {
-                            e.preventDefault();
-                            startKeyRepeat(ARROW_SOFT_KEYS[3]);
-                          }}
-                          onPointerUp={stopKeyRepeat}
-                          onPointerLeave={stopKeyRepeat}
-                          onPointerCancel={stopKeyRepeat}
+                        </ExtraKeyButton>
+                        <ExtraKeyButton
+                          softKey={ARROW_SOFT_KEYS[3]}
+                          className="extra-key-arrow"
+                          startKeyRepeat={startKeyRepeat}
+                          stopKeyRepeat={stopKeyRepeat}
                         >
                           {ARROW_SOFT_KEYS[3].label}
-                        </button>
+                        </ExtraKeyButton>
                       </>
                     )}
                   </div>
@@ -1076,96 +1078,20 @@ export function App() {
             </div>
             <div className="keyboard-right-area">
               <div className="extra-keys-grid" role="group" aria-label="Navigation keys">
-                <div className="extra-keys-row">
-                  <button
-                    type="button"
-                    className="toolbar-button extra-key-button"
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      startKeyRepeat(INSERT_SOFT_KEY);
-                    }}
-                    onPointerUp={stopKeyRepeat}
-                    onPointerLeave={stopKeyRepeat}
-                    onPointerCancel={stopKeyRepeat}
-                  >
-                    {INSERT_SOFT_KEY.label}
-                  </button>
-                </div>
-                <div className="extra-keys-row">
-                  <button
-                    type="button"
-                    className="toolbar-button extra-key-button"
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      startKeyRepeat(DELETE_SOFT_KEY);
-                    }}
-                    onPointerUp={stopKeyRepeat}
-                    onPointerLeave={stopKeyRepeat}
-                    onPointerCancel={stopKeyRepeat}
-                  >
-                    {DELETE_SOFT_KEY.label}
-                  </button>
-                </div>
-                <div className="extra-keys-row">
-                  <button
-                    type="button"
-                    className="toolbar-button extra-key-button"
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      startKeyRepeat(HOME_SOFT_KEY);
-                    }}
-                    onPointerUp={stopKeyRepeat}
-                    onPointerLeave={stopKeyRepeat}
-                    onPointerCancel={stopKeyRepeat}
-                  >
-                    {HOME_SOFT_KEY.label}
-                  </button>
-                </div>
-                <div className="extra-keys-row">
-                  <button
-                    type="button"
-                    className="toolbar-button extra-key-button"
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      startKeyRepeat(END_SOFT_KEY);
-                    }}
-                    onPointerUp={stopKeyRepeat}
-                    onPointerLeave={stopKeyRepeat}
-                    onPointerCancel={stopKeyRepeat}
-                  >
-                    {END_SOFT_KEY.label}
-                  </button>
-                </div>
-                <div className="extra-keys-row">
-                  <button
-                    type="button"
-                    className="toolbar-button extra-key-button"
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      startKeyRepeat(PAGE_UP_SOFT_KEY);
-                    }}
-                    onPointerUp={stopKeyRepeat}
-                    onPointerLeave={stopKeyRepeat}
-                    onPointerCancel={stopKeyRepeat}
-                  >
-                    {PAGE_UP_SOFT_KEY.label}
-                  </button>
-                </div>
-                <div className="extra-keys-row">
-                  <button
-                    type="button"
-                    className="toolbar-button extra-key-button"
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      startKeyRepeat(PAGE_DOWN_SOFT_KEY);
-                    }}
-                    onPointerUp={stopKeyRepeat}
-                    onPointerLeave={stopKeyRepeat}
-                    onPointerCancel={stopKeyRepeat}
-                  >
-                    {PAGE_DOWN_SOFT_KEY.label}
-                  </button>
-                </div>
+                {[
+                  INSERT_SOFT_KEY,
+                  DELETE_SOFT_KEY,
+                  HOME_SOFT_KEY,
+                  END_SOFT_KEY,
+                  PAGE_UP_SOFT_KEY,
+                  PAGE_DOWN_SOFT_KEY,
+                ].map((navKey) => (
+                  <div key={navKey.id} className="extra-keys-row">
+                    <ExtraKeyButton softKey={navKey} startKeyRepeat={startKeyRepeat} stopKeyRepeat={stopKeyRepeat}>
+                      {navKey.label}
+                    </ExtraKeyButton>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
