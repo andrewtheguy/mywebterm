@@ -99,12 +99,7 @@ function createFunctionKey(number: number): FunctionSoftKeyDefinition {
 
 export const MAIN_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
   [
-    createSpecialKey("tab", "Tab"),
-    createSpecialKey("enter", "Enter"),
-    createSpecialKey("backspace", "Backspace"),
     createSpecialKey("escape", "Esc"),
-  ],
-  [
     createPrintableKey("1"),
     createPrintableKey("2"),
     createPrintableKey("3"),
@@ -117,8 +112,10 @@ export const MAIN_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
     createPrintableKey("0"),
     createPrintableKey("-"),
     createPrintableKey("="),
+    createSpecialKey("backspace", "Bksp"),
   ],
   [
+    createSpecialKey("tab", "Tab"),
     createPrintableKey("q", "Q"),
     createPrintableKey("w", "W"),
     createPrintableKey("e", "E"),
@@ -129,6 +126,9 @@ export const MAIN_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
     createPrintableKey("i", "I"),
     createPrintableKey("o", "O"),
     createPrintableKey("p", "P"),
+    createPrintableKey("["),
+    createPrintableKey("]"),
+    createPrintableKey("\\"),
   ],
   [
     createPrintableKey("a", "A"),
@@ -140,6 +140,9 @@ export const MAIN_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
     createPrintableKey("j", "J"),
     createPrintableKey("k", "K"),
     createPrintableKey("l", "L"),
+    createPrintableKey(";"),
+    createPrintableKey("'"),
+    createSpecialKey("enter", "Enter"),
   ],
   [
     createPrintableKey("z", "Z"),
@@ -149,31 +152,27 @@ export const MAIN_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
     createPrintableKey("b", "B"),
     createPrintableKey("n", "N"),
     createPrintableKey("m", "M"),
-  ],
-  [
-    createPrintableKey("`"),
-    createPrintableKey("["),
-    createPrintableKey("]"),
-    createPrintableKey("\\"),
-    createPrintableKey(";"),
-    createPrintableKey("'"),
     createPrintableKey(","),
     createPrintableKey("."),
     createPrintableKey("/"),
-    createPrintableKey(" ", "Space"),
   ],
-  [
-    createSpecialKey("arrowUp", "Up"),
-    createSpecialKey("arrowDown", "Down"),
-    createSpecialKey("arrowLeft", "Left"),
-    createSpecialKey("arrowRight", "Right"),
-    createSpecialKey("home", "Home"),
-    createSpecialKey("end", "End"),
-    createSpecialKey("pageUp", "PgUp"),
-    createSpecialKey("pageDown", "PgDn"),
-    createSpecialKey("insert", "Ins"),
-    createSpecialKey("delete", "Del"),
-  ],
+  [createPrintableKey("`"), createPrintableKey(" ", "Space")],
+];
+
+export const ARROW_SOFT_KEYS = [
+  createSpecialKey("arrowUp", "\u2191"),
+  createSpecialKey("arrowDown", "\u2193"),
+  createSpecialKey("arrowLeft", "\u2190"),
+  createSpecialKey("arrowRight", "\u2192"),
+] as const;
+
+export const NAV_SOFT_KEYS: readonly SoftKeyDefinition[] = [
+  createSpecialKey("home", "Home"),
+  createSpecialKey("end", "End"),
+  createSpecialKey("pageUp", "PgUp"),
+  createSpecialKey("pageDown", "PgDn"),
+  createSpecialKey("insert", "Ins"),
+  createSpecialKey("delete", "Del"),
 ];
 
 export const FUNCTION_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
