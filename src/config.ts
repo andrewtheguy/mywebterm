@@ -17,7 +17,8 @@ export async function loadTtydConfig(locationLike: Pick<Location, "origin"> = wi
 
   let experimentalHScroll = false;
   try {
-    const res = await fetch("/api/config");
+    const configUrl = new URL("/api/config", locationLike.origin);
+    const res = await fetch(configUrl);
     if (res.ok) {
       const json = await res.json();
       experimentalHScroll = json.experimentalHScroll === true;

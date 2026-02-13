@@ -57,7 +57,21 @@ export function App() {
   const pasteHelperFocusedRef = useRef(false);
 
   useEffect(() => {
-    void loadTtydConfig().then(setConfig);
+    let cancelled = false;
+    loadTtydConfig()
+      .then((cfg) => {
+        if (!cancelled) {
+          setConfig(cfg);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error("Failed to load configuration.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleTitleChange = useCallback((title: string) => {
