@@ -10,7 +10,7 @@ const VERSION = typeof BUILD_VERSION !== "undefined" ? BUILD_VERSION : "dev";
 const { values, positionals } = parseArgs({
   options: {
     version: { type: "boolean", short: "v" },
-    foreground: { type: "boolean", short: "f" },
+    daemon: { type: "boolean", short: "d" },
   },
   strict: false,
   allowPositionals: true,
@@ -21,11 +21,16 @@ if (values.version) {
   process.exit(0);
 }
 
-if (!values.foreground) {
-  const args = [...process.argv.slice(1), "--foreground"];
+if (values.daemon) {
+  const STRIPPED_ENV_PREFIXES = ["ZELLIJ", "TMUX"];
+  const cleanEnv = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !STRIPPED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))),
+  );
+  const args = process.argv.slice(1).filter((a) => a !== "-d" && a !== "--daemon");
   const child = cpSpawn(process.execPath, args, {
     detached: true,
     stdio: "ignore",
+    env: cleanEnv,
   });
   child.unref();
   console.log(`Daemonized (PID ${child.pid})`);
@@ -48,12 +53,6 @@ const port = parseInt(process.env.PORT || "8671", 10);
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
 const RESTART_CLOSE_CODE = 4000;
-const STRIPPED_ENV_PREFIXES = ["ZELLIJ", "TMUX"];
-
-const cleanEnv = Object.fromEntries(
-  Object.entries(process.env).filter(([key]) => !STRIPPED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))),
-);
-
 function clampDimension(value: number | undefined, fallback: number, max: number): number {
   return Math.max(1, Math.min(max, Math.floor(value ?? fallback)));
 }
@@ -148,7 +147,7 @@ function spawnPtyForSession(
           closeClientSocket(current.ws, 1000, "Shell exited");
         },
       },
-      env: { ...cleanEnv, TERM: "xterm-256color" },
+      env: { ...process.env, TERM: "xterm-256color" },
     });
   } catch {
     ptySessions.delete(connectionId);

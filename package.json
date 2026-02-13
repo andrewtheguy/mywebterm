@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "HOST=localhost PORT=18671 bun --hot src/index.ts -f",
+    "dev": "HOST=localhost PORT=18671 bun --hot src/index.ts",
     "build": "bun build ./src/index.html --outdir=dist --sourcemap --target=browser --minify --define:process.env.NODE_ENV='\"production\"'",
     "start": "NODE_ENV=production PORT=8671 bun src/index.ts",
     "lint": "bunx biome check src/",
