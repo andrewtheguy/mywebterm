@@ -307,6 +307,7 @@ export function App() {
   }, []);
 
   const stopKeyRepeat = useCallback(() => {
+    const hadRepeat = repeatTimerRef.current !== null || repeatIntervalRef.current !== null;
     if (repeatTimerRef.current !== null) {
       window.clearTimeout(repeatTimerRef.current);
       repeatTimerRef.current = null;
@@ -316,7 +317,9 @@ export function App() {
       repeatIntervalRef.current = null;
     }
     repeatModifiersRef.current = null;
-    clearSoftModifiers();
+    if (hadRepeat) {
+      clearSoftModifiers();
+    }
   }, [clearSoftModifiers]);
 
   const startKeyRepeat = useCallback(
