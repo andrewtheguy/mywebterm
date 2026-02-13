@@ -59,7 +59,7 @@ export function decodeFrame(arrayBuffer: ArrayBuffer): DecodedFrame {
   }
 
   return {
-    command: String.fromCharCode(payload[0]!),
+    command: String.fromCharCode(payload[0] as number),
     payload: payload.slice(1),
   };
 }

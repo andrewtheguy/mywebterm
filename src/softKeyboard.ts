@@ -53,22 +53,19 @@ export interface FunctionSoftKeyDefinition extends SoftKeyBase {
   number: number;
 }
 
-export type SoftKeyDefinition =
-  | PrintableSoftKeyDefinition
-  | SpecialSoftKeyDefinition
-  | FunctionSoftKeyDefinition;
+export type SoftKeyDefinition = PrintableSoftKeyDefinition | SpecialSoftKeyDefinition | FunctionSoftKeyDefinition;
 
 export type BuildSoftKeySequenceResult =
   | {
-    ok: true;
-    sequence: string;
-    description: string;
-  }
+      ok: true;
+      sequence: string;
+      description: string;
+    }
   | {
-    ok: false;
-    description: string;
-    reason: string;
-  };
+      ok: false;
+      description: string;
+      reason: string;
+    };
 
 function createPrintableKey(value: string, label = value): PrintableSoftKeyDefinition {
   return {
@@ -80,10 +77,7 @@ function createPrintableKey(value: string, label = value): PrintableSoftKeyDefin
   };
 }
 
-function createSpecialKey(
-  special: SpecialSoftKeyId,
-  label: string,
-): SpecialSoftKeyDefinition {
+function createSpecialKey(special: SpecialSoftKeyId, label: string): SpecialSoftKeyDefinition {
   return {
     id: `special-${special}`,
     label,
@@ -254,11 +248,7 @@ function formatChordDescription(label: string, modifiers: SoftKeyModifiers): str
   return parts.join("+");
 }
 
-function success(
-  sequence: string,
-  label: string,
-  modifiers: SoftKeyModifiers,
-): BuildSoftKeySequenceResult {
+function success(sequence: string, label: string, modifiers: SoftKeyModifiers): BuildSoftKeySequenceResult {
   return {
     ok: true,
     sequence,
@@ -266,11 +256,7 @@ function success(
   };
 }
 
-function failure(
-  label: string,
-  modifiers: SoftKeyModifiers,
-  reason: string,
-): BuildSoftKeySequenceResult {
+function failure(label: string, modifiers: SoftKeyModifiers, reason: string): BuildSoftKeySequenceResult {
   return {
     ok: false,
     description: formatChordDescription(label, modifiers),
@@ -286,10 +272,7 @@ function unexpectedSpecialKeyFailure(
   return failure(key.label, modifiers, `Unsupported key: ${String(special)}`);
 }
 
-function unexpectedSoftKeyFailure(
-  key: never,
-  modifiers: SoftKeyModifiers,
-): BuildSoftKeySequenceResult {
+function unexpectedSoftKeyFailure(key: never, modifiers: SoftKeyModifiers): BuildSoftKeySequenceResult {
   const unknownKey = key as { kind?: string } | null;
   const suffix = unknownKey?.kind ? `: ${unknownKey.kind}` : "";
   const modifierDescription = formatChordDescription("Unknown", modifiers);
@@ -345,10 +328,7 @@ function toCtrlSequence(character: string): string | null {
   }
 }
 
-function encodePrintableKey(
-  key: PrintableSoftKeyDefinition,
-  modifiers: SoftKeyModifiers,
-): BuildSoftKeySequenceResult {
+function encodePrintableKey(key: PrintableSoftKeyDefinition, modifiers: SoftKeyModifiers): BuildSoftKeySequenceResult {
   const shiftedValue = applyShiftToPrintable(key.value, modifiers.shift);
 
   if (modifiers.ctrl) {
@@ -357,20 +337,13 @@ function encodePrintableKey(
       return failure(key.label, modifiers, "Unsupported Ctrl combo");
     }
 
-    return success(
-      `${modifiers.alt ? "\x1b" : ""}${ctrlSequence}`,
-      key.label,
-      modifiers,
-    );
+    return success(`${modifiers.alt ? "\x1b" : ""}${ctrlSequence}`, key.label, modifiers);
   }
 
   return success(`${modifiers.alt ? "\x1b" : ""}${shiftedValue}`, key.label, modifiers);
 }
 
-function encodeArrowOrCursorKey(
-  baseSuffix: string,
-  modifiers: SoftKeyModifiers,
-): string {
+function encodeArrowOrCursorKey(baseSuffix: string, modifiers: SoftKeyModifiers): string {
   if (isNoModifiers(modifiers)) {
     return `\x1b[${baseSuffix}`;
   }
@@ -386,10 +359,7 @@ function encodeTildeKey(baseCode: number, modifiers: SoftKeyModifiers): string {
   return `\x1b[${baseCode};${getModifierCode(modifiers)}~`;
 }
 
-function encodeSpecialKey(
-  key: SpecialSoftKeyDefinition,
-  modifiers: SoftKeyModifiers,
-): BuildSoftKeySequenceResult {
+function encodeSpecialKey(key: SpecialSoftKeyDefinition, modifiers: SoftKeyModifiers): BuildSoftKeySequenceResult {
   switch (key.special) {
     case "tab": {
       if (isNoModifiers(modifiers)) {
@@ -445,10 +415,7 @@ function encodeSpecialKey(
   return unexpectedSpecialKeyFailure(key, modifiers, key.special);
 }
 
-function encodeFunctionKey(
-  key: FunctionSoftKeyDefinition,
-  modifiers: SoftKeyModifiers,
-): BuildSoftKeySequenceResult {
+function encodeFunctionKey(key: FunctionSoftKeyDefinition, modifiers: SoftKeyModifiers): BuildSoftKeySequenceResult {
   if (key.number >= 1 && key.number <= 4) {
     const suffix = FUNCTION_F1_TO_F4_SUFFIX[key.number];
     if (!suffix) {
@@ -474,10 +441,7 @@ function encodeFunctionKey(
   return success(`\x1b[${baseCode};${getModifierCode(modifiers)}~`, key.label, modifiers);
 }
 
-export function buildSoftKeySequence(
-  key: SoftKeyDefinition,
-  modifiers: SoftKeyModifiers,
-): BuildSoftKeySequenceResult {
+export function buildSoftKeySequence(key: SoftKeyDefinition, modifiers: SoftKeyModifiers): BuildSoftKeySequenceResult {
   switch (key.kind) {
     case "printable":
       return encodePrintableKey(key, modifiers);
@@ -490,8 +454,6 @@ export function buildSoftKeySequence(
   return unexpectedSoftKeyFailure(key, modifiers);
 }
 
-export function flattenSoftKeyRows(
-  rows: readonly (readonly SoftKeyDefinition[])[],
-): SoftKeyDefinition[] {
+export function flattenSoftKeyRows(rows: readonly (readonly SoftKeyDefinition[])[]): SoftKeyDefinition[] {
   return rows.flat();
 }

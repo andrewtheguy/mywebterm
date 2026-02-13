@@ -13,16 +13,10 @@ describe("mobileTouchSelection", () => {
   test("detects iOS user agents and iPadOS mac disguise", () => {
     expect(isLikelyIOS("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", 5)).toBe(true);
     expect(
-      isLikelyIOS(
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15",
-        5,
-      ),
+      isLikelyIOS("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15", 5),
     ).toBe(true);
     expect(
-      isLikelyIOS(
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15",
-        0,
-      ),
+      isLikelyIOS("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15", 0),
     ).toBe(false);
   });
 
@@ -104,10 +98,7 @@ describe("mobileTouchSelection", () => {
   });
 
   test("normalizes ranges and converts to xterm select args", () => {
-    const normalized = normalizeSelectionRange(
-      { col: 8, row: 5 },
-      { col: 2, row: 3 },
-    );
+    const normalized = normalizeSelectionRange({ col: 8, row: 5 }, { col: 2, row: 3 });
     expect(normalized).toEqual({
       start: { col: 2, row: 3 },
       end: { col: 8, row: 5 },

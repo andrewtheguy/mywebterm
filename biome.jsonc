@@ -1,0 +1,49 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.3.15/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": ["**", "!!**/dist"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "a11y": {
+        // Terminal UI uses role="group" on styled divs for toolbar/key groupings
+        // where replacing with <fieldset> would break layout and add unwanted styling.
+        "useSemanticElements": "off"
+      },
+      "suspicious": {
+        // Bun's HMR API uses ??= assignment in expressions (import.meta.hot.data.root ??= createRoot(...))
+        // which is the idiomatic pattern for persisting state across hot reloads.
+        "noAssignInExpressions": "off",
+        // index.css intentionally sets background-color as a fallback before the background
+        // shorthand with radial-gradient, so browsers without gradient support show a solid color.
+        "noShorthandPropertyOverrides": "off"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double"
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
+}

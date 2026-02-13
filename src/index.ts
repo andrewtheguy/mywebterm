@@ -1,5 +1,5 @@
-import { parseArgs } from "util";
-import { serve, type Server, type ServerWebSocket } from "bun";
+import { parseArgs } from "node:util";
+import { type Server, type ServerWebSocket, serve } from "bun";
 import index from "./index.html";
 import { ClientCommand, decodeFrame } from "./ttydProtocol";
 
@@ -29,8 +29,8 @@ interface PtySession {
 }
 
 const shell = process.env.SHELL || "/bin/sh";
-const hostname = process.env.HOST || "0.0.0.0";
-const port = parseInt(process.env.PORT || "7681", 10);
+const hostname = process.env.HOST || "::";
+const port = parseInt(process.env.PORT || "8671", 10);
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
 

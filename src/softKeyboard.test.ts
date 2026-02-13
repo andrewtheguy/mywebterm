@@ -3,8 +3,8 @@ import { describe, expect, test } from "bun:test";
 import {
   buildSoftKeySequence,
   DEFAULT_SOFT_KEY_MODIFIERS,
-  flattenSoftKeyRows,
   FUNCTION_SOFT_KEY_ROWS,
+  flattenSoftKeyRows,
   MAIN_SOFT_KEY_ROWS,
   type SoftKeyDefinition,
   type SoftKeyModifiers,
@@ -15,7 +15,7 @@ const functionKeys = flattenSoftKeyRows(FUNCTION_SOFT_KEY_ROWS);
 const allKeys = [...mainKeys, ...functionKeys];
 
 function findKey(label: string): SoftKeyDefinition {
-  const key = allKeys.find(candidate => candidate.label === label);
+  const key = allKeys.find((candidate) => candidate.label === label);
   if (!key) {
     throw new Error(`Missing key: ${label}`);
   }
@@ -31,21 +31,8 @@ function withModifiers(overrides: Partial<SoftKeyModifiers>): SoftKeyModifiers {
 
 describe("softKeyboard", () => {
   test("groups function keys under advanced rows", () => {
-    const functionLabels = functionKeys.map(key => key.label);
-    expect(functionLabels).toEqual([
-      "F1",
-      "F2",
-      "F3",
-      "F4",
-      "F5",
-      "F6",
-      "F7",
-      "F8",
-      "F9",
-      "F10",
-      "F11",
-      "F12",
-    ]);
+    const functionLabels = functionKeys.map((key) => key.label);
+    expect(functionLabels).toEqual(["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]);
 
     for (const key of functionKeys) {
       expect(key.group).toBe("function");
@@ -58,7 +45,7 @@ describe("softKeyboard", () => {
 
   test("does not define direct Ctrl+Shift+C shortcut button", () => {
     const hasDirectShortcut = allKeys.some(
-      key => key.label.toLowerCase() === "ctrl+shift+c" || key.id.toLowerCase().includes("ctrl-shift-c"),
+      (key) => key.label.toLowerCase() === "ctrl+shift+c" || key.id.toLowerCase().includes("ctrl-shift-c"),
     );
 
     expect(hasDirectShortcut).toBe(false);
@@ -107,10 +94,7 @@ describe("softKeyboard", () => {
       expect(shiftF5.sequence).toBe("\x1b[15;2~");
     }
 
-    const allModifiersF12 = buildSoftKeySequence(
-      findKey("F12"),
-      withModifiers({ ctrl: true, alt: true, shift: true }),
-    );
+    const allModifiersF12 = buildSoftKeySequence(findKey("F12"), withModifiers({ ctrl: true, alt: true, shift: true }));
     expect(allModifiersF12.ok).toBe(true);
     if (allModifiersF12.ok) {
       expect(allModifiersF12.sequence).toBe("\x1b[24;8~");

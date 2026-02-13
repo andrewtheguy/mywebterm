@@ -21,9 +21,7 @@ import {
 } from "./softKeyboard";
 import { useTtydTerminal } from "./useTtydTerminal";
 
-type CopyFeedback =
-  | { tone: "success"; message: string }
-  | { tone: "error"; message: string };
+type CopyFeedback = { tone: "success" | "error"; message: string };
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -86,10 +84,18 @@ export function App() {
     setActiveHandle,
     updateActiveHandleFromClientPoint,
     toggleMobileMouseMode,
+    horizontalOverflow,
+    containerElement,
   } = useTtydTerminal({
     wsUrl: config.wsUrl,
     onTitleChange: handleTitleChange,
   });
+
+  const panTrackRef = useRef<HTMLDivElement>(null);
+  const panThumbRef = useRef<HTMLButtonElement>(null);
+  const panDraggingRef = useRef(false);
+  const panStartXRef = useRef(0);
+  const panStartScrollLeftRef = useRef(0);
 
   useEffect(() => {
     document.title = remoteTitle ? `${remoteTitle} | MyWebTerm` : "MyWebTerm";
@@ -216,11 +222,10 @@ export function App() {
     }
   }, [closePasteHelper, pasteHelperText, pasteTextIntoTerminal]);
 
-  const hasActiveSoftModifiers =
-    softKeyModifiers.ctrl || softKeyModifiers.alt || softKeyModifiers.shift;
+  const hasActiveSoftModifiers = softKeyModifiers.ctrl || softKeyModifiers.alt || softKeyModifiers.shift;
 
   const toggleSoftModifier = useCallback((modifier: SoftModifierName) => {
-    setSoftKeyModifiers(previous => ({
+    setSoftKeyModifiers((previous) => ({
       ...previous,
       [modifier]: !previous[modifier],
     }));
@@ -232,18 +237,21 @@ export function App() {
     });
   }, []);
 
-  const handleSoftKeyPress = useCallback((key: SoftKeyDefinition) => {
-    const sequence = buildSoftKeySequence(key, softKeyModifiers);
-    if (sequence.ok) {
-      sendSoftKeySequence(sequence.sequence, sequence.description);
-    } else {
-      setCopyFeedback({
-        tone: "error",
-        message: `${sequence.description}: ${sequence.reason}.`,
-      });
-    }
-    clearSoftModifiers();
-  }, [clearSoftModifiers, sendSoftKeySequence, softKeyModifiers]);
+  const handleSoftKeyPress = useCallback(
+    (key: SoftKeyDefinition) => {
+      const sequence = buildSoftKeySequence(key, softKeyModifiers);
+      if (sequence.ok) {
+        sendSoftKeySequence(sequence.sequence, sequence.description);
+      } else {
+        setCopyFeedback({
+          tone: "error",
+          message: `${sequence.description}: ${sequence.reason}.`,
+        });
+      }
+      clearSoftModifiers();
+    },
+    [clearSoftModifiers, sendSoftKeySequence, softKeyModifiers],
+  );
 
   const beginSelectionHandleDrag = useCallback(
     (handle: "start" | "end", event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -333,12 +341,73 @@ export function App() {
     setActiveHandle(null);
   }, [clearMobileSelection, handleCopySelection, setActiveHandle]);
 
-  const hasMobileSelectionOverlay =
+  const handlePanPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      panDraggingRef.current = true;
+      panStartXRef.current = event.clientX;
+      panStartScrollLeftRef.current = containerElement?.scrollLeft ?? 0;
+      panThumbRef.current?.classList.add("pan-widget-thumb-dragging");
+    },
+    [containerElement],
+  );
+
+  const handlePanPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (!panDraggingRef.current) {
+        return;
+      }
+      event.preventDefault();
+
+      const deltaX = event.clientX - panStartXRef.current;
+      const track = panTrackRef.current;
+      const thumb = panThumbRef.current;
+      const viewport = containerElement;
+      if (!track || !thumb || !viewport) {
+        return;
+      }
+
+      const trackHalf = track.clientWidth / 2;
+      const thumbHalf = thumb.clientWidth / 2;
+      const maxThumbOffset = trackHalf - thumbHalf;
+      const clampedOffset = Math.max(-maxThumbOffset, Math.min(maxThumbOffset, deltaX));
+
+      thumb.style.left = `calc(50% + ${clampedOffset}px)`;
+
+      const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth;
+      const scaleFactor = maxThumbOffset > 0 ? maxScrollLeft / maxThumbOffset : 0;
+      viewport.scrollLeft = panStartScrollLeftRef.current - clampedOffset * scaleFactor;
+    },
+    [containerElement],
+  );
+
+  const handlePanPointerUp = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!panDraggingRef.current) {
+      return;
+    }
+    event.preventDefault();
+    panDraggingRef.current = false;
+    const thumb = panThumbRef.current;
+    if (thumb) {
+      thumb.classList.remove("pan-widget-thumb-dragging");
+      thumb.style.left = "50%";
+    }
+  }, []);
+
+  const mobileSelectionOverlay =
     mobileSelectionState.enabled &&
     mobileSelectionState.range !== null &&
     mobileSelectionState.startHandle !== null &&
     mobileSelectionState.endHandle !== null &&
-    mobileSelectionState.toolbarAnchor !== null;
+    mobileSelectionState.toolbarAnchor !== null
+      ? {
+          startHandle: mobileSelectionState.startHandle,
+          endHandle: mobileSelectionState.endHandle,
+          toolbarAnchor: mobileSelectionState.toolbarAnchor,
+        }
+      : null;
 
   return (
     <div className="app-shell">
@@ -362,7 +431,7 @@ export function App() {
             <button
               type="button"
               className={`toolbar-button ${extraKeysOpen ? "toolbar-button-active" : ""}`}
-              onClick={() => setExtraKeysOpen(previous => !previous)}
+              onClick={() => setExtraKeysOpen((previous) => !previous)}
               aria-pressed={extraKeysOpen}
             >
               Extra Keys
@@ -415,14 +484,14 @@ export function App() {
               <button
                 type="button"
                 className={`toolbar-button extra-keys-function-toggle ${functionKeysOpen ? "toolbar-button-active" : ""}`}
-                onClick={() => setFunctionKeysOpen(previous => !previous)}
+                onClick={() => setFunctionKeysOpen((previous) => !previous)}
                 aria-expanded={functionKeysOpen}
               >
                 Function
               </button>
             </div>
             <div className="extra-keys-modifier-row" role="group" aria-label="Modifier keys">
-              {SOFT_MODIFIER_ORDER.map(modifier => (
+              {SOFT_MODIFIER_ORDER.map((modifier) => (
                 <button
                   key={modifier}
                   type="button"
@@ -445,7 +514,7 @@ export function App() {
             <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
               {MAIN_SOFT_KEY_ROWS.map((row, rowIndex) => (
                 <div key={`main-soft-key-row-${rowIndex + 1}`} className="extra-keys-row">
-                  {row.map(key => (
+                  {row.map((key) => (
                     <button
                       key={key.id}
                       type="button"
@@ -462,7 +531,7 @@ export function App() {
               <div className="extra-keys-grid extra-keys-grid-function" role="group" aria-label="Function keys">
                 {FUNCTION_SOFT_KEY_ROWS.map((row, rowIndex) => (
                   <div key={`function-soft-key-row-${rowIndex + 1}`} className="extra-keys-row">
-                    {row.map(key => (
+                    {row.map((key) => (
                       <button
                         key={key.id}
                         type="button"
@@ -478,43 +547,41 @@ export function App() {
             )}
           </section>
         )}
-      </header>
 
-      <section className="endpoint-card">
-        <div className="endpoint-row">
-          <span>Terminal WS</span>
-          <code>{config.wsUrl}</code>
-        </div>
-        <p className="status-message">{statusMessage}</p>
-        {copyFeedback !== null && (
-          <p className={`copy-feedback copy-feedback-${copyFeedback.tone}`} role="status" aria-live="polite">
-            {copyFeedback.message}
-          </p>
+        {(statusMessage || copyFeedback !== null) && (
+          <div className="topbar-feedback">
+            {statusMessage && <p className="status-message">{statusMessage}</p>}
+            {copyFeedback !== null && (
+              <p className={`copy-feedback copy-feedback-${copyFeedback.tone}`} role="status" aria-live="polite">
+                {copyFeedback.message}
+              </p>
+            )}
+          </div>
         )}
-      </section>
+      </header>
 
       <main className="terminal-card">
         <div className="terminal-stage">
           <div
             ref={containerRef}
-            className={`terminal-viewport ${mobileMouseMode === "passToTerminal" ? "terminal-viewport-pass-through" : ""}`}
+            className={`terminal-viewport ${mobileMouseMode === "passToTerminal" ? "terminal-viewport-pass-through" : ""} ${horizontalOverflow ? "terminal-viewport-overflow" : ""}`}
           />
 
-          {hasMobileSelectionOverlay && (
+          {mobileSelectionOverlay !== null && (
             <div className="mobile-selection-overlay">
               <button
                 type="button"
                 className="mobile-selection-handle mobile-selection-handle-start"
                 style={{
-                  left: `${mobileSelectionState.startHandle.left}px`,
-                  top: `${mobileSelectionState.startHandle.top}px`,
+                  left: `${mobileSelectionOverlay.startHandle.left}px`,
+                  top: `${mobileSelectionOverlay.startHandle.top}px`,
                 }}
-                onPointerDown={event => beginSelectionHandleDrag("start", event)}
+                onPointerDown={(event) => beginSelectionHandleDrag("start", event)}
                 onPointerMove={handleSelectionHandleMove}
                 onPointerUp={finishSelectionHandleDrag}
                 onPointerCancel={finishSelectionHandleDrag}
                 onLostPointerCapture={finishSelectionHandleDrag}
-                onTouchStart={event => beginSelectionHandleTouch("start", event)}
+                onTouchStart={(event) => beginSelectionHandleTouch("start", event)}
                 onTouchMove={handleSelectionHandleTouchMove}
                 onTouchEnd={finishSelectionHandleTouch}
                 onTouchCancel={finishSelectionHandleTouch}
@@ -527,15 +594,15 @@ export function App() {
                 type="button"
                 className="mobile-selection-handle mobile-selection-handle-end"
                 style={{
-                  left: `${mobileSelectionState.endHandle.left}px`,
-                  top: `${mobileSelectionState.endHandle.top}px`,
+                  left: `${mobileSelectionOverlay.endHandle.left}px`,
+                  top: `${mobileSelectionOverlay.endHandle.top}px`,
                 }}
-                onPointerDown={event => beginSelectionHandleDrag("end", event)}
+                onPointerDown={(event) => beginSelectionHandleDrag("end", event)}
                 onPointerMove={handleSelectionHandleMove}
                 onPointerUp={finishSelectionHandleDrag}
                 onPointerCancel={finishSelectionHandleDrag}
                 onLostPointerCapture={finishSelectionHandleDrag}
-                onTouchStart={event => beginSelectionHandleTouch("end", event)}
+                onTouchStart={(event) => beginSelectionHandleTouch("end", event)}
                 onTouchMove={handleSelectionHandleTouchMove}
                 onTouchEnd={finishSelectionHandleTouch}
                 onTouchCancel={finishSelectionHandleTouch}
@@ -547,8 +614,8 @@ export function App() {
               <div
                 className="mobile-selection-toolbar"
                 style={{
-                  left: `${mobileSelectionState.toolbarAnchor.left}px`,
-                  top: `${mobileSelectionState.toolbarAnchor.top}px`,
+                  left: `${mobileSelectionOverlay.toolbarAnchor.left}px`,
+                  top: `${mobileSelectionOverlay.toolbarAnchor.top}px`,
                 }}
                 role="group"
                 aria-label="Selection actions"
@@ -559,6 +626,24 @@ export function App() {
                 <button type="button" className="toolbar-button" onClick={clearMobileSelection}>
                   Clear
                 </button>
+              </div>
+            </div>
+          )}
+
+          {horizontalOverflow && (
+            <div className="pan-widget">
+              <div className="pan-widget-track" ref={panTrackRef}>
+                <button
+                  type="button"
+                  className="pan-widget-thumb"
+                  ref={panThumbRef}
+                  onPointerDown={handlePanPointerDown}
+                  onPointerMove={handlePanPointerMove}
+                  onPointerUp={handlePanPointerUp}
+                  onPointerCancel={handlePanPointerUp}
+                  onLostPointerCapture={handlePanPointerUp}
+                  aria-label="Pan terminal horizontally"
+                />
               </div>
             </div>
           )}
@@ -574,12 +659,7 @@ export function App() {
             </button>
           </div>
           <p className="copy-sheet-hint">Use native touch selection handles here, then copy.</p>
-          <textarea
-            ref={selectableTextRef}
-            className="copy-sheet-textarea"
-            value={selectableText}
-            readOnly
-          />
+          <textarea ref={selectableTextRef} className="copy-sheet-textarea" value={selectableText} readOnly />
         </section>
       )}
 
@@ -596,7 +676,7 @@ export function App() {
             ref={pasteHelperRef}
             className="copy-sheet-textarea"
             value={pasteHelperText}
-            onChange={event => setPasteHelperText(event.target.value)}
+            onChange={(event) => setPasteHelperText(event.target.value)}
             spellCheck={false}
           />
           <div className="copy-sheet-actions">

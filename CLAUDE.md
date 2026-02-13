@@ -20,6 +20,16 @@ Default to using Bun instead of Node.js.
 - Prefer `Bun.file` over `node:fs`'s readFile/writeFile
 - Bun.$`ls` instead of execa.
 
+## Lint & Type Check
+
+Run lint and type check after making changes:
+
+- `bun run lint` — run Biome linter (errors must be zero)
+- `bun run lint:fix` — auto-fix lint and formatting issues
+- `bun run tsc` — run TypeScript type check (`tsc --noEmit`)
+
+Biome is configured in `biome.json` (2-space indent, 120 line width, double quotes). It handles linting, formatting, and import sorting.
+
 ## Testing
 
 Use `bun test` to run tests.
