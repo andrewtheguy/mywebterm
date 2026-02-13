@@ -1391,7 +1391,6 @@ export function useTtydTerminal({
         return false;
       }
 
-      toast.success(`Sent ${label}.`, { id: "key-sequence" });
       return true;
     },
     [focusTerminalInput, sendInputFrame],
