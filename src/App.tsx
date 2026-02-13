@@ -212,10 +212,10 @@ export function App() {
   const handleCopySelection = useCallback(async (): Promise<boolean> => {
     try {
       await copySelection();
-      toast.success("Selection copied.");
+      toast.success("Selection copied.", { id: "copy" });
       return true;
     } catch (error) {
-      toast.error(toErrorMessage(error));
+      toast.error(toErrorMessage(error), { id: "copy" });
       return false;
     }
   }, [copySelection]);
@@ -223,24 +223,24 @@ export function App() {
   const handleCopyRecentOutput = useCallback(async () => {
     try {
       await copyRecentOutput();
-      toast.success("Recent output copied.");
+      toast.success("Recent output copied.", { id: "copy" });
     } catch (error) {
-      toast.error(toErrorMessage(error));
+      toast.error(toErrorMessage(error), { id: "copy" });
     }
   }, [copyRecentOutput]);
 
   const handleToolbarPaste = useCallback(async () => {
     const result = await attemptPasteFromClipboard();
     if (result === "pasted") {
-      toast.success("Pasted from clipboard.");
+      toast.success("Pasted from clipboard.", { id: "paste" });
     } else if (result === "fallback-required") {
       openPasteHelper();
     } else if (result === "empty") {
-      toast.error("Clipboard is empty.");
+      toast.error("Clipboard is empty.", { id: "paste" });
     } else if (result === "wrong-mode") {
-      toast.error("Switch to Mode: Native to paste.");
+      toast.error("Switch to Mode: Native to paste.", { id: "paste" });
     } else if (result === "terminal-unavailable") {
-      toast.error("Terminal not ready.");
+      toast.error("Terminal not ready.", { id: "paste" });
     }
   }, [attemptPasteFromClipboard, openPasteHelper]);
 
@@ -250,7 +250,7 @@ export function App() {
     }
     const pasted = pasteTextIntoTerminal(pasteHelperText);
     if (pasted) {
-      toast.success("Pasted text.");
+      toast.success("Pasted text.", { id: "paste" });
       closePasteHelper();
     }
   }, [closePasteHelper, pasteHelperText, pasteTextIntoTerminal]);
@@ -276,7 +276,7 @@ export function App() {
       if (sequence.ok) {
         sendSoftKeySequence(sequence.sequence, sequence.description);
       } else {
-        toast.error(`${sequence.description}: ${sequence.reason}.`);
+        toast.error(`${sequence.description}: ${sequence.reason}.`, { id: "key-sequence" });
       }
       clearSoftModifiers();
     },
@@ -840,7 +840,7 @@ export function App() {
           </div>
         </section>
       )}
-      <Toaster position="top-right" theme="dark" />
+      <Toaster position="top-right" theme="dark" duration={3000} />
     </div>
   );
 }
