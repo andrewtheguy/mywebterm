@@ -85,7 +85,7 @@ const terminalOptions: ITerminalOptions = {
   },
 };
 
-const MIN_COLS = 60;
+const MIN_COLS = 80;
 const DEFAULT_SCROLLBAR_WIDTH = 14;
 const RECENT_OUTPUT_LINES = 2000;
 const MOBILE_LONG_PRESS_MS = 420;
