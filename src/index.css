@@ -93,13 +93,18 @@ body {
   justify-content: flex-end;
 }
 
-.status-pill {
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
   border-radius: 999px;
-  padding: 0.28rem 0.75rem;
-  font-size: 0.74rem;
-  letter-spacing: 0.08em;
+  padding: 0.15rem 0;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
   font-weight: 700;
   color: #02141e;
+  flex-shrink: 0;
 }
 
 .status-connected {
@@ -108,6 +113,7 @@ body {
 
 .status-connecting {
   background: var(--status-connecting);
+  animation: pulse-badge 1.2s ease-in-out infinite;
 }
 
 .status-disconnected {
@@ -116,6 +122,16 @@ body {
 
 .status-error {
   background: var(--status-error);
+}
+
+@keyframes pulse-badge {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .toolbar-button {

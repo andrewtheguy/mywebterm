@@ -452,7 +452,9 @@ export function App() {
         <div className="brand">
           <h1>
             MyWebTerm
-            <span className={`status-pill status-${connectionStatus}`}>{connectionStatus.toUpperCase()}</span>
+            <span className={`status-badge status-${connectionStatus}`}>
+              {connectionStatus === "connected" ? "ON" : connectionStatus === "connecting" ? "..." : "OFF"}
+            </span>
           </h1>
           <p>Web terminal powered by Bun PTY</p>
         </div>
