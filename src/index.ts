@@ -34,6 +34,7 @@ const hostname = process.env.HOST || "::";
 const port = parseInt(process.env.PORT || "8671", 10);
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
+const RESTART_CLOSE_CODE = 4000;
 
 function clampDimension(value: number | undefined, fallback: number, max: number): number {
   return Math.max(1, Math.min(max, Math.floor(value ?? fallback)));
@@ -46,6 +47,21 @@ function createConnectionId(): string {
   return `${Date.now()}-${nextConnectionId}`;
 }
 
+function cleanupProcessResources(session: PtySession): void {
+  if (session.proc) {
+    try {
+      session.proc.terminal?.close();
+    } catch {
+      // Terminal may already be closed.
+    }
+    try {
+      session.proc.kill();
+    } catch {
+      // Process may already be dead.
+    }
+  }
+}
+
 function cleanupSession(connectionId: string): void {
   const session = ptySessions.get(connectionId);
   if (!session) {
@@ -53,19 +69,14 @@ function cleanupSession(connectionId: string): void {
   }
 
   ptySessions.delete(connectionId);
+  cleanupProcessResources(session);
+}
 
-  if (session.proc) {
-    try {
-      session.proc.terminal?.close();
-    } catch {
-      // Terminal may already be closed.
-    }
-
-    try {
-      session.proc.kill();
-    } catch {
-      // Process may already be dead.
-    }
+function cleanupAllSessions(): void {
+  for (const [connectionId, session] of ptySessions) {
+    ptySessions.delete(connectionId);
+    cleanupProcessResources(session);
+    closeClientSocket(session.ws, RESTART_CLOSE_CODE, "Restart");
   }
 }
 
@@ -215,6 +226,37 @@ const server = serve<PtySessionData>({
       }
 
       return undefined;
+    },
+    "/api/restart": {
+      POST: () => {
+        cleanupAllSessions();
+        return Response.json({ ok: true });
+      },
+    },
+    "/api/sessions": {
+      GET: async () => {
+        const ppid = process.pid;
+        const children: { pid: number; command: string }[] = [];
+        try {
+          const result = await Bun.$`ps -ax -o pid=,ppid=,command=`.quiet().nothrow();
+          const output = result.stdout.toString().trim();
+          if (output) {
+            for (const line of output.split("\n")) {
+              const match = line.trim().match(/^\s*(\d+)\s+(\d+)\s+(.*)$/);
+              if (!match) continue;
+              const pid = Number(match[1]);
+              const parentPid = Number(match[2]);
+              if (parentPid === ppid) {
+                children.push({ pid, command: match[3] ?? "" });
+              }
+            }
+          }
+        } catch {
+          // ps may not be available
+        }
+
+        return Response.json({ ppid, children });
+      },
     },
     "/api/config": () =>
       Response.json({

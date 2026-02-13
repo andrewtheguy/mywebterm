@@ -56,7 +56,8 @@ interface UseTtydTerminalResult {
   softKeyboardActive: boolean;
   reconnect: () => void;
   focusSoftKeyboard: () => void;
-  sendSoftKeySequence: (sequence: string, label: string) => boolean;
+  sendSoftKeySequence: (sequence: string, label: string, skipFocus?: boolean) => boolean;
+  blurTerminalInput: () => void;
   attemptPasteFromClipboard: () => Promise<PasteResult>;
   pasteTextIntoTerminal: (text: string) => boolean;
   copySelection: () => Promise<void>;
@@ -777,6 +778,12 @@ export function useTtydTerminal({
     terminal.loadAddon(fitAddon);
     terminal.open(container);
 
+    const textarea = terminal.textarea;
+    if (textarea) {
+      textarea.style.setProperty("opacity", "0", "important");
+      textarea.style.setProperty("caret-color", "transparent", "important");
+    }
+
     const customFit = () => {
       const proposed = fitAddon.proposeDimensions();
       if (!proposed || Number.isNaN(proposed.cols) || Number.isNaN(proposed.rows)) {
@@ -840,11 +847,6 @@ export function useTtydTerminal({
         verticalScrollSyncRef.current?.();
 
         const isAtBottom = terminal.buffer.active.viewportY >= terminal.buffer.active.baseY;
-        const textarea = terminal.textarea;
-        if (textarea) {
-          textarea.style.setProperty("opacity", isAtBottom ? "" : "0", "important");
-          textarea.style.setProperty("caret-color", isAtBottom ? "" : "transparent", "important");
-        }
         const cursorLayer = terminal.element?.querySelector(".xterm-cursor-layer") as HTMLElement | null;
         if (cursorLayer) {
           cursorLayer.style.visibility = isAtBottom ? "" : "hidden";
@@ -919,17 +921,28 @@ export function useTtydTerminal({
     fitAddonRef.current = fitAddon;
     terminalDisposablesRef.current = terminalDisposables;
 
-    const textarea = terminal.textarea;
-    const onTextareaFocus = () => setSoftKeyboardActive(true);
-    const onTextareaBlur = () => setSoftKeyboardActive(false);
+    if (mobileTouchSupported && textarea) {
+      textarea.inputMode = "none";
+    }
+    const onTextareaFocus = mobileTouchSupported ? null : () => setSoftKeyboardActive(true);
+    const onTextareaBlur = () => {
+      setSoftKeyboardActive(false);
+      if (mobileTouchSupported && textarea) {
+        textarea.inputMode = "none";
+      }
+    };
     if (textarea) {
-      textarea.addEventListener("focus", onTextareaFocus);
+      if (onTextareaFocus) {
+        textarea.addEventListener("focus", onTextareaFocus);
+      }
       textarea.addEventListener("blur", onTextareaBlur);
     }
 
     return () => {
       if (textarea) {
-        textarea.removeEventListener("focus", onTextareaFocus);
+        if (onTextareaFocus) {
+          textarea.removeEventListener("focus", onTextareaFocus);
+        }
         textarea.removeEventListener("blur", onTextareaBlur);
       }
       setSoftKeyboardActive(false);
@@ -1313,6 +1326,14 @@ export function useTtydTerminal({
       }
       socketRef.current = null;
       setConnectionStatus("disconnected");
+
+      if (event.code === 4000) {
+        terminal.reset();
+        toast.info("Restarting...", { id: "connection-status" });
+        setReconnectToken((previous) => previous + 1);
+        return;
+      }
+
       toast.error(`Disconnected (code ${event.code}).`, { id: "connection-status" });
     };
 
@@ -1326,14 +1347,27 @@ export function useTtydTerminal({
     };
   }, [wsUrl, reconnectToken, closeSocket, container, mobileTouchSupported]);
 
+  const forceLocalReconnect = useCallback(() => {
+    closeSocket();
+    terminalRef.current?.reset();
+    setReconnectToken((previous) => previous + 1);
+  }, [closeSocket]);
+
   const reconnect = useCallback(() => {
     if (!wsUrl) {
       return;
     }
-    closeSocket();
-    terminalRef.current?.reset();
-    setReconnectToken((previous) => previous + 1);
-  }, [closeSocket, wsUrl]);
+    fetch("/api/restart", { method: "POST" }).catch((error: unknown) => {
+      console.error("Failed to POST /api/restart:", error);
+      toast.error("Restart request failed. Reconnecting locally.", { id: "restart" });
+      forceLocalReconnect();
+    });
+    // If already disconnected, the server can't close our socket with code 4000,
+    // so trigger the reconnect directly.
+    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+      forceLocalReconnect();
+    }
+  }, [forceLocalReconnect, wsUrl]);
 
   const focusTerminalInput = useCallback((): boolean => {
     const terminal = terminalRef.current;
@@ -1352,6 +1386,13 @@ export function useTtydTerminal({
     return true;
   }, []);
 
+  const blurTerminalInput = useCallback(() => {
+    const input = terminalRef.current?.textarea;
+    if (input && document.activeElement === input) {
+      input.blur();
+    }
+  }, []);
+
   const focusSoftKeyboard = useCallback(() => {
     const terminal = terminalRef.current;
     if (!terminal) {
@@ -1360,20 +1401,24 @@ export function useTtydTerminal({
     }
 
     const input = terminal.textarea;
-    if (input && document.activeElement === input) {
+    if (input && document.activeElement === input && (!mobileTouchSupported || input.inputMode !== "none")) {
       input.blur();
       return;
     }
 
-    const focused = focusTerminalInput();
-    if (!focused) {
-      toast.error("Tap terminal area to open keyboard.", { id: "keyboard" });
-      return;
+    if (mobileTouchSupported && input) {
+      input.inputMode = "";
     }
-  }, [focusTerminalInput]);
+    const focused = focusTerminalInput();
+    if (focused) {
+      setSoftKeyboardActive(true);
+    } else {
+      toast.error("Tap terminal area to open keyboard.", { id: "keyboard" });
+    }
+  }, [focusTerminalInput, mobileTouchSupported]);
 
   const sendSoftKeySequence = useCallback(
-    (sequence: string, label: string): boolean => {
+    (sequence: string, label: string, skipFocus?: boolean): boolean => {
       if (!terminalRef.current) {
         toast.error("Terminal not ready for key send.", { id: "key-sequence" });
         return false;
@@ -1384,7 +1429,9 @@ export function useTtydTerminal({
         return false;
       }
 
-      focusTerminalInput();
+      if (!skipFocus) {
+        focusTerminalInput();
+      }
       const sent = sendInputFrame(sequence);
       if (!sent) {
         toast.error("Not connected. Reconnect before sending keys.", { id: "key-sequence" });
@@ -1510,6 +1557,7 @@ export function useTtydTerminal({
     reconnect,
     focusSoftKeyboard,
     sendSoftKeySequence,
+    blurTerminalInput,
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
     copySelection,
