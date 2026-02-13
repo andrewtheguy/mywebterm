@@ -1355,7 +1355,7 @@ export function useTtydTerminal({
   const focusSoftKeyboard = useCallback(() => {
     const terminal = terminalRef.current;
     if (!terminal) {
-      toast.error("Terminal not ready for keyboard.");
+      toast.error("Terminal not ready for keyboard.", { id: "keyboard" });
       return;
     }
 
@@ -1367,7 +1367,7 @@ export function useTtydTerminal({
 
     const focused = focusTerminalInput();
     if (!focused) {
-      toast.error("Tap terminal area to open keyboard.");
+      toast.error("Tap terminal area to open keyboard.", { id: "keyboard" });
       return;
     }
   }, [focusTerminalInput]);
@@ -1411,7 +1411,7 @@ export function useTtydTerminal({
   const pasteTextIntoTerminal = useCallback((text: string): boolean => {
     const terminal = terminalRef.current;
     if (!terminal) {
-      toast.error("Terminal not ready for paste.");
+      toast.error("Terminal not ready for paste.", { id: "paste" });
       return false;
     }
 
