@@ -22,8 +22,6 @@ import {
 } from "./softKeyboard";
 import { useTtydTerminal } from "./useTtydTerminal";
 
-
-
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
@@ -147,8 +145,6 @@ export function App() {
     pasteHelperRef.current.setSelectionRange(pasteHelperText.length, pasteHelperText.length);
     pasteHelperFocusedRef.current = true;
   }, [pasteHelperText]);
-
-
 
   useEffect(() => {
     if (extraKeysOpen) {
@@ -438,15 +434,15 @@ export function App() {
 
   const mobileSelectionOverlay =
     mobileSelectionState.enabled &&
-      mobileSelectionState.range !== null &&
-      mobileSelectionState.startHandle !== null &&
-      mobileSelectionState.endHandle !== null &&
-      mobileSelectionState.toolbarAnchor !== null
+    mobileSelectionState.range !== null &&
+    mobileSelectionState.startHandle !== null &&
+    mobileSelectionState.endHandle !== null &&
+    mobileSelectionState.toolbarAnchor !== null
       ? {
-        startHandle: mobileSelectionState.startHandle,
-        endHandle: mobileSelectionState.endHandle,
-        toolbarAnchor: mobileSelectionState.toolbarAnchor,
-      }
+          startHandle: mobileSelectionState.startHandle,
+          endHandle: mobileSelectionState.endHandle,
+          toolbarAnchor: mobileSelectionState.toolbarAnchor,
+        }
       : null;
 
   return (
@@ -506,7 +502,7 @@ export function App() {
                 toast.success(
                   nextMode === "passToTerminal"
                     ? "Touch scroll sends wheel events."
-                    : "Touch scroll uses terminal scrollback."
+                    : "Touch scroll uses terminal scrollback.",
                 );
               }}
               disabled={!mobileSelectionState.enabled}
@@ -601,7 +597,6 @@ export function App() {
             )}
           </section>
         )}
-
       </header>
 
       <main className="terminal-card">

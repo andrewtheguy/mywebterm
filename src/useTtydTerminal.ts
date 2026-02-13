@@ -519,13 +519,13 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
           const nextRange =
             activeHandle === "start"
               ? {
-                start: coord,
-                end: existingRange.end,
-              }
+                  start: coord,
+                  end: existingRange.end,
+                }
               : {
-                start: existingRange.start,
-                end: coord,
-              };
+                  start: existingRange.start,
+                  end: coord,
+                };
 
           applySelectionRange(nextRange, getDragMode(activeHandle), activeHandle);
         }
@@ -606,13 +606,13 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
       const nextRange =
         activeHandle === "start"
           ? {
-            start: coord,
-            end: existingRange.end,
-          }
+              start: coord,
+              end: existingRange.end,
+            }
           : {
-            start: existingRange.start,
-            end: coord,
-          };
+              start: existingRange.start,
+              end: coord,
+            };
 
       applySelectionRange(nextRange, getDragMode(activeHandle), activeHandle);
       ensureAutoScrollLoop();
