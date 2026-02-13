@@ -97,18 +97,20 @@ export function App() {
     setSelectableText(null);
   }, []);
 
-  const handleCopySelection = useCallback(async () => {
+  const handleCopySelection = useCallback(async (): Promise<boolean> => {
     try {
       await copySelection();
       setCopyFeedback({
         tone: "success",
         message: "Selection copied.",
       });
+      return true;
     } catch (error) {
       setCopyFeedback({
         tone: "error",
         message: toErrorMessage(error),
       });
+      return false;
     }
   }, [copySelection]);
 
@@ -207,9 +209,13 @@ export function App() {
   );
 
   const handleMobileCopySelection = useCallback(async () => {
-    await handleCopySelection();
+    const copied = await handleCopySelection();
+    if (copied) {
+      clearMobileSelection();
+      return;
+    }
     setActiveHandle(null);
-  }, [handleCopySelection, setActiveHandle]);
+  }, [clearMobileSelection, handleCopySelection, setActiveHandle]);
 
   const hasMobileSelectionOverlay =
     mobileSelectionState.enabled &&
