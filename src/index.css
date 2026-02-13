@@ -37,15 +37,15 @@ body {
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100dvh;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 0.9rem;
   padding: 1rem;
+  overflow: hidden;
 }
 
 .topbar,
-.endpoint-card,
 .terminal-card,
 .error-card {
   border: 1px solid var(--panel-border);
@@ -212,39 +212,14 @@ body {
   min-width: 5.4rem;
 }
 
-.endpoint-card {
-  padding: 0.95rem 1.1rem;
+.topbar-feedback {
+  width: 100%;
   display: grid;
-  gap: 0.56rem;
-}
-
-.endpoint-row {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.endpoint-row span {
-  color: var(--muted-ink);
-  font-size: 0.8rem;
-  letter-spacing: 0.04em;
-}
-
-.endpoint-row code {
-  display: inline-block;
-  width: fit-content;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  background: rgba(5, 19, 33, 0.7);
-  border: 1px solid rgba(140, 205, 255, 0.35);
-  border-radius: 8px;
-  padding: 0.3rem 0.5rem;
-  color: #d7ebff;
-  font-family: "Iosevka Term", "JetBrains Mono", "Consolas", monospace;
-  font-size: 0.82rem;
+  gap: 0.3rem;
 }
 
 .status-message {
-  margin: 0.35rem 0 0;
+  margin: 0;
   color: var(--accent);
   font-size: 0.92rem;
 }
