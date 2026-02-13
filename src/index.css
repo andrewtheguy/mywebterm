@@ -296,6 +296,29 @@ body {
   padding: 0.5rem;
 }
 
+.terminal-viewport .xterm .xterm-viewport {
+  background-color: #041425;
+  scrollbar-color: rgba(106, 232, 206, 0.42) #041425;
+}
+
+.terminal-viewport .xterm .xterm-viewport::-webkit-scrollbar {
+  width: 10px;
+}
+
+.terminal-viewport .xterm .xterm-viewport::-webkit-scrollbar-track {
+  background: #041425;
+}
+
+.terminal-viewport .xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(106, 232, 206, 0.42);
+  border-radius: 999px;
+  border: 2px solid #041425;
+}
+
+.terminal-viewport .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(106, 232, 206, 0.58);
+}
+
 .mobile-selection-overlay {
   position: absolute;
   inset: 0;
