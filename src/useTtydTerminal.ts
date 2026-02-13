@@ -65,6 +65,7 @@ interface UseTtydTerminalResult {
   statusMessage: string;
   reconnect: () => void;
   focusSoftKeyboard: () => void;
+  sendSoftKeySequence: (sequence: string, label: string) => boolean;
   attemptPasteFromClipboard: () => Promise<PasteResult>;
   pasteTextIntoTerminal: (text: string) => boolean;
   copySelection: () => Promise<void>;
@@ -750,6 +751,16 @@ export function useTtydTerminal({
     socketRef.current = null;
   }, []);
 
+  const sendInputFrame = useCallback((data: string | Uint8Array): boolean => {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    socket.send(encodeInput(data));
+    return true;
+  }, []);
+
   useEffect(() => {
     if (!container) {
       terminalMountedRef.current = false;
@@ -768,10 +779,7 @@ export function useTtydTerminal({
 
     const terminalDisposables: IDisposable[] = [
       terminal.onData(data => {
-        const socket = socketRef.current;
-        if (socket?.readyState === WebSocket.OPEN) {
-          socket.send(encodeInput(data));
-        }
+        sendInputFrame(data);
       }),
       terminal.onResize(({ cols, rows }) => {
         const socket = socketRef.current;
@@ -881,6 +889,7 @@ export function useTtydTerminal({
     container,
     clearScrollGesture,
     mobileTouchSupported,
+    sendInputFrame,
     setMobileVisualStateFromRange,
     stopAutoScrollLoop,
   ]);
@@ -1223,6 +1232,28 @@ export function useTtydTerminal({
     setStatusMessage("Requested mobile keyboard.");
   }, [focusTerminalInput]);
 
+  const sendSoftKeySequence = useCallback((sequence: string, label: string): boolean => {
+    if (!terminalRef.current) {
+      setStatusMessage("Terminal not ready for key send.");
+      return false;
+    }
+
+    if (sequence.length === 0) {
+      setStatusMessage(`Unsupported key combo: ${label}.`);
+      return false;
+    }
+
+    focusTerminalInput();
+    const sent = sendInputFrame(sequence);
+    if (!sent) {
+      setStatusMessage("Terminal disconnected. Reconnect before sending keys.");
+      return false;
+    }
+
+    setStatusMessage(`Sent ${label}.`);
+    return true;
+  }, [focusTerminalInput, sendInputFrame]);
+
   const toggleMobileMouseMode = useCallback(() => {
     if (!mobileTouchSupported) {
       return;
@@ -1358,6 +1389,7 @@ export function useTtydTerminal({
     statusMessage,
     reconnect,
     focusSoftKeyboard,
+    sendSoftKeySequence,
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
     copySelection,

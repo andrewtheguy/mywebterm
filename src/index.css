@@ -130,6 +130,12 @@ body {
   background: rgba(36, 76, 102, 0.6);
 }
 
+.toolbar-button-active {
+  background: rgba(106, 232, 206, 0.28);
+  border-color: rgba(172, 255, 236, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(214, 255, 245, 0.35);
+}
+
 .toolbar-button:focus {
   outline: none;
 }
@@ -147,6 +153,61 @@ body {
 
 .reconnect-button:disabled {
   cursor: wait;
+}
+
+.extra-keys-panel {
+  width: 100%;
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.15rem;
+  padding: 0.7rem;
+  border-radius: 12px;
+  border: 1px solid rgba(140, 205, 255, 0.34);
+  background: rgba(2, 16, 28, 0.88);
+}
+
+.extra-keys-header {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.extra-keys-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted-ink);
+}
+
+.extra-keys-modifier-row,
+.extra-keys-row {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.extra-keys-grid {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.extra-keys-grid-function {
+  padding-top: 0.35rem;
+  border-top: 1px dashed rgba(140, 205, 255, 0.3);
+}
+
+.extra-key-button {
+  min-width: 2.45rem;
+  min-height: 2rem;
+  border-radius: 9px;
+  padding: 0.32rem 0.62rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+}
+
+.extra-key-button-space {
+  min-width: 5.4rem;
 }
 
 .endpoint-card {
@@ -383,6 +444,21 @@ body {
   .toolbar-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .extra-keys-panel {
+    padding: 0.62rem;
+  }
+
+  .extra-key-button {
+    min-width: 2.35rem;
+    min-height: 2.1rem;
+    padding: 0.34rem 0.56rem;
+    font-size: 0.8rem;
+  }
+
+  .extra-key-button-space {
+    min-width: 4.8rem;
   }
 
   .terminal-stage {
