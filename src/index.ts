@@ -27,11 +27,24 @@ if (values.daemon) {
     Object.entries(process.env).filter(([key]) => !STRIPPED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))),
   );
   const args = process.argv.slice(1).filter((a) => a !== "-d" && a !== "--daemon");
-  const child = cpSpawn(process.execPath, args, {
-    detached: true,
-    stdio: "ignore",
-    env: cleanEnv,
-  });
+
+  let child: ReturnType<typeof cpSpawn>;
+  try {
+    child = cpSpawn(process.execPath, args, {
+      detached: true,
+      stdio: "ignore",
+      env: cleanEnv,
+    });
+  } catch (error) {
+    console.error("Failed to daemonize:", error);
+    process.exit(1);
+  }
+
+  if (!child.pid) {
+    console.error("Failed to daemonize: child process has no PID");
+    process.exit(1);
+  }
+
   child.unref();
   console.log(`Daemonized (PID ${child.pid})`);
   process.exit(0);
