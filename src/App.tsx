@@ -543,10 +543,10 @@ export function App() {
                       : "Disconnected"
               }
             >
-              {connectionStatus === "connected" ? "ON" : connectionStatus === "connecting" ? "..." : "OFF"}
+              {connectionStatus === "connecting" ? "..." : connectionStatus}
             </span>
           </h1>
-          <p>Web terminal powered by Bun PTY</p>
+          <p className="brand-tagline">Web terminal powered by Bun PTY</p>
         </div>
         <div className="toolbar">
           <div className="toolbar-actions">

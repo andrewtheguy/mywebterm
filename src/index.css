@@ -97,9 +97,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.2rem;
   border-radius: 999px;
-  padding: 0.15rem 0;
+  padding: 0.15rem 0.5rem;
   font-size: 0.6rem;
   letter-spacing: 0.06em;
   font-weight: 700;
@@ -509,6 +508,10 @@ body {
   .app-shell {
     padding: 0;
     gap: 0;
+  }
+
+  .brand-tagline {
+    display: none;
   }
 
   .topbar {
