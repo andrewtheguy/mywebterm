@@ -952,6 +952,46 @@ export function App() {
                             </button>
                           );
                         })}
+                        {rowIndex === 3 && (
+                          <>
+                            <div className="extra-key-spacer" style={{ flex: 1 }} />
+                            <div className="extra-key-spacer extra-key-arrow" />
+                            <button
+                              type="button"
+                              className="toolbar-button extra-key-button extra-key-arrow"
+                              onClick={() => handleSoftKeyPress(ARROW_SOFT_KEYS[0])}
+                            >
+                              {ARROW_SOFT_KEYS[0].label}
+                            </button>
+                            <div className="extra-key-spacer extra-key-arrow" />
+                          </>
+                        )}
+                        {rowIndex === 4 && (
+                          <>
+                            <div className="extra-key-spacer" style={{ flex: 1 }} />
+                            <button
+                              type="button"
+                              className="toolbar-button extra-key-button extra-key-arrow"
+                              onClick={() => handleSoftKeyPress(ARROW_SOFT_KEYS[2])}
+                            >
+                              {ARROW_SOFT_KEYS[2].label}
+                            </button>
+                            <button
+                              type="button"
+                              className="toolbar-button extra-key-button extra-key-arrow"
+                              onClick={() => handleSoftKeyPress(ARROW_SOFT_KEYS[1])}
+                            >
+                              {ARROW_SOFT_KEYS[1].label}
+                            </button>
+                            <button
+                              type="button"
+                              className="toolbar-button extra-key-button extra-key-arrow"
+                              onClick={() => handleSoftKeyPress(ARROW_SOFT_KEYS[3])}
+                            >
+                              {ARROW_SOFT_KEYS[3].label}
+                            </button>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -995,14 +1035,6 @@ export function App() {
                       </button>
                     </div>
                     <div className="extra-keys-row">
-                      <div className="extra-key-spacer extra-key-arrow" />
-                      <button
-                        type="button"
-                        className="toolbar-button extra-key-button extra-key-arrow"
-                        onClick={() => handleSoftKeyPress(ARROW_SOFT_KEYS[0])}
-                      >
-                        {ARROW_SOFT_KEYS[0].label}
-                      </button>
                       <button
                         type="button"
                         className="toolbar-button extra-key-button"
@@ -1012,27 +1044,6 @@ export function App() {
                       </button>
                     </div>
                     <div className="extra-keys-row">
-                      <button
-                        type="button"
-                        className="toolbar-button extra-key-button extra-key-arrow"
-                        onClick={() => handleSoftKeyPress(ARROW_SOFT_KEYS[2])}
-                      >
-                        {ARROW_SOFT_KEYS[2].label}
-                      </button>
-                      <button
-                        type="button"
-                        className="toolbar-button extra-key-button extra-key-arrow"
-                        onClick={() => handleSoftKeyPress(ARROW_SOFT_KEYS[1])}
-                      >
-                        {ARROW_SOFT_KEYS[1].label}
-                      </button>
-                      <button
-                        type="button"
-                        className="toolbar-button extra-key-button extra-key-arrow"
-                        onClick={() => handleSoftKeyPress(ARROW_SOFT_KEYS[3])}
-                      >
-                        {ARROW_SOFT_KEYS[3].label}
-                      </button>
                       <button
                         type="button"
                         className="toolbar-button extra-key-button"
