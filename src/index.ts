@@ -249,4 +249,4 @@ const server = serve<PtySessionData>({
   },
 });
 
-console.log(`Server running at ${server.url} (command: ${command.join(" ")})`);
+console.log(`Server running at ${server.url} (command: ${JSON.stringify(command)})`);
