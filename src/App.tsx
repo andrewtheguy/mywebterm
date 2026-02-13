@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Toaster, toast } from "sonner";
 
 import { loadTtydConfig } from "./config";
 import "./index.css";
@@ -21,7 +22,7 @@ import {
 } from "./softKeyboard";
 import { useTtydTerminal } from "./useTtydTerminal";
 
-type CopyFeedback = { tone: "success" | "error"; message: string };
+
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -49,7 +50,6 @@ export function App() {
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
-  const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const [extraKeysOpen, setExtraKeysOpen] = useState(false);
   const [functionKeysOpen, setFunctionKeysOpen] = useState(false);
   const [softKeyModifiers, setSoftKeyModifiers] = useState(() => ({
@@ -69,7 +69,6 @@ export function App() {
   const {
     containerRef,
     connectionStatus,
-    statusMessage,
     reconnect,
     focusSoftKeyboard,
     sendSoftKeySequence,
@@ -149,19 +148,7 @@ export function App() {
     pasteHelperFocusedRef.current = true;
   }, [pasteHelperText]);
 
-  useEffect(() => {
-    if (!copyFeedback) {
-      return;
-    }
 
-    const timeout = window.setTimeout(() => {
-      setCopyFeedback(null);
-    }, 2600);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [copyFeedback]);
 
   useEffect(() => {
     if (extraKeysOpen) {
@@ -200,16 +187,10 @@ export function App() {
   const handleCopySelection = useCallback(async (): Promise<boolean> => {
     try {
       await copySelection();
-      setCopyFeedback({
-        tone: "success",
-        message: "Selection copied.",
-      });
+      toast.success("Selection copied.");
       return true;
     } catch (error) {
-      setCopyFeedback({
-        tone: "error",
-        message: toErrorMessage(error),
-      });
+      toast.error(toErrorMessage(error));
       return false;
     }
   }, [copySelection]);
@@ -217,22 +198,24 @@ export function App() {
   const handleCopyRecentOutput = useCallback(async () => {
     try {
       await copyRecentOutput();
-      setCopyFeedback({
-        tone: "success",
-        message: "Recent output copied.",
-      });
+      toast.success("Recent output copied.");
     } catch (error) {
-      setCopyFeedback({
-        tone: "error",
-        message: toErrorMessage(error),
-      });
+      toast.error(toErrorMessage(error));
     }
   }, [copyRecentOutput]);
 
   const handleToolbarPaste = useCallback(async () => {
     const result = await attemptPasteFromClipboard();
-    if (result === "fallback-required") {
+    if (result === "pasted") {
+      toast.success("Pasted from clipboard.");
+    } else if (result === "fallback-required") {
       openPasteHelper();
+    } else if (result === "empty") {
+      toast.error("Clipboard is empty.");
+    } else if (result === "wrong-mode") {
+      toast.error("Switch to Mode: Native to paste.");
+    } else if (result === "terminal-unavailable") {
+      toast.error("Terminal not ready.");
     }
   }, [attemptPasteFromClipboard, openPasteHelper]);
 
@@ -242,6 +225,7 @@ export function App() {
     }
     const pasted = pasteTextIntoTerminal(pasteHelperText);
     if (pasted) {
+      toast.success("Pasted text.");
       closePasteHelper();
     }
   }, [closePasteHelper, pasteHelperText, pasteTextIntoTerminal]);
@@ -267,10 +251,7 @@ export function App() {
       if (sequence.ok) {
         sendSoftKeySequence(sequence.sequence, sequence.description);
       } else {
-        setCopyFeedback({
-          tone: "error",
-          message: `${sequence.description}: ${sequence.reason}.`,
-        });
+        toast.error(`${sequence.description}: ${sequence.reason}.`);
       }
       clearSoftModifiers();
     },
@@ -457,15 +438,15 @@ export function App() {
 
   const mobileSelectionOverlay =
     mobileSelectionState.enabled &&
-    mobileSelectionState.range !== null &&
-    mobileSelectionState.startHandle !== null &&
-    mobileSelectionState.endHandle !== null &&
-    mobileSelectionState.toolbarAnchor !== null
+      mobileSelectionState.range !== null &&
+      mobileSelectionState.startHandle !== null &&
+      mobileSelectionState.endHandle !== null &&
+      mobileSelectionState.toolbarAnchor !== null
       ? {
-          startHandle: mobileSelectionState.startHandle,
-          endHandle: mobileSelectionState.endHandle,
-          toolbarAnchor: mobileSelectionState.toolbarAnchor,
-        }
+        startHandle: mobileSelectionState.startHandle,
+        endHandle: mobileSelectionState.endHandle,
+        toolbarAnchor: mobileSelectionState.toolbarAnchor,
+      }
       : null;
 
   return (
@@ -519,7 +500,15 @@ export function App() {
             <button
               type="button"
               className="toolbar-button"
-              onClick={toggleMobileMouseMode}
+              onClick={() => {
+                const nextMode = mobileMouseMode === "nativeScroll" ? "passToTerminal" : "nativeScroll";
+                toggleMobileMouseMode();
+                toast.success(
+                  nextMode === "passToTerminal"
+                    ? "Touch scroll sends wheel events."
+                    : "Touch scroll uses terminal scrollback."
+                );
+              }}
               disabled={!mobileSelectionState.enabled}
               title={
                 mobileMouseMode === "passToTerminal"
@@ -613,16 +602,6 @@ export function App() {
           </section>
         )}
 
-        {(statusMessage || copyFeedback !== null) && (
-          <div className="topbar-feedback">
-            {statusMessage && <p className="status-message">{statusMessage}</p>}
-            {copyFeedback !== null && (
-              <p className={`copy-feedback copy-feedback-${copyFeedback.tone}`} role="status" aria-live="polite">
-                {copyFeedback.message}
-              </p>
-            )}
-          </div>
-        )}
       </header>
 
       <main className="terminal-card">
@@ -754,6 +733,7 @@ export function App() {
           </div>
         </section>
       )}
+      <Toaster position="top-right" theme="dark" />
     </div>
   );
 }
