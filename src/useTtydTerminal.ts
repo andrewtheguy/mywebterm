@@ -94,6 +94,7 @@ const MOBILE_TOOLBAR_SAFE_TOP_PX = 8;
 const MOBILE_TOOLBAR_SAFE_BOTTOM_PX = 8;
 const MOBILE_TOOLBAR_SIDE_PADDING_PX = 16;
 const MOBILE_HANDLE_SAFE_EDGE_PX = 8;
+const AUTO_SCROLL_LAYOUT_MAX_RETRIES = 24;
 
 type TerminalLayout = {
   containerRect: DOMRect;
@@ -229,6 +230,8 @@ export function useTtydTerminal({
   const autoScrollAnimationRef = useRef<number | null>(null);
   const autoScrollLastTimestampRef = useRef<number | null>(null);
   const autoScrollRemainderPxRef = useRef(0);
+  const autoScrollLayoutRetryRef = useRef(0);
+  const terminalMountedRef = useRef(false);
 
   const getTerminalLayout = useCallback((): TerminalLayout | null => {
     const terminal = terminalRef.current;
@@ -301,6 +304,7 @@ export function useTtydTerminal({
     }
     autoScrollLastTimestampRef.current = null;
     autoScrollRemainderPxRef.current = 0;
+    autoScrollLayoutRetryRef.current = 0;
   }, []);
 
   const setMobileVisualStateFromRange = useCallback(
@@ -462,16 +466,26 @@ export function useTtydTerminal({
       const dragPoint = dragPointRef.current;
       const existingRange = selectionRangeRef.current;
       const terminal = terminalRef.current;
-      if (!activeHandle || !dragPoint || !existingRange || !terminal) {
+      if (!terminalMountedRef.current || !activeHandle || !dragPoint || !existingRange || !terminal) {
         stopAutoScrollLoop();
         return;
       }
 
       const layout = getTerminalLayout();
       if (!layout) {
+        const canRetry =
+          terminalMountedRef.current &&
+          activeHandleRef.current !== null &&
+          autoScrollLayoutRetryRef.current < AUTO_SCROLL_LAYOUT_MAX_RETRIES;
+        if (!canRetry) {
+          stopAutoScrollLoop();
+          return;
+        }
+        autoScrollLayoutRetryRef.current += 1;
         autoScrollAnimationRef.current = window.requestAnimationFrame(runAutoScrollFrame);
         return;
       }
+      autoScrollLayoutRetryRef.current = 0;
 
       const velocityPxPerSecond = computeEdgeAutoScrollVelocity({
         clientY: dragPoint.y,
@@ -527,7 +541,7 @@ export function useTtydTerminal({
         autoScrollRemainderPxRef.current = 0;
       }
 
-      if (activeHandleRef.current !== null) {
+      if (terminalMountedRef.current && activeHandleRef.current !== null) {
         autoScrollAnimationRef.current = window.requestAnimationFrame(runAutoScrollFrame);
       } else {
         stopAutoScrollLoop();
@@ -540,6 +554,10 @@ export function useTtydTerminal({
     if (autoScrollAnimationRef.current !== null) {
       return;
     }
+    if (!terminalMountedRef.current || activeHandleRef.current === null) {
+      return;
+    }
+    autoScrollLayoutRetryRef.current = 0;
     autoScrollLastTimestampRef.current = null;
     autoScrollAnimationRef.current = window.requestAnimationFrame(runAutoScrollFrame);
   }, [runAutoScrollFrame]);
@@ -722,6 +740,8 @@ export function useTtydTerminal({
 
   useEffect(() => {
     if (!container) {
+      terminalMountedRef.current = false;
+      stopAutoScrollLoop();
       return;
     }
 
@@ -732,6 +752,7 @@ export function useTtydTerminal({
     terminal.open(container);
     fitAddon.fit();
     terminal.focus();
+    terminalMountedRef.current = true;
 
     const terminalDisposables: IDisposable[] = [
       terminal.onData(data => {
@@ -816,6 +837,7 @@ export function useTtydTerminal({
     terminalDisposablesRef.current = terminalDisposables;
 
     return () => {
+      terminalMountedRef.current = false;
       closeSocket();
       window.removeEventListener("resize", throttledFit);
       if (throttledFitTimeout !== undefined) {
