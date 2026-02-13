@@ -5,16 +5,16 @@
  * It is included in `src/index.html`.
  */
 
-import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 
 const elem = document.getElementById("root")!;
-const app = (
-  <StrictMode>
-    <App />
-  </StrictMode>
-);
+// StrictMode is intentionally disabled here.
+// In this app, React's dev-only remount cycle can leave xterm.js document-level
+// mouse handlers referencing disposed internals, causing runtime errors like:
+// "Cannot read properties of undefined (reading 'dimensions')".
+// Re-enable StrictMode once the xterm lifecycle issue is fully resolved.
+const app = <App />;
 
 if (import.meta.hot) {
   // With hot module reloading, `import.meta.hot.data` is persisted.
