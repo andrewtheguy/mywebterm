@@ -995,10 +995,13 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
       return null;
     };
 
+    let hScrollTouch: { identifier: number; lastX: number } | null = null;
+
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1 || activeHandleRef.current !== null) {
         clearPendingLongPress(true);
         clearScrollGesture();
+        hScrollTouch = null;
         return;
       }
 
@@ -1006,6 +1009,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
       if (!touch) {
         return;
       }
+
+      hScrollTouch =
+        container.scrollWidth > container.clientWidth ? { identifier: touch.identifier, lastX: touch.clientX } : null;
 
       const point = { x: touch.clientX, y: touch.clientY };
       if (shouldPassTouchScroll && selectionRangeRef.current === null) {
@@ -1064,6 +1070,19 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
         }
       }
 
+      if (hScrollTouch !== null) {
+        const hTouch = findTouchById(event.touches, hScrollTouch.identifier);
+        if (hTouch) {
+          const deltaX = hScrollTouch.lastX - hTouch.clientX;
+          if (deltaX !== 0) {
+            container.scrollLeft += deltaX;
+            hScrollTouch.lastX = hTouch.clientX;
+          }
+        } else {
+          hScrollTouch = null;
+        }
+      }
+
       if (!shouldPassTouchScroll || activeHandleRef.current !== null || selectionRangeRef.current !== null) {
         return;
       }
@@ -1104,11 +1123,13 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
     const onTouchEnd = () => {
       clearPendingLongPress(true);
       clearScrollGesture();
+      hScrollTouch = null;
     };
 
     const onTouchCancel = () => {
       clearPendingLongPress(true);
       clearScrollGesture();
+      hScrollTouch = null;
     };
 
     const onContextMenu = (event: MouseEvent) => {
