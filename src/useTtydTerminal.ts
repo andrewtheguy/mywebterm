@@ -77,6 +77,8 @@ interface UseTtydTerminalResult {
   setActiveHandle: (handle: MobileSelectionHandle | null) => void;
   updateActiveHandleFromClientPoint: (clientX: number, clientY: number) => void;
   toggleMobileMouseMode: () => void;
+  horizontalOverflow: boolean;
+  containerElement: HTMLDivElement | null;
 }
 
 const terminalOptions: ITerminalOptions = {
@@ -84,7 +86,7 @@ const terminalOptions: ITerminalOptions = {
   convertEol: true,
   scrollback: 5000,
   fontSize: 14,
-  fontFamily: "Iosevka Term, JetBrains Mono, Menlo, monospace",
+  fontFamily: "Iosevka Term, IosevkaTerm Nerd Font Mono, JetBrainsMono Nerd Font Mono, JetBrains Mono, Symbols Nerd Font Mono, Menlo, monospace",
   theme: {
     background: "#041425",
     foreground: "#d8ecff",
@@ -93,6 +95,8 @@ const terminalOptions: ITerminalOptions = {
   },
 };
 
+const MIN_COLS = 60;
+const DEFAULT_SCROLLBAR_WIDTH = 14;
 const RECENT_OUTPUT_LINES = 2000;
 const MOBILE_LONG_PRESS_MS = 420;
 const MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX = 8;
@@ -222,6 +226,7 @@ export function useTtydTerminal({
     createInitialMobileSelectionState(mobileTouchSupported),
   );
   const [mobileMouseMode, setMobileMouseMode] = useState<MobileMouseMode>("nativeScroll");
+  const [horizontalOverflow, setHorizontalOverflow] = useState(false);
 
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -242,6 +247,7 @@ export function useTtydTerminal({
   const autoScrollRemainderPxRef = useRef(0);
   const autoScrollLayoutRetryRef = useRef(0);
   const terminalMountedRef = useRef(false);
+  const customFitRef = useRef<(() => void) | null>(null);
 
   const getTerminalLayout = useCallback((): TerminalLayout | null => {
     const terminal = terminalRef.current;
@@ -773,7 +779,52 @@ export function useTtydTerminal({
 
     terminal.loadAddon(fitAddon);
     terminal.open(container);
-    fitAddon.fit();
+
+    const customFit = () => {
+      const proposed = fitAddon.proposeDimensions();
+      if (!proposed || isNaN(proposed.cols) || isNaN(proposed.rows)) {
+        return;
+      }
+
+      const finalCols = Math.max(proposed.cols, MIN_COLS);
+      const finalRows = proposed.rows;
+      const needsOverflow = finalCols > proposed.cols;
+
+      const element = terminal.element;
+      if (!element) {
+        return;
+      }
+
+      if (needsOverflow) {
+        const dims = terminal.dimensions;
+        if (!dims || dims.css.cell.width === 0) {
+          return;
+        }
+        const cellWidth = dims.css.cell.width;
+        const elemStyle = getComputedStyle(element);
+        const paddingHor =
+          parseInt(elemStyle.getPropertyValue("padding-left")) +
+          parseInt(elemStyle.getPropertyValue("padding-right"));
+        const showScrollbar = terminal.options.scrollbar?.showScrollbar ?? true;
+        const scrollbarWidth =
+          terminal.options.scrollback === 0 || !showScrollbar
+            ? 0
+            : (terminal.options.scrollbar?.width ?? DEFAULT_SCROLLBAR_WIDTH);
+        const requiredWidth = Math.ceil(finalCols * cellWidth) + paddingHor + scrollbarWidth;
+        element.style.width = `${requiredWidth}px`;
+      } else {
+        element.style.width = "";
+      }
+
+      if (terminal.rows !== finalRows || terminal.cols !== finalCols) {
+        terminal.resize(finalCols, finalRows);
+      }
+
+      setHorizontalOverflow(needsOverflow);
+    };
+
+    customFitRef.current = customFit;
+    customFit();
     terminal.focus();
     terminalMountedRef.current = true;
 
@@ -821,13 +872,13 @@ export function useTtydTerminal({
 
     const fitThrottleMs = 100;
     let lastFitTime = 0;
-    let throttledFitTimeout: ReturnType<typeof window.setTimeout> | undefined;
+    let throttledFitTimeout: number | undefined;
     const throttledFit = () => {
       const now = Date.now();
       const elapsed = now - lastFitTime;
       if (elapsed >= fitThrottleMs) {
         lastFitTime = now;
-        fitAddon.fit();
+        customFit();
         const range = selectionRangeRef.current;
         if (range) {
           setMobileVisualStateFromRange(range, getDragMode(activeHandleRef.current), activeHandleRef.current);
@@ -842,7 +893,7 @@ export function useTtydTerminal({
       throttledFitTimeout = window.setTimeout(() => {
         throttledFitTimeout = undefined;
         lastFitTime = Date.now();
-        fitAddon.fit();
+        customFit();
         const range = selectionRangeRef.current;
         if (range) {
           setMobileVisualStateFromRange(range, getDragMode(activeHandleRef.current), activeHandleRef.current);
@@ -872,6 +923,7 @@ export function useTtydTerminal({
       terminal.dispose();
       fitAddonRef.current = null;
       terminalRef.current = null;
+      customFitRef.current = null;
 
       if (longPressTimerRef.current !== null) {
         window.clearTimeout(longPressTimerRef.current);
@@ -1137,7 +1189,7 @@ export function useTtydTerminal({
         return;
       }
 
-      fitAddonRef.current?.fit();
+      customFitRef.current?.();
       socket.send(buildHandshake(terminal.cols, terminal.rows));
       terminal.focus();
       setConnectionStatus("connected");
@@ -1402,5 +1454,7 @@ export function useTtydTerminal({
     setActiveHandle,
     updateActiveHandleFromClientPoint,
     toggleMobileMouseMode,
+    horizontalOverflow,
+    containerElement: container,
   };
 }

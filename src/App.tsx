@@ -86,10 +86,18 @@ export function App() {
     setActiveHandle,
     updateActiveHandleFromClientPoint,
     toggleMobileMouseMode,
+    horizontalOverflow,
+    containerElement,
   } = useTtydTerminal({
     wsUrl: config.wsUrl,
     onTitleChange: handleTitleChange,
   });
+
+  const panTrackRef = useRef<HTMLDivElement>(null);
+  const panThumbRef = useRef<HTMLButtonElement>(null);
+  const panDraggingRef = useRef(false);
+  const panStartXRef = useRef(0);
+  const panStartScrollLeftRef = useRef(0);
 
   useEffect(() => {
     document.title = remoteTitle ? `${remoteTitle} | MyWebTerm` : "MyWebTerm";
@@ -333,6 +341,64 @@ export function App() {
     setActiveHandle(null);
   }, [clearMobileSelection, handleCopySelection, setActiveHandle]);
 
+  const handlePanPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      panDraggingRef.current = true;
+      panStartXRef.current = event.clientX;
+      panStartScrollLeftRef.current = containerElement?.scrollLeft ?? 0;
+      panThumbRef.current?.classList.add("pan-widget-thumb-dragging");
+    },
+    [containerElement],
+  );
+
+  const handlePanPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (!panDraggingRef.current) {
+        return;
+      }
+      event.preventDefault();
+
+      const deltaX = event.clientX - panStartXRef.current;
+      const track = panTrackRef.current;
+      const thumb = panThumbRef.current;
+      const viewport = containerElement;
+      if (!track || !thumb || !viewport) {
+        return;
+      }
+
+      const trackHalf = track.clientWidth / 2;
+      const thumbHalf = thumb.clientWidth / 2;
+      const maxThumbOffset = trackHalf - thumbHalf;
+      const clampedOffset = Math.max(-maxThumbOffset, Math.min(maxThumbOffset, deltaX));
+
+      thumb.style.left = `calc(50% + ${clampedOffset}px)`;
+
+      const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth;
+      const scaleFactor = maxThumbOffset > 0 ? maxScrollLeft / maxThumbOffset : 0;
+      viewport.scrollLeft = panStartScrollLeftRef.current - clampedOffset * scaleFactor;
+    },
+    [containerElement],
+  );
+
+  const handlePanPointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (!panDraggingRef.current) {
+        return;
+      }
+      event.preventDefault();
+      panDraggingRef.current = false;
+      const thumb = panThumbRef.current;
+      if (thumb) {
+        thumb.classList.remove("pan-widget-thumb-dragging");
+        thumb.style.left = "50%";
+      }
+    },
+    [],
+  );
+
   const hasMobileSelectionOverlay =
     mobileSelectionState.enabled &&
     mobileSelectionState.range !== null &&
@@ -495,7 +561,7 @@ export function App() {
         <div className="terminal-stage">
           <div
             ref={containerRef}
-            className={`terminal-viewport ${mobileMouseMode === "passToTerminal" ? "terminal-viewport-pass-through" : ""}`}
+            className={`terminal-viewport ${mobileMouseMode === "passToTerminal" ? "terminal-viewport-pass-through" : ""} ${horizontalOverflow ? "terminal-viewport-overflow" : ""}`}
           />
 
           {hasMobileSelectionOverlay && (
@@ -504,8 +570,8 @@ export function App() {
                 type="button"
                 className="mobile-selection-handle mobile-selection-handle-start"
                 style={{
-                  left: `${mobileSelectionState.startHandle.left}px`,
-                  top: `${mobileSelectionState.startHandle.top}px`,
+                  left: `${mobileSelectionState.startHandle!.left}px`,
+                  top: `${mobileSelectionState.startHandle!.top}px`,
                 }}
                 onPointerDown={event => beginSelectionHandleDrag("start", event)}
                 onPointerMove={handleSelectionHandleMove}
@@ -525,8 +591,8 @@ export function App() {
                 type="button"
                 className="mobile-selection-handle mobile-selection-handle-end"
                 style={{
-                  left: `${mobileSelectionState.endHandle.left}px`,
-                  top: `${mobileSelectionState.endHandle.top}px`,
+                  left: `${mobileSelectionState.endHandle!.left}px`,
+                  top: `${mobileSelectionState.endHandle!.top}px`,
                 }}
                 onPointerDown={event => beginSelectionHandleDrag("end", event)}
                 onPointerMove={handleSelectionHandleMove}
@@ -545,8 +611,8 @@ export function App() {
               <div
                 className="mobile-selection-toolbar"
                 style={{
-                  left: `${mobileSelectionState.toolbarAnchor.left}px`,
-                  top: `${mobileSelectionState.toolbarAnchor.top}px`,
+                  left: `${mobileSelectionState.toolbarAnchor!.left}px`,
+                  top: `${mobileSelectionState.toolbarAnchor!.top}px`,
                 }}
                 role="group"
                 aria-label="Selection actions"
@@ -557,6 +623,24 @@ export function App() {
                 <button type="button" className="toolbar-button" onClick={clearMobileSelection}>
                   Clear
                 </button>
+              </div>
+            </div>
+          )}
+
+          {horizontalOverflow && (
+            <div className="pan-widget">
+              <div className="pan-widget-track" ref={panTrackRef}>
+                <button
+                  type="button"
+                  className="pan-widget-thumb"
+                  ref={panThumbRef}
+                  onPointerDown={handlePanPointerDown}
+                  onPointerMove={handlePanPointerMove}
+                  onPointerUp={handlePanPointerUp}
+                  onPointerCancel={handlePanPointerUp}
+                  onLostPointerCapture={handlePanPointerUp}
+                  aria-label="Pan terminal horizontally"
+                />
               </div>
             </div>
           )}
