@@ -850,7 +850,8 @@ export function useTtydTerminal({
       }, fitThrottleMs - elapsed);
     };
 
-    window.addEventListener("resize", throttledFit);
+    const resizeObserver = new ResizeObserver(throttledFit);
+    resizeObserver.observe(container);
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -859,7 +860,7 @@ export function useTtydTerminal({
     return () => {
       terminalMountedRef.current = false;
       closeSocket();
-      window.removeEventListener("resize", throttledFit);
+      resizeObserver.disconnect();
       if (throttledFitTimeout !== undefined) {
         window.clearTimeout(throttledFitTimeout);
       }
