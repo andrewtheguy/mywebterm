@@ -24,12 +24,28 @@ const HOP_BY_HOP_HEADERS = [
   "transfer-encoding",
   "upgrade",
 ];
+const UPSTREAM_HTTP_TIMEOUT_MS = 15_000;
 
 function stripHopByHopHeaders(headers: Headers): Headers {
   const sanitized = new Headers(headers);
+  const connectionHeader = headers.get("connection");
+
   for (const header of HOP_BY_HOP_HEADERS) {
     sanitized.delete(header);
   }
+
+  if (connectionHeader) {
+    const dynamicHopByHopHeaders = connectionHeader
+      .split(",")
+      .map(token => token.trim().toLowerCase())
+      .filter(Boolean);
+
+    for (const header of dynamicHopByHopHeaders) {
+      sanitized.delete(header);
+    }
+  }
+
+  sanitized.delete("connection");
   sanitized.delete("host");
   return sanitized;
 }
@@ -177,9 +193,9 @@ function openUpstreamSocket(connectionId: string, upstreamWsUrl: URL): WebSocket
     closeClientSocket(clientSocket, 1011, "Upstream WebSocket error");
   };
 
-  upstreamSocket.onclose = () => {
+  upstreamSocket.onclose = event => {
     const { clientSocket } = removeConnection(connectionId);
-    closeClientSocket(clientSocket);
+    closeClientSocket(clientSocket, event.code, event.reason);
   };
 
   return upstreamSocket;
@@ -231,11 +247,23 @@ async function handleHttpProxyRequest(req: Request): Promise<Response> {
     requestInit.body = req.body;
   }
 
+  const upstreamTimeout = new AbortController();
+  const timeoutId = setTimeout(() => {
+    upstreamTimeout.abort();
+  }, UPSTREAM_HTTP_TIMEOUT_MS);
+  requestInit.signal = upstreamTimeout.signal;
+
   let upstreamResponse: Response;
   try {
     upstreamResponse = await fetch(upstreamHttpUrl, requestInit);
   } catch {
+    if (upstreamTimeout.signal.aborted) {
+      return new Response("ttyd upstream request timed out.", { status: 504 });
+    }
+
     return new Response("Unable to reach ttyd upstream.", { status: 502 });
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const responseHeaders = stripHopByHopHeaders(upstreamResponse.headers);
