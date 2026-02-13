@@ -270,7 +270,6 @@ body {
 }
 
 .keyboard-rows-area {
-  flex: 1;
   min-width: 0;
 }
 
@@ -281,9 +280,13 @@ body {
   justify-content: space-between;
 }
 
+.keyboard-right-area .extra-key-button {
+  width: 100%;
+}
+
 .nav-keys-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr;
   gap: 0.3rem;
 }
 
@@ -294,18 +297,6 @@ body {
 .extra-keys-mobile-bottom {
   border-top: 1px dashed rgba(140, 205, 255, 0.3);
   padding-top: 0.35rem;
-}
-
-.arrow-cluster {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.arrow-cluster-bottom {
-  display: flex;
-  gap: 0.2rem;
 }
 
 .extra-keys-function-row {

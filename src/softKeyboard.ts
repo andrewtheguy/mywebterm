@@ -166,13 +166,20 @@ export const ARROW_SOFT_KEYS = [
   createSpecialKey("arrowRight", "\u2192"),
 ] as const;
 
+export const DELETE_SOFT_KEY: SoftKeyDefinition = createSpecialKey("delete", "Del");
+export const HOME_SOFT_KEY: SoftKeyDefinition = createSpecialKey("home", "\u2302");
+export const END_SOFT_KEY: SoftKeyDefinition = createSpecialKey("end", "End");
+export const INSERT_SOFT_KEY: SoftKeyDefinition = createSpecialKey("insert", "Ins");
+export const PAGE_UP_SOFT_KEY: SoftKeyDefinition = createSpecialKey("pageUp", "\u21DE");
+export const PAGE_DOWN_SOFT_KEY: SoftKeyDefinition = createSpecialKey("pageDown", "\u21DF");
+
 export const NAV_SOFT_KEYS: readonly SoftKeyDefinition[] = [
-  createSpecialKey("insert", "Ins"),
-  createSpecialKey("home", "Home"),
-  createSpecialKey("pageUp", "PgUp"),
-  createSpecialKey("delete", "Del"),
-  createSpecialKey("end", "End"),
-  createSpecialKey("pageDown", "PgDn"),
+  DELETE_SOFT_KEY,
+  HOME_SOFT_KEY,
+  END_SOFT_KEY,
+  PAGE_UP_SOFT_KEY,
+  PAGE_DOWN_SOFT_KEY,
+  INSERT_SOFT_KEY,
 ];
 
 export const FUNCTION_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
