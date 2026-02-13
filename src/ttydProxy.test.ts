@@ -42,4 +42,18 @@ describe("ttydProxy", () => {
     });
     expect(isWebSocketUpgradeRequest(req)).toBe(true);
   });
+
+  test("returns false when upgrade header is missing", () => {
+    const req = new Request("http://localhost:3000/ttyd/ws");
+    expect(isWebSocketUpgradeRequest(req)).toBe(false);
+  });
+
+  test("returns false when upgrade header is not websocket", () => {
+    const req = new Request("http://localhost:3000/ttyd/ws", {
+      headers: {
+        upgrade: "h2c",
+      },
+    });
+    expect(isWebSocketUpgradeRequest(req)).toBe(false);
+  });
 });

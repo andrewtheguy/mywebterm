@@ -357,19 +357,19 @@ export function useTtydTerminal({
     const terminal = terminalRef.current;
     if (!terminal) {
       setStatusMessage("Terminal not ready for copy.");
-      return;
+      throw new Error("Terminal not ready for copy.");
     }
 
     const selectedText = terminal.getSelection();
     if (selectedText.length === 0) {
       setStatusMessage("No terminal selection to copy.");
-      return;
+      throw new Error("No terminal selection to copy.");
     }
 
     const copied = await writeClipboardText(selectedText);
     if (!copied) {
       setStatusMessage("Clipboard copy failed.");
-      return;
+      throw new Error("Clipboard copy failed.");
     }
 
     setStatusMessage(`Copied selection (${selectedText.length} chars).`);
@@ -379,19 +379,19 @@ export function useTtydTerminal({
     const terminal = terminalRef.current;
     if (!terminal) {
       setStatusMessage("Terminal not ready for copy.");
-      return;
+      throw new Error("Terminal not ready for copy.");
     }
 
     const recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
     if (recentOutput.length === 0) {
       setStatusMessage("No terminal output available to copy.");
-      return;
+      throw new Error("No terminal output available to copy.");
     }
 
     const copied = await writeClipboardText(recentOutput);
     if (!copied) {
       setStatusMessage("Clipboard copy failed.");
-      return;
+      throw new Error("Clipboard copy failed.");
     }
 
     setStatusMessage(`Copied recent output (${RECENT_OUTPUT_LINES} lines max).`);

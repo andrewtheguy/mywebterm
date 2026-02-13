@@ -186,6 +186,20 @@ body {
   font-size: 0.92rem;
 }
 
+.copy-feedback {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.copy-feedback-success {
+  color: var(--status-connected);
+}
+
+.copy-feedback-error {
+  color: var(--status-error);
+}
+
 .terminal-card {
   min-height: 0;
   overflow: hidden;
