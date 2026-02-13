@@ -241,13 +241,18 @@ body {
   flex-wrap: wrap;
 }
 
+.extra-keys-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .extra-keys-hint {
   margin: 0;
   font-size: 0.8rem;
   color: var(--muted-ink);
 }
 
-.extra-keys-modifier-row,
 .extra-keys-row {
   display: flex;
   gap: 0.4rem;
@@ -259,23 +264,36 @@ body {
   gap: 0.4rem;
 }
 
-.extra-keys-grid .extra-keys-row:nth-child(2) {
-  padding-left: 0.8rem;
-}
-
-.extra-keys-grid .extra-keys-row:nth-child(3) {
-  padding-left: 1.4rem;
-}
-
-.extra-keys-grid .extra-keys-row:nth-child(4) {
-  padding-left: 2rem;
-}
-
-.extra-keys-bottom-row {
+.keyboard-layout {
   display: flex;
-  gap: 1rem;
-  align-items: flex-end;
-  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.keyboard-rows-area {
+  flex: 1;
+  min-width: 0;
+}
+
+.keyboard-right-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.nav-keys-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.3rem;
+}
+
+.extra-key-spacer {
+  min-height: 2rem;
+}
+
+.extra-keys-mobile-bottom {
+  border-top: 1px dashed rgba(140, 205, 255, 0.3);
+  padding-top: 0.35rem;
 }
 
 .arrow-cluster {
@@ -288,12 +306,6 @@ body {
 .arrow-cluster-bottom {
   display: flex;
   gap: 0.2rem;
-}
-
-.nav-keys-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
 }
 
 .extra-keys-grid-function {
@@ -321,7 +333,12 @@ body {
 }
 
 .extra-key-button-space {
-  min-width: 5.4rem;
+  flex: 1;
+  min-width: 8rem;
+}
+
+.extra-key-wide-xl {
+  min-width: 5rem;
 }
 
 .extra-key-wide-sm {
@@ -651,43 +668,39 @@ body {
   }
 
   .extra-key-button {
-    min-width: 2.1rem;
-    min-height: 2.1rem;
-    padding: 0.34rem 0.44rem;
-    font-size: 0.75rem;
+    min-width: 1.8rem;
+    min-height: 2rem;
+    padding: 0.25rem 0.3rem;
+    font-size: 0.7rem;
+  }
+
+  .extra-keys-row {
+    gap: 0.2rem;
   }
 
   .extra-key-button-space {
-    min-width: 4.8rem;
+    min-width: 4rem;
   }
 
   .extra-key-wide-sm {
-    min-width: 2.6rem;
+    min-width: 2.4rem;
   }
 
   .extra-key-wide-md {
-    min-width: 3rem;
+    min-width: 2.8rem;
   }
 
   .extra-key-wide-lg {
-    min-width: 3.4rem;
+    min-width: 3.2rem;
+  }
+
+  .extra-key-wide-xl {
+    min-width: 3.8rem;
   }
 
   .extra-key-arrow {
-    min-width: 2.2rem;
+    min-width: 2rem;
     font-size: 0.95rem;
-  }
-
-  .extra-keys-grid .extra-keys-row:nth-child(2) {
-    padding-left: 0.5rem;
-  }
-
-  .extra-keys-grid .extra-keys-row:nth-child(3) {
-    padding-left: 0.9rem;
-  }
-
-  .extra-keys-grid .extra-keys-row:nth-child(4) {
-    padding-left: 1.3rem;
   }
 
   .terminal-card {

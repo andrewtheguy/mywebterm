@@ -167,12 +167,12 @@ export const ARROW_SOFT_KEYS = [
 ] as const;
 
 export const NAV_SOFT_KEYS: readonly SoftKeyDefinition[] = [
-  createSpecialKey("home", "Home"),
-  createSpecialKey("end", "End"),
-  createSpecialKey("pageUp", "PgUp"),
-  createSpecialKey("pageDown", "PgDn"),
   createSpecialKey("insert", "Ins"),
+  createSpecialKey("home", "Home"),
+  createSpecialKey("pageUp", "PgUp"),
   createSpecialKey("delete", "Del"),
+  createSpecialKey("end", "End"),
+  createSpecialKey("pageDown", "PgDn"),
 ];
 
 export const FUNCTION_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
