@@ -70,11 +70,13 @@ interface UseTtydTerminalResult {
   containerElement: HTMLDivElement | null;
 }
 
+const isMobileViewport = typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches;
+
 const terminalOptions: ITerminalOptions = {
   cursorBlink: true,
   convertEol: true,
   scrollback: 5000,
-  fontSize: 14,
+  fontSize: isMobileViewport ? 10 : 14,
   fontFamily:
     "Iosevka Term, IosevkaTerm Nerd Font Mono, JetBrainsMono Nerd Font Mono, JetBrains Mono, Symbols Nerd Font Mono, Menlo, monospace",
   theme: {
