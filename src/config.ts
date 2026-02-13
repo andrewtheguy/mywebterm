@@ -11,35 +11,23 @@ function toWebSocketProtocol(protocol: string): "ws:" | "wss:" {
   return "ws:";
 }
 
-const HSCROLL_STORAGE_KEY = "experimentalHScroll";
-
-function loadExperimentalHScroll(search: string): boolean {
-  const params = new URLSearchParams(search);
-  const urlValue = params.get("experimentalHScroll");
-
-  if (urlValue === "1" || urlValue === "0") {
-    const enabled = urlValue === "1";
-    try {
-      localStorage.setItem(HSCROLL_STORAGE_KEY, enabled ? "1" : "0");
-    } catch {
-      // Storage unavailable — ignore.
-    }
-    return enabled;
-  }
-
-  try {
-    return localStorage.getItem(HSCROLL_STORAGE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function loadTtydConfig(locationLike: Pick<Location, "origin" | "search"> = window.location): TtydConfig {
+export async function loadTtydConfig(locationLike: Pick<Location, "origin"> = window.location): Promise<TtydConfig> {
   const proxyWsUrl = new URL("/ttyd/ws", locationLike.origin);
   proxyWsUrl.protocol = toWebSocketProtocol(proxyWsUrl.protocol);
 
+  let experimentalHScroll = false;
+  try {
+    const res = await fetch("/api/config");
+    if (res.ok) {
+      const json = await res.json();
+      experimentalHScroll = json.experimentalHScroll === true;
+    }
+  } catch {
+    // Endpoint unavailable — keep default.
+  }
+
   return {
     wsUrl: proxyWsUrl.toString(),
-    experimentalHScroll: loadExperimentalHScroll(locationLike.search),
+    experimentalHScroll,
   };
 }

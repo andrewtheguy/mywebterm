@@ -1211,7 +1211,6 @@ export function useTtydTerminal({
     if (!wsUrl) {
       closeSocket();
       setConnectionStatus("disconnected");
-      toast.error("Missing terminal endpoint configuration.", { id: "connection-status" });
       return;
     }
 
