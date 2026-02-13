@@ -29,8 +29,8 @@ interface PtySession {
 }
 
 const shell = process.env.SHELL || "/bin/sh";
-const hostname = process.env.HOST || "0.0.0.0";
-const port = parseInt(process.env.PORT || "7681", 10);
+const hostname = process.env.HOST || "::";
+const port = parseInt(process.env.PORT || "8671", 10);
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
 

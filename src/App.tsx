@@ -478,20 +478,18 @@ export function App() {
             )}
           </section>
         )}
-      </header>
 
-      <section className="endpoint-card">
-        <div className="endpoint-row">
-          <span>Terminal WS</span>
-          <code>{config.wsUrl}</code>
-        </div>
-        <p className="status-message">{statusMessage}</p>
-        {copyFeedback !== null && (
-          <p className={`copy-feedback copy-feedback-${copyFeedback.tone}`} role="status" aria-live="polite">
-            {copyFeedback.message}
-          </p>
+        {(statusMessage || copyFeedback !== null) && (
+          <div className="topbar-feedback">
+            {statusMessage && <p className="status-message">{statusMessage}</p>}
+            {copyFeedback !== null && (
+              <p className={`copy-feedback copy-feedback-${copyFeedback.tone}`} role="status" aria-live="polite">
+                {copyFeedback.message}
+              </p>
+            )}
+          </div>
         )}
-      </section>
+      </header>
 
       <main className="terminal-card">
         <div className="terminal-stage">

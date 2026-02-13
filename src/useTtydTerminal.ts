@@ -1093,7 +1093,7 @@ export function useTtydTerminal({
 
     closeSocket();
     setConnectionStatus("connecting");
-    setStatusMessage(`Connecting to ${wsUrl}`);
+    setStatusMessage("Connecting.");
 
     const socket = new WebSocket(wsUrl);
     socket.binaryType = "arraybuffer";
@@ -1140,7 +1140,7 @@ export function useTtydTerminal({
       socket.send(buildHandshake(terminal.cols, terminal.rows));
       terminal.focus();
       setConnectionStatus("connected");
-      setStatusMessage(`Connected to ${wsUrl}`);
+      setStatusMessage("");
     };
 
     socket.onmessage = event => {
