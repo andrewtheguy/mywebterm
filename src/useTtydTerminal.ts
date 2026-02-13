@@ -18,6 +18,7 @@ interface UseTtydTerminalResult {
   connectionStatus: ConnectionStatus;
   statusMessage: string;
   reconnect: () => void;
+  focusSoftKeyboard: () => void;
   copySelection: () => Promise<void>;
   copyRecentOutput: () => Promise<void>;
   getSelectableText: () => string;
@@ -333,6 +334,25 @@ export function useTtydTerminal({
     setReconnectToken(previous => previous + 1);
   }, [closeSocket, wsUrl]);
 
+  const focusSoftKeyboard = useCallback(() => {
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      setStatusMessage("Terminal not ready for keyboard.");
+      return;
+    }
+
+    terminal.focus();
+    const input = terminal.textarea;
+    if (!input) {
+      setStatusMessage("Tap terminal area to open keyboard.");
+      return;
+    }
+
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(input.value.length, input.value.length);
+    setStatusMessage("Requested mobile keyboard.");
+  }, []);
+
   const copySelection = useCallback(async () => {
     const terminal = terminalRef.current;
     if (!terminal) {
@@ -403,6 +423,7 @@ export function useTtydTerminal({
     connectionStatus,
     statusMessage,
     reconnect,
+    focusSoftKeyboard,
     copySelection,
     copyRecentOutput,
     getSelectableText,

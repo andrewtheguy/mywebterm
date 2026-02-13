@@ -17,7 +17,7 @@ export function App() {
     setRemoteTitle(title);
   }, []);
 
-  const { containerRef, connectionStatus, statusMessage, reconnect, copySelection, copyRecentOutput, getSelectableText } = useTtydTerminal({
+  const { containerRef, connectionStatus, statusMessage, reconnect, focusSoftKeyboard, copySelection, copyRecentOutput, getSelectableText } = useTtydTerminal({
     wsUrl: config.wsUrl,
     onTitleChange: handleTitleChange,
   });
@@ -62,6 +62,9 @@ export function App() {
             </button>
             <button type="button" className="toolbar-button" onClick={() => void copyRecentOutput()}>
               Copy Recent
+            </button>
+            <button type="button" className="toolbar-button" onClick={focusSoftKeyboard}>
+              Keyboard
             </button>
             <button type="button" className="toolbar-button" onClick={openSelectableText}>
               Select Text
