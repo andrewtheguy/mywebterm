@@ -248,8 +248,13 @@ export function App() {
               className="toolbar-button"
               onClick={toggleMobileMouseMode}
               disabled={!mobileSelectionState.enabled}
+              title={
+                mobileMouseMode === "passToTerminal"
+                  ? "Current mode: App. Tap to switch touch scrolling back to Native."
+                  : "Current mode: Native. Tap to pass touch scrolling to the App."
+              }
             >
-              {mobileMouseMode === "passToTerminal" ? "Mouse: App" : "Mouse: Native"}
+              {mobileMouseMode === "passToTerminal" ? "Mode: App" : "Mode: Native"}
             </button>
             <button type="button" className="toolbar-button" onClick={openSelectableText}>
               Select Text
