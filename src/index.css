@@ -23,7 +23,7 @@ body,
 #root {
   margin: 0;
   height: 100%;
-  min-height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -532,7 +532,7 @@ body {
   }
 
   .terminal-stage {
-    min-height: 300px;
+    min-height: 0;
   }
 
   .terminal-viewport {

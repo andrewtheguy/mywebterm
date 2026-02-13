@@ -91,11 +91,35 @@ export function App() {
     onTitleChange: handleTitleChange,
   });
 
+  const appShellRef = useRef<HTMLDivElement>(null);
   const scrollbarTrackRef = useRef<HTMLDivElement>(null);
   const scrollbarThumbRef = useRef<HTMLDivElement>(null);
   const scrollbarDraggingRef = useRef(false);
   const scrollbarDragStartXRef = useRef(0);
   const scrollbarDragStartScrollLeftRef = useRef(0);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) {
+      return;
+    }
+
+    const update = () => {
+      const shell = appShellRef.current;
+      if (shell) {
+        shell.style.height = `${vv.height}px`;
+      }
+      window.scrollTo(0, 0);
+    };
+    update();
+
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
 
   useEffect(() => {
     document.title = remoteTitle ? `${remoteTitle} | MyWebTerm` : "MyWebTerm";
@@ -445,7 +469,7 @@ export function App() {
       : null;
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" ref={appShellRef}>
       <header className="topbar">
         <div className="brand">
           <h1>MyWebTerm</h1>
