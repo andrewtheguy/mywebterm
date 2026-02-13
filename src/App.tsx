@@ -5,7 +5,7 @@ import "./index.css";
 import { useTtydTerminal } from "./useTtydTerminal";
 
 export function App() {
-  const configResult = useMemo(() => loadTtydConfig(), []);
+  const config = useMemo(() => loadTtydConfig(), []);
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
 
   const handleTitleChange = useCallback((title: string) => {
@@ -16,33 +16,13 @@ export function App() {
   }, []);
 
   const { containerRef, connectionStatus, statusMessage, reconnect } = useTtydTerminal({
-    wsUrl: configResult.ok ? configResult.config.wsUrl : undefined,
+    wsUrl: config.wsUrl,
     onTitleChange: handleTitleChange,
   });
 
   useEffect(() => {
     document.title = remoteTitle ? `${remoteTitle} | myttyd` : "myttyd";
   }, [remoteTitle]);
-
-  if (!configResult.ok) {
-    return (
-      <div className="app-shell">
-        <header className="topbar">
-          <div className="brand">
-            <h1>myttyd</h1>
-            <p>Custom xterm.js frontend for ttyd</p>
-          </div>
-        </header>
-        <main className="error-card">
-          <h2>Configuration Error</h2>
-          <p>{configResult.error}</p>
-          <p>
-            Start with: <code>BUN_PUBLIC_TTYD_BASE_URL=http://127.0.0.1:7681 bun dev</code>
-          </p>
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className="app-shell">
@@ -62,11 +42,11 @@ export function App() {
       <section className="endpoint-card">
         <div className="endpoint-row">
           <span>ttyd HTTP</span>
-          <code>{configResult.config.baseUrl}</code>
+          <code>{config.baseUrl}</code>
         </div>
         <div className="endpoint-row">
           <span>ttyd WS</span>
-          <code>{configResult.config.wsUrl}</code>
+          <code>{config.wsUrl}</code>
         </div>
         <p className="status-message">{statusMessage}</p>
       </section>

@@ -170,7 +170,7 @@ export function useTtydTerminal({
     setConnectionStatus("connecting");
     setStatusMessage(`Connecting to ${wsUrl}`);
 
-    const socket = new WebSocket(wsUrl, ["tty"]);
+    const socket = new WebSocket(wsUrl);
     socket.binaryType = "arraybuffer";
     socketRef.current = socket;
     const connectionEpoch = connectionEpochRef.current + 1;
