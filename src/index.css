@@ -671,7 +671,6 @@ body {
   }
 
   .keyboard-rows-area {
-    border-right: 1px solid rgba(80, 130, 170, 0.4);
     min-width: 0;
     flex: 1;
   }
@@ -685,6 +684,10 @@ body {
     flex-wrap: nowrap;
   }
 
+  .extra-keys-row + .extra-keys-row {
+    margin-top: -1px;
+  }
+
   .extra-key-button {
     min-width: 0;
     min-height: 1.7rem;
@@ -693,10 +696,16 @@ body {
     border-radius: 0;
     box-shadow: none;
     flex: 1 1 0;
+    margin-right: -1px;
   }
 
   .extra-key-button:active {
     box-shadow: none;
+    z-index: 1;
+  }
+
+  .extra-key-button.toolbar-button-active {
+    z-index: 1;
   }
 
   .extra-key-button-space {
@@ -727,6 +736,7 @@ body {
     min-height: 0;
     min-width: 0;
     flex: 1 1 0;
+    margin-right: -1px;
   }
 
   .keyboard-right-area {
