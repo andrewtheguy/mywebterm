@@ -1347,19 +1347,27 @@ export function useTtydTerminal({
     };
   }, [wsUrl, reconnectToken, closeSocket, container, mobileTouchSupported]);
 
+  const forceLocalReconnect = useCallback(() => {
+    closeSocket();
+    terminalRef.current?.reset();
+    setReconnectToken((previous) => previous + 1);
+  }, [closeSocket]);
+
   const reconnect = useCallback(() => {
     if (!wsUrl) {
       return;
     }
-    fetch("/api/restart", { method: "POST" }).catch(() => {});
+    fetch("/api/restart", { method: "POST" }).catch((error: unknown) => {
+      console.error("Failed to POST /api/restart:", error);
+      toast.error("Restart request failed. Reconnecting locally.", { id: "restart" });
+      forceLocalReconnect();
+    });
     // If already disconnected, the server can't close our socket with code 4000,
     // so trigger the reconnect directly.
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
-      closeSocket();
-      terminalRef.current?.reset();
-      setReconnectToken((previous) => previous + 1);
+      forceLocalReconnect();
     }
-  }, [closeSocket, wsUrl]);
+  }, [forceLocalReconnect, wsUrl]);
 
   const focusTerminalInput = useCallback((): boolean => {
     const terminal = terminalRef.current;
