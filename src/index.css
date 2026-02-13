@@ -491,11 +491,17 @@ body {
 
 @media (max-width: 768px) {
   .app-shell {
-    padding: 0.75rem;
+    padding: 0;
+    gap: 0;
   }
 
   .topbar {
     align-items: flex-start;
+    border: none;
+    border-radius: 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: 0.6rem 0.75rem;
   }
 
   .toolbar {
@@ -509,7 +515,10 @@ body {
   }
 
   .extra-keys-panel {
-    padding: 0.62rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
   }
 
   .extra-key-button {
@@ -523,8 +532,25 @@ body {
     min-width: 4.8rem;
   }
 
+  .terminal-card {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: 0;
+  }
+
   .terminal-stage {
     min-height: 300px;
+  }
+
+  .terminal-viewport {
+    border-radius: 0;
+  }
+
+  .terminal-viewport .xterm {
+    padding: 0.15rem 0 0 0.15rem;
   }
 
   .copy-sheet-textarea {
