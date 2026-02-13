@@ -1,4 +1,4 @@
-# myttyd
+# MyWebTerm
 
 > [!WARNING]
 > This program is meant for the original developer's personal use; no backward compatibility, user-friendliness, or multi-user security is required.

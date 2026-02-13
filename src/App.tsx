@@ -92,7 +92,7 @@ export function App() {
   });
 
   useEffect(() => {
-    document.title = remoteTitle ? `${remoteTitle} | myttyd` : "myttyd";
+    document.title = remoteTitle ? `${remoteTitle} | MyWebTerm` : "MyWebTerm";
   }, [remoteTitle]);
 
   useEffect(() => {
@@ -344,7 +344,7 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <h1>myttyd</h1>
+          <h1>MyWebTerm</h1>
           <p>Web terminal powered by Bun PTY</p>
         </div>
         <div className="toolbar">
