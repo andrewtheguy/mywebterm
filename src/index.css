@@ -266,6 +266,16 @@ body {
   touch-action: none;
 }
 
+.terminal-viewport-overflow {
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.terminal-viewport-overflow::-webkit-scrollbar {
+  display: none;
+}
+
 .terminal-viewport .xterm {
   height: 100%;
   padding: 0.5rem;
@@ -356,6 +366,55 @@ body {
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+.pan-widget {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 14px 16px;
+  background: linear-gradient(to top, rgba(4, 20, 37, 0.88) 0%, rgba(4, 20, 37, 0) 100%);
+  pointer-events: none;
+}
+
+.pan-widget-track {
+  position: relative;
+  width: 90%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(106, 232, 206, 0.18);
+  pointer-events: auto;
+}
+
+.pan-widget-thumb {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(106, 232, 206, 0.6);
+  background: rgba(4, 20, 37, 0.92);
+  cursor: grab;
+  touch-action: none;
+  pointer-events: auto;
+  padding: 0;
+  transition: left 0.2s ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pan-widget-thumb:active {
+  cursor: grabbing;
+}
+
+.pan-widget-thumb-dragging {
+  transition: none;
 }
 
 .error-card {
