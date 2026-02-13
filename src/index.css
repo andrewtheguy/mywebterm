@@ -10,7 +10,9 @@
   --status-error: #ff5f7d;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -25,6 +27,7 @@ body,
 body {
   color: var(--page-ink);
   font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  background-color: #041425;
   background:
     radial-gradient(1200px 500px at 100% -10%, rgba(106, 232, 206, 0.2), transparent 62%),
     radial-gradient(1000px 560px at 0% 100%, rgba(70, 130, 255, 0.26), transparent 64%),
@@ -46,6 +49,7 @@ body {
   border: 1px solid var(--panel-border);
   border-radius: 16px;
   background: var(--panel-bg);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
 }
 
