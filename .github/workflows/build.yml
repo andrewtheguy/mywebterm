@@ -28,7 +28,7 @@ jobs:
 
   build:
     needs: [create-prerelease]
-    if: always() && (needs.create-prerelease.result == 'success' || needs.create-prerelease.result == 'skipped')
+    if: always() && (needs.create-prerelease.result == 'success' || (needs.create-prerelease.result == 'skipped' && startsWith(github.ref_name, 'v')))
     strategy:
       matrix:
         include:
