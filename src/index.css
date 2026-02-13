@@ -280,6 +280,10 @@ body {
   justify-content: space-between;
 }
 
+.keyboard-right-area .extra-key-button {
+  width: 100%;
+}
+
 .nav-keys-grid {
   display: grid;
   grid-template-columns: 1fr;
