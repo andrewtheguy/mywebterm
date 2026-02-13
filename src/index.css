@@ -77,6 +77,15 @@ body {
   display: flex;
   gap: 0.7rem;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .status-pill {
@@ -104,7 +113,7 @@ body {
   background: var(--status-error);
 }
 
-.reconnect-button {
+.toolbar-button {
   border: 1px solid rgba(172, 255, 236, 0.6);
   border-radius: 999px;
   background: rgba(19, 42, 58, 0.6);
@@ -116,23 +125,27 @@ body {
   transition: transform 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
 }
 
-.reconnect-button:hover:enabled {
+.toolbar-button:hover:enabled {
   transform: translateY(-1px);
   background: rgba(36, 76, 102, 0.6);
 }
 
-.reconnect-button:focus {
+.toolbar-button:focus {
   outline: none;
 }
 
-.reconnect-button:focus-visible:enabled {
+.toolbar-button:focus-visible:enabled {
   outline: 2px solid #8fffcb;
   outline-offset: 2px;
   box-shadow: 0 0 0 4px rgba(106, 232, 206, 0.32);
 }
 
-.reconnect-button:disabled {
+.toolbar-button:disabled {
   opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.reconnect-button:disabled {
   cursor: wait;
 }
 
@@ -173,6 +186,20 @@ body {
   font-size: 0.92rem;
 }
 
+.copy-feedback {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.copy-feedback-success {
+  color: var(--status-connected);
+}
+
+.copy-feedback-error {
+  color: var(--status-error);
+}
+
 .terminal-card {
   min-height: 0;
   overflow: hidden;
@@ -208,6 +235,52 @@ body {
   color: #c7dff6;
 }
 
+.copy-sheet {
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  background: rgba(3, 16, 30, 0.94);
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.copy-sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.copy-sheet-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.copy-sheet-hint {
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.85rem;
+}
+
+.copy-sheet-textarea {
+  width: 100%;
+  min-height: 220px;
+  border-radius: 10px;
+  border: 1px solid rgba(140, 205, 255, 0.35);
+  background: rgba(5, 19, 33, 0.9);
+  color: #d7ebff;
+  padding: 0.65rem;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  font-family: "Iosevka Term", "JetBrains Mono", "Consolas", monospace;
+  resize: vertical;
+}
+
+.copy-sheet-textarea:focus {
+  outline: 2px solid #8fffcb;
+  outline-offset: 2px;
+}
+
 @media (max-width: 768px) {
   .app-shell {
     padding: 0.75rem;
@@ -219,10 +292,19 @@ body {
 
   .toolbar {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .terminal-viewport {
     min-height: 300px;
+  }
+
+  .copy-sheet-textarea {
+    min-height: 260px;
   }
 }

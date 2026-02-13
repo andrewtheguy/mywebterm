@@ -11,7 +11,6 @@ ttyd -W -p 7681 bash
 ```
 
 Important:
-- Do not pass `-O` / `--check-origin` for this cross-origin setup.
 - This frontend currently does not implement ttyd auth token flow (`/token`), so run ttyd without credential auth in v1.
 
 ## Run this frontend (external app server)
@@ -22,11 +21,13 @@ Install deps:
 bun install
 ```
 
-Start dev server with required ttyd endpoint:
+Start dev server with required ttyd upstream endpoint:
 
 ```bash
-BUN_PUBLIC_TTYD_BASE_URL=http://127.0.0.1:7681 bun dev
+TTYD_BASE_URL=http://127.0.0.1:7681 bun dev
 ```
+
+The browser always connects to the Bun app host at `/ttyd/*`, and Bun proxies those requests to `TTYD_BASE_URL`.
 
 ## Build
 
