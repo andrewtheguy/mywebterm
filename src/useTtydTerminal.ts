@@ -1285,23 +1285,23 @@ export function useTtydTerminal({ wsUrl, onTitleChange }: UseTtydTerminalOptions
   const sendSoftKeySequence = useCallback(
     (sequence: string, label: string): boolean => {
       if (!terminalRef.current) {
-        toast.error("Terminal not ready for key send.");
+        toast.error("Terminal not ready for key send.", { id: "key-sequence" });
         return false;
       }
 
       if (sequence.length === 0) {
-        toast.error(`Unsupported key combo: ${label}.`);
+        toast.error(`Unsupported key combo: ${label}.`, { id: "key-sequence" });
         return false;
       }
 
       focusTerminalInput();
       const sent = sendInputFrame(sequence);
       if (!sent) {
-        toast.error("Not connected. Reconnect before sending keys.");
+        toast.error("Not connected. Reconnect before sending keys.", { id: "key-sequence" });
         return false;
       }
 
-      toast.success(`Sent ${label}.`);
+      toast.success(`Sent ${label}.`, { id: "key-sequence" });
       return true;
     },
     [focusTerminalInput, sendInputFrame],

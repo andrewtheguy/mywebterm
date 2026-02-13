@@ -102,20 +102,25 @@ export function App() {
       return;
     }
 
-    const update = () => {
+    const syncHeight = () => {
       const shell = appShellRef.current;
       if (shell) {
         shell.style.height = `${vv.height}px`;
       }
+    };
+
+    const onResize = () => {
+      syncHeight();
       window.scrollTo(0, 0);
     };
-    update();
 
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
+    onResize();
+
+    vv.addEventListener("resize", onResize);
+    vv.addEventListener("scroll", syncHeight);
     return () => {
-      vv.removeEventListener("resize", update);
-      vv.removeEventListener("scroll", update);
+      vv.removeEventListener("resize", onResize);
+      vv.removeEventListener("scroll", syncHeight);
     };
   }, []);
 
