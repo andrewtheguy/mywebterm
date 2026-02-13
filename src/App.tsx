@@ -3,13 +3,12 @@ import {
   type TouchEvent as ReactTouchEvent,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
 import { Toaster, toast } from "sonner";
 
-import { loadTtydConfig } from "./config";
+import { loadTtydConfig, type TtydConfig } from "./config";
 import "./index.css";
 import {
   buildSoftKeySequence,
@@ -44,7 +43,7 @@ function toModifierLabel(modifier: SoftModifierName): string {
 }
 
 export function App() {
-  const config = useMemo(() => loadTtydConfig(), []);
+  const [config, setConfig] = useState<TtydConfig | null>(null);
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
@@ -56,6 +55,24 @@ export function App() {
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperFocusedRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadTtydConfig()
+      .then((cfg) => {
+        if (!cancelled) {
+          setConfig(cfg);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error("Failed to load configuration.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleTitleChange = useCallback((title: string) => {
     if (title.trim().length === 0) {
@@ -87,8 +104,9 @@ export function App() {
     verticalScrollSyncRef,
     getVerticalScrollState,
   } = useTtydTerminal({
-    wsUrl: config.wsUrl,
+    wsUrl: config?.wsUrl,
     onTitleChange: handleTitleChange,
+    experimentalHScroll: config?.experimentalHScroll,
   });
 
   const appShellRef = useRef<HTMLDivElement>(null);
