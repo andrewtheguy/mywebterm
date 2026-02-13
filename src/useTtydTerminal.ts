@@ -32,6 +32,12 @@ export type MobileSelectionMode =
   | "draggingStart"
   | "draggingEnd";
 export type MobileMouseMode = "nativeScroll" | "passToTerminal";
+export type PasteResult =
+  | "pasted"
+  | "empty"
+  | "fallback-required"
+  | "terminal-unavailable"
+  | "wrong-mode";
 
 export interface MobileOverlayAnchor {
   left: number;
@@ -59,6 +65,8 @@ interface UseTtydTerminalResult {
   statusMessage: string;
   reconnect: () => void;
   focusSoftKeyboard: () => void;
+  attemptPasteFromClipboard: () => Promise<PasteResult>;
+  pasteTextIntoTerminal: (text: string) => boolean;
   copySelection: () => Promise<void>;
   copyRecentOutput: () => Promise<void>;
   getSelectableText: () => string;
@@ -1185,24 +1193,35 @@ export function useTtydTerminal({
     setReconnectToken(previous => previous + 1);
   }, [closeSocket, wsUrl]);
 
-  const focusSoftKeyboard = useCallback(() => {
+  const focusTerminalInput = useCallback((): boolean => {
     const terminal = terminalRef.current;
     if (!terminal) {
-      setStatusMessage("Terminal not ready for keyboard.");
-      return;
+      return false;
     }
 
     terminal.focus();
     const input = terminal.textarea;
     if (!input) {
-      setStatusMessage("Tap terminal area to open keyboard.");
-      return;
+      return false;
     }
 
     input.focus({ preventScroll: true });
     input.setSelectionRange(input.value.length, input.value.length);
-    setStatusMessage("Requested mobile keyboard.");
+    return true;
   }, []);
+
+  const focusSoftKeyboard = useCallback(() => {
+    const focused = focusTerminalInput();
+    if (!focused) {
+      if (!terminalRef.current) {
+        setStatusMessage("Terminal not ready for keyboard.");
+      } else {
+        setStatusMessage("Tap terminal area to open keyboard.");
+      }
+      return;
+    }
+    setStatusMessage("Requested mobile keyboard.");
+  }, [focusTerminalInput]);
 
   const toggleMobileMouseMode = useCallback(() => {
     if (!mobileTouchSupported) {
@@ -1219,6 +1238,54 @@ export function useTtydTerminal({
         : "Touch scroll now uses terminal scrollback.",
     );
   }, [clearScrollGesture, mobileMouseMode, mobileTouchSupported]);
+
+  const pasteTextIntoTerminal = useCallback((text: string): boolean => {
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      setStatusMessage("Terminal not ready for paste.");
+      return false;
+    }
+
+    if (text.trim().length === 0) {
+      setStatusMessage("Paste text is empty.");
+      return false;
+    }
+
+    terminal.paste(text);
+    setStatusMessage(`Pasted (${text.length} chars).`);
+    return true;
+  }, []);
+
+  const attemptPasteFromClipboard = useCallback(async (): Promise<PasteResult> => {
+    if (!terminalRef.current) {
+      setStatusMessage("Terminal not ready for paste.");
+      return "terminal-unavailable";
+    }
+
+    if (mobileMouseMode !== "nativeScroll") {
+      setStatusMessage("Switch to Mode: Native to paste.");
+      return "wrong-mode";
+    }
+
+    if (typeof navigator === "undefined" || !navigator.clipboard?.readText) {
+      setStatusMessage("Use iOS paste in helper panel.");
+      return "fallback-required";
+    }
+
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text.length === 0) {
+        setStatusMessage("Clipboard is empty.");
+        return "empty";
+      }
+
+      const pasted = pasteTextIntoTerminal(text);
+      return pasted ? "pasted" : "terminal-unavailable";
+    } catch {
+      setStatusMessage("Use iOS paste in helper panel.");
+      return "fallback-required";
+    }
+  }, [mobileMouseMode, pasteTextIntoTerminal]);
 
   const copySelection = useCallback(async () => {
     const terminal = terminalRef.current;
@@ -1291,6 +1358,8 @@ export function useTtydTerminal({
     statusMessage,
     reconnect,
     focusSoftKeyboard,
+    attemptPasteFromClipboard,
+    pasteTextIntoTerminal,
     copySelection,
     copyRecentOutput,
     getSelectableText,

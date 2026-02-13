@@ -1,3 +1,4 @@
+This program is meant for the original developer's personal use. No backward compatibility, user friendiness, or security for more than a user is needed.
 
 Default to using Bun instead of Node.js.
 

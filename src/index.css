@@ -339,6 +339,14 @@ body {
   font-size: 0.85rem;
 }
 
+.copy-sheet-actions {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 .copy-sheet-textarea {
   width: 100%;
   min-height: 220px;

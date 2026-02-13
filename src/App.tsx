@@ -28,8 +28,10 @@ export function App() {
   const config = useMemo(() => loadTtydConfig(), []);
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
   const [selectableText, setSelectableText] = useState<string | null>(null);
+  const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
+  const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleTitleChange = useCallback((title: string) => {
     if (title.trim().length === 0) {
@@ -44,6 +46,8 @@ export function App() {
     statusMessage,
     reconnect,
     focusSoftKeyboard,
+    attemptPasteFromClipboard,
+    pasteTextIntoTerminal,
     copySelection,
     copyRecentOutput,
     getSelectableText,
@@ -72,6 +76,15 @@ export function App() {
   }, [selectableText]);
 
   useEffect(() => {
+    if (!pasteHelperRef.current || pasteHelperText === null) {
+      return;
+    }
+
+    pasteHelperRef.current.focus();
+    pasteHelperRef.current.setSelectionRange(pasteHelperText.length, pasteHelperText.length);
+  }, [pasteHelperText]);
+
+  useEffect(() => {
     if (!copyFeedback) {
       return;
     }
@@ -90,11 +103,21 @@ export function App() {
     if (text.length === 0) {
       return;
     }
+    setPasteHelperText(null);
     setSelectableText(text);
   }, [getSelectableText]);
 
   const closeSelectableText = useCallback(() => {
     setSelectableText(null);
+  }, []);
+
+  const openPasteHelper = useCallback(() => {
+    setSelectableText(null);
+    setPasteHelperText("");
+  }, []);
+
+  const closePasteHelper = useCallback(() => {
+    setPasteHelperText(null);
   }, []);
 
   const handleCopySelection = useCallback(async (): Promise<boolean> => {
@@ -128,6 +151,23 @@ export function App() {
       });
     }
   }, [copyRecentOutput]);
+
+  const handleToolbarPaste = useCallback(async () => {
+    const result = await attemptPasteFromClipboard();
+    if (result === "fallback-required") {
+      openPasteHelper();
+    }
+  }, [attemptPasteFromClipboard, openPasteHelper]);
+
+  const submitPasteHelperText = useCallback(() => {
+    if (pasteHelperText === null) {
+      return;
+    }
+    const pasted = pasteTextIntoTerminal(pasteHelperText);
+    if (pasted) {
+      closePasteHelper();
+    }
+  }, [closePasteHelper, pasteHelperText, pasteTextIntoTerminal]);
 
   const beginSelectionHandleDrag = useCallback(
     (handle: "start" | "end", event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -243,6 +283,21 @@ export function App() {
             <button type="button" className="toolbar-button" onClick={focusSoftKeyboard}>
               Keyboard
             </button>
+            {mobileSelectionState.enabled && (
+              <button
+                type="button"
+                className="toolbar-button"
+                onClick={() => void handleToolbarPaste()}
+                disabled={mobileMouseMode !== "nativeScroll"}
+                title={
+                  mobileMouseMode === "nativeScroll"
+                    ? "Paste from clipboard. If blocked, a helper panel opens for iOS paste."
+                    : "Switch to Mode: Native to paste."
+                }
+              >
+                Paste
+              </button>
+            )}
             <button
               type="button"
               className="toolbar-button"
@@ -375,6 +430,38 @@ export function App() {
             value={selectableText}
             readOnly
           />
+        </section>
+      )}
+
+      {pasteHelperText !== null && (
+        <section className="copy-sheet" aria-label="Paste helper">
+          <div className="copy-sheet-header">
+            <h2>Paste Into Terminal</h2>
+            <button type="button" className="toolbar-button" onClick={closePasteHelper}>
+              Close
+            </button>
+          </div>
+          <p className="copy-sheet-hint">Long-press in this field, tap Paste, then Send.</p>
+          <textarea
+            ref={pasteHelperRef}
+            className="copy-sheet-textarea"
+            value={pasteHelperText}
+            onChange={event => setPasteHelperText(event.target.value)}
+            spellCheck={false}
+          />
+          <div className="copy-sheet-actions">
+            <button
+              type="button"
+              className="toolbar-button"
+              onClick={submitPasteHelperText}
+              disabled={pasteHelperText.trim().length === 0}
+            >
+              Send
+            </button>
+            <button type="button" className="toolbar-button" onClick={closePasteHelper}>
+              Close
+            </button>
+          </div>
         </section>
       )}
     </div>
