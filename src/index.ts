@@ -13,6 +13,8 @@ interface PtySession {
 }
 
 const shell = process.env.SHELL || "/bin/sh";
+const hostname = process.env.HOST || "0.0.0.0";
+const port = parseInt(process.env.PORT || "7681", 10);
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
 
@@ -216,6 +218,9 @@ const server = serve<PtySessionData>({
       cleanupSession(ws.data.connectionId);
     },
   },
+
+  hostname,
+  port,
 
   development: process.env.NODE_ENV !== "production" && {
     hmr: true,
