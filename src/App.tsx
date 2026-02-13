@@ -91,11 +91,11 @@ export function App() {
     onTitleChange: handleTitleChange,
   });
 
-  const panTrackRef = useRef<HTMLDivElement>(null);
-  const panThumbRef = useRef<HTMLButtonElement>(null);
-  const panDraggingRef = useRef(false);
-  const panStartXRef = useRef(0);
-  const panStartScrollLeftRef = useRef(0);
+  const scrollbarTrackRef = useRef<HTMLDivElement>(null);
+  const scrollbarThumbRef = useRef<HTMLDivElement>(null);
+  const scrollbarDraggingRef = useRef(false);
+  const scrollbarDragStartXRef = useRef(0);
+  const scrollbarDragStartScrollLeftRef = useRef(0);
 
   useEffect(() => {
     document.title = remoteTitle ? `${remoteTitle} | MyWebTerm` : "MyWebTerm";
@@ -341,59 +341,94 @@ export function App() {
     setActiveHandle(null);
   }, [clearMobileSelection, handleCopySelection, setActiveHandle]);
 
-  const handlePanPointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
+  const syncScrollbarThumb = useCallback(() => {
+    const track = scrollbarTrackRef.current;
+    const thumb = scrollbarThumbRef.current;
+    const viewport = containerElement;
+    if (!track || !thumb || !viewport) {
+      return;
+    }
+
+    const scrollWidth = viewport.scrollWidth;
+    const clientWidth = viewport.clientWidth;
+    if (scrollWidth <= clientWidth) {
+      return;
+    }
+
+    const trackWidth = track.clientWidth;
+    const thumbWidth = Math.max(20, (clientWidth / scrollWidth) * trackWidth);
+    const maxScrollLeft = scrollWidth - clientWidth;
+    const scrollRatio = maxScrollLeft > 0 ? viewport.scrollLeft / maxScrollLeft : 0;
+    const maxThumbLeft = trackWidth - thumbWidth;
+
+    thumb.style.width = `${thumbWidth}px`;
+    thumb.style.left = `${scrollRatio * maxThumbLeft}px`;
+  }, [containerElement]);
+
+  useEffect(() => {
+    const viewport = containerElement;
+    if (!viewport || !horizontalOverflow) {
+      return;
+    }
+
+    syncScrollbarThumb();
+    viewport.addEventListener("scroll", syncScrollbarThumb);
+    return () => viewport.removeEventListener("scroll", syncScrollbarThumb);
+  }, [containerElement, horizontalOverflow, syncScrollbarThumb]);
+
+  const handleScrollbarPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
       event.currentTarget.setPointerCapture(event.pointerId);
-      panDraggingRef.current = true;
-      panStartXRef.current = event.clientX;
-      panStartScrollLeftRef.current = containerElement?.scrollLeft ?? 0;
-      panThumbRef.current?.classList.add("pan-widget-thumb-dragging");
+      scrollbarDraggingRef.current = true;
+      scrollbarDragStartXRef.current = event.clientX;
+      scrollbarDragStartScrollLeftRef.current = containerElement?.scrollLeft ?? 0;
     },
     [containerElement],
   );
 
-  const handlePanPointerMove = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (!panDraggingRef.current) {
+  const handleScrollbarPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!scrollbarDraggingRef.current) {
         return;
       }
       event.preventDefault();
 
-      const deltaX = event.clientX - panStartXRef.current;
-      const track = panTrackRef.current;
-      const thumb = panThumbRef.current;
+      const track = scrollbarTrackRef.current;
+      const thumb = scrollbarThumbRef.current;
       const viewport = containerElement;
       if (!track || !thumb || !viewport) {
         return;
       }
 
-      const trackHalf = track.clientWidth / 2;
-      const thumbHalf = thumb.clientWidth / 2;
-      const maxThumbOffset = trackHalf - thumbHalf;
-      const clampedOffset = Math.max(-maxThumbOffset, Math.min(maxThumbOffset, deltaX));
+      const scrollWidth = viewport.scrollWidth;
+      const clientWidth = viewport.clientWidth;
+      const maxScrollLeft = scrollWidth - clientWidth;
+      if (maxScrollLeft <= 0) {
+        return;
+      }
 
-      thumb.style.left = `calc(50% + ${clampedOffset}px)`;
+      const trackWidth = track.clientWidth;
+      const thumbWidth = thumb.clientWidth;
+      const maxThumbTravel = trackWidth - thumbWidth;
+      if (maxThumbTravel <= 0) {
+        return;
+      }
 
-      const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth;
-      const scaleFactor = maxThumbOffset > 0 ? maxScrollLeft / maxThumbOffset : 0;
-      viewport.scrollLeft = panStartScrollLeftRef.current + clampedOffset * scaleFactor;
+      const deltaX = event.clientX - scrollbarDragStartXRef.current;
+      const scaleFactor = maxScrollLeft / maxThumbTravel;
+      viewport.scrollLeft = scrollbarDragStartScrollLeftRef.current + deltaX * scaleFactor;
     },
     [containerElement],
   );
 
-  const handlePanPointerUp = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!panDraggingRef.current) {
+  const handleScrollbarPointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!scrollbarDraggingRef.current) {
       return;
     }
     event.preventDefault();
-    panDraggingRef.current = false;
-    const thumb = panThumbRef.current;
-    if (thumb) {
-      thumb.classList.remove("pan-widget-thumb-dragging");
-      thumb.style.left = "50%";
-    }
+    scrollbarDraggingRef.current = false;
   }, []);
 
   const mobileSelectionOverlay =
@@ -633,18 +668,16 @@ export function App() {
       </main>
 
       {horizontalOverflow && (
-        <div className="pan-widget">
-          <div className="pan-widget-track" ref={panTrackRef}>
-            <button
-              type="button"
-              className="pan-widget-thumb"
-              ref={panThumbRef}
-              onPointerDown={handlePanPointerDown}
-              onPointerMove={handlePanPointerMove}
-              onPointerUp={handlePanPointerUp}
-              onPointerCancel={handlePanPointerUp}
-              onLostPointerCapture={handlePanPointerUp}
-              aria-label="Pan terminal horizontally"
+        <div className="custom-scrollbar">
+          <div className="custom-scrollbar-track" ref={scrollbarTrackRef}>
+            <div
+              className="custom-scrollbar-thumb"
+              ref={scrollbarThumbRef}
+              onPointerDown={handleScrollbarPointerDown}
+              onPointerMove={handleScrollbarPointerMove}
+              onPointerUp={handleScrollbarPointerUp}
+              onPointerCancel={handleScrollbarPointerUp}
+              onLostPointerCapture={handleScrollbarPointerUp}
             />
           </div>
         </div>

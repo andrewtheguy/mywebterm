@@ -371,44 +371,43 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-.pan-widget {
+.custom-scrollbar {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 4px 16px;
+  padding: 2px 4px;
 }
 
-.pan-widget-track {
+.custom-scrollbar-track {
   position: relative;
-  width: 90%;
-  height: 3px;
-  border-radius: 1.5px;
-  background: rgba(106, 232, 206, 0.18);
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(106, 232, 206, 0.12);
 }
 
-.pan-widget-thumb {
+.custom-scrollbar-thumb {
   position: absolute;
   top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(106, 232, 206, 0.6);
-  background: rgba(4, 20, 37, 0.92);
+  left: 0;
+  transform: translateY(-50%);
+  height: 6px;
+  min-width: 20px;
+  border-radius: 3px;
+  background: rgba(106, 232, 206, 0.45);
   cursor: grab;
   touch-action: none;
-  padding: 0;
-  transition: left 0.2s ease-out;
+  padding: 8px 0;
+  background-clip: content-box;
+  box-sizing: content-box;
+  margin-top: -8px;
   -webkit-tap-highlight-color: transparent;
 }
 
-.pan-widget-thumb:active {
+.custom-scrollbar-thumb:active {
   cursor: grabbing;
-}
-
-.pan-widget-thumb-dragging {
-  transition: none;
+  background: rgba(106, 232, 206, 0.7);
+  background-clip: content-box;
 }
 
 .error-card {
