@@ -238,23 +238,26 @@ body {
 
 .mobile-selection-handle {
   position: absolute;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   border: 0;
   background: transparent;
   padding: 0;
   pointer-events: auto;
   touch-action: none;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -8px);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mobile-selection-handle::before {
   content: "";
   position: absolute;
   width: 3px;
-  height: 14px;
+  height: 18px;
   left: 50%;
-  top: 8px;
+  top: 11px;
   transform: translateX(-50%);
   background: #8fffcb;
   border-radius: 999px;
@@ -277,13 +280,17 @@ body {
   display: flex;
   gap: 0.45rem;
   padding: 0.45rem;
+  max-width: calc(100% - 1.2rem);
   border-radius: 999px;
   border: 1px solid rgba(172, 255, 236, 0.48);
   background: rgba(4, 18, 31, 0.9);
-  transform: translateX(-50%);
+  transform: translate(-50%, 0);
   pointer-events: auto;
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .error-card {

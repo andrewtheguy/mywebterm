@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "@xterm/xterm/css/xterm.css";
 
 import {
+  clamp,
   clientPointToBufferCoord,
   computeEdgeAutoScrollVelocity,
   getWordRangeInLine,
@@ -83,9 +84,13 @@ const terminalOptions: ITerminalOptions = {
 const RECENT_OUTPUT_LINES = 120;
 const MOBILE_LONG_PRESS_MS = 420;
 const MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX = 8;
-const MOBILE_TOOLBAR_OFFSET_PX = 44;
-const MOBILE_TOOLBAR_MIN_TOP_PX = 10;
+const MOBILE_TOOLBAR_GAP_PX = 10;
+const MOBILE_TOOLBAR_ESTIMATED_HEIGHT_PX = 44;
+const MOBILE_TOOLBAR_ESTIMATED_HALF_WIDTH_PX = 132;
+const MOBILE_TOOLBAR_SAFE_TOP_PX = 8;
+const MOBILE_TOOLBAR_SAFE_BOTTOM_PX = 8;
 const MOBILE_TOOLBAR_SIDE_PADDING_PX = 16;
+const MOBILE_HANDLE_SAFE_EDGE_PX = 8;
 
 type TerminalLayout = {
   containerRect: DOMRect;
@@ -315,32 +320,57 @@ export function useTtydTerminal({
       });
 
       const startHandle = {
-        left: startAnchor.x - layout.containerRect.left,
-        top: startAnchor.y - layout.containerRect.top,
+        left: clamp(
+          startAnchor.x - layout.containerRect.left,
+          MOBILE_HANDLE_SAFE_EDGE_PX,
+          layout.containerRect.width - MOBILE_HANDLE_SAFE_EDGE_PX,
+        ),
+        top: clamp(
+          startAnchor.y - layout.containerRect.top,
+          MOBILE_HANDLE_SAFE_EDGE_PX,
+          layout.containerRect.height - MOBILE_HANDLE_SAFE_EDGE_PX,
+        ),
       };
       const endHandle = {
-        left: endAnchor.x - layout.containerRect.left,
-        top: endAnchor.y - layout.containerRect.top,
+        left: clamp(
+          endAnchor.x - layout.containerRect.left,
+          MOBILE_HANDLE_SAFE_EDGE_PX,
+          layout.containerRect.width - MOBILE_HANDLE_SAFE_EDGE_PX,
+        ),
+        top: clamp(
+          endAnchor.y - layout.containerRect.top,
+          MOBILE_HANDLE_SAFE_EDGE_PX,
+          layout.containerRect.height - MOBILE_HANDLE_SAFE_EDGE_PX,
+        ),
       };
 
-      const topViewportRow = Math.max(
-        0,
-        Math.min(layout.rows - 1, range.start.row - layout.viewportY),
+      const selectionTop = Math.min(startHandle.top, endHandle.top);
+      const selectionBottom = Math.max(startHandle.top, endHandle.top);
+      const toolbarTopAbove =
+        selectionTop - MOBILE_TOOLBAR_ESTIMATED_HEIGHT_PX - MOBILE_TOOLBAR_GAP_PX;
+      const toolbarTopBelow = selectionBottom + MOBILE_TOOLBAR_GAP_PX;
+      const preferredToolbarTop =
+        toolbarTopAbove >= MOBILE_TOOLBAR_SAFE_TOP_PX ? toolbarTopAbove : toolbarTopBelow;
+
+      const maxToolbarTop = Math.max(
+        MOBILE_TOOLBAR_SAFE_TOP_PX,
+        layout.containerRect.height -
+          MOBILE_TOOLBAR_ESTIMATED_HEIGHT_PX -
+          MOBILE_TOOLBAR_SAFE_BOTTOM_PX,
       );
-      const toolbarTop = Math.max(
-        MOBILE_TOOLBAR_MIN_TOP_PX,
-        Math.min(
-          layout.containerRect.height - MOBILE_TOOLBAR_MIN_TOP_PX,
-          topViewportRow * layout.cellHeight - MOBILE_TOOLBAR_OFFSET_PX,
-        ),
+      const toolbarTop = clamp(preferredToolbarTop, MOBILE_TOOLBAR_SAFE_TOP_PX, maxToolbarTop);
+
+      const minToolbarLeft = Math.min(
+        layout.containerRect.width / 2,
+        MOBILE_TOOLBAR_ESTIMATED_HALF_WIDTH_PX + MOBILE_TOOLBAR_SIDE_PADDING_PX,
       );
-      const toolbarLeft = Math.max(
-        MOBILE_TOOLBAR_SIDE_PADDING_PX,
-        Math.min(
-          layout.containerRect.width - MOBILE_TOOLBAR_SIDE_PADDING_PX,
-          (startHandle.left + endHandle.left) / 2,
-        ),
+      const maxToolbarLeft = Math.max(
+        minToolbarLeft,
+        layout.containerRect.width -
+          MOBILE_TOOLBAR_ESTIMATED_HALF_WIDTH_PX -
+          MOBILE_TOOLBAR_SIDE_PADDING_PX,
       );
+      const toolbarLeft = clamp((startHandle.left + endHandle.left) / 2, minToolbarLeft, maxToolbarLeft);
 
       setMobileSelectionState({
         enabled: true,

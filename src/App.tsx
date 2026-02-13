@@ -1,4 +1,12 @@
-import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  type TouchEvent as ReactTouchEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { loadTtydConfig } from "./config";
 import "./index.css";
@@ -119,6 +127,9 @@ export function App() {
 
   const beginSelectionHandleDrag = useCallback(
     (handle: "start" | "end", event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType === "touch") {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       setActiveHandle(handle);
@@ -130,20 +141,68 @@ export function App() {
     [setActiveHandle, updateActiveHandleFromClientPoint],
   );
 
-  const handleSelectionHandleMove = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (mobileSelectionState.activeHandle === null) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    updateActiveHandleFromClientPoint(event.clientX, event.clientY);
-  }, [mobileSelectionState.activeHandle, updateActiveHandleFromClientPoint]);
+  const handleSelectionHandleMove = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType === "touch" || mobileSelectionState.activeHandle === null) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      updateActiveHandleFromClientPoint(event.clientX, event.clientY);
+    },
+    [mobileSelectionState.activeHandle, updateActiveHandleFromClientPoint],
+  );
 
-  const finishSelectionHandleDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setActiveHandle(null);
-  }, [setActiveHandle]);
+  const finishSelectionHandleDrag = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType === "touch") {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveHandle(null);
+    },
+    [setActiveHandle],
+  );
+
+  const beginSelectionHandleTouch = useCallback(
+    (handle: "start" | "end", event: ReactTouchEvent<HTMLButtonElement>) => {
+      const touch = event.touches.item(0);
+      if (!touch) {
+        return;
+      }
+
+      event.stopPropagation();
+      setActiveHandle(handle);
+      updateActiveHandleFromClientPoint(touch.clientX, touch.clientY);
+    },
+    [setActiveHandle, updateActiveHandleFromClientPoint],
+  );
+
+  const handleSelectionHandleTouchMove = useCallback(
+    (event: ReactTouchEvent<HTMLButtonElement>) => {
+      if (mobileSelectionState.activeHandle === null) {
+        return;
+      }
+
+      const touch = event.touches.item(0);
+      if (!touch) {
+        return;
+      }
+
+      event.stopPropagation();
+      updateActiveHandleFromClientPoint(touch.clientX, touch.clientY);
+    },
+    [mobileSelectionState.activeHandle, updateActiveHandleFromClientPoint],
+  );
+
+  const finishSelectionHandleTouch = useCallback(
+    (event: ReactTouchEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      setActiveHandle(null);
+    },
+    [setActiveHandle],
+  );
 
   const handleMobileCopySelection = useCallback(async () => {
     await handleCopySelection();
@@ -226,6 +285,10 @@ export function App() {
                 onPointerUp={finishSelectionHandleDrag}
                 onPointerCancel={finishSelectionHandleDrag}
                 onLostPointerCapture={finishSelectionHandleDrag}
+                onTouchStart={event => beginSelectionHandleTouch("start", event)}
+                onTouchMove={handleSelectionHandleTouchMove}
+                onTouchEnd={finishSelectionHandleTouch}
+                onTouchCancel={finishSelectionHandleTouch}
                 aria-label="Adjust selection start"
               >
                 <span className="mobile-selection-handle-knob" />
@@ -243,6 +306,10 @@ export function App() {
                 onPointerUp={finishSelectionHandleDrag}
                 onPointerCancel={finishSelectionHandleDrag}
                 onLostPointerCapture={finishSelectionHandleDrag}
+                onTouchStart={event => beginSelectionHandleTouch("end", event)}
+                onTouchMove={handleSelectionHandleTouchMove}
+                onTouchEnd={finishSelectionHandleTouch}
+                onTouchCancel={finishSelectionHandleTouch}
                 aria-label="Adjust selection end"
               >
                 <span className="mobile-selection-handle-knob" />
