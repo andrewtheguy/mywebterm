@@ -25,11 +25,27 @@ When a browser connects, the server spawns `$SHELL` (falling back to `/bin/sh`) 
 | `SHELL` | System `$SHELL` or `/bin/sh` | Shell to spawn per session |
 | `EXPERIMENTAL_HSCROLL` | `0` | Set to `1` to enforce a minimum 80-column width with horizontal scrollbar on narrow viewports |
 
-## Requirements
+## Install
+
+```bash
+curl -fsSL https://andrewtheguy.github.io/mywebterm/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://andrewtheguy.github.io/mywebterm/install.sh | bash -s v0.0.4
+```
+
+Pre-built binaries are available for Linux (amd64, arm64) and macOS (arm64).
+
+## Development
+
+### Requirements
 
 - [Bun](https://bun.sh) v1.3.5+
 
-## Quick start
+### Quick start
 
 ```bash
 bun install
@@ -38,13 +54,13 @@ bun dev
 
 Open the printed URL in a browser.
 
-## Build
+### Build
 
 ```bash
 bun run build
 ```
 
-## Test
+### Test
 
 ```bash
 bun test
