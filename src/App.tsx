@@ -51,9 +51,41 @@ export function App() {
   const [softKeyModifiers, setSoftKeyModifiers] = useState(() => ({
     ...DEFAULT_SOFT_KEY_MODIFIERS,
   }));
+  const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 768px)").matches);
+  const overflowMenuRef = useRef<HTMLDivElement>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperFocusedRef = useRef(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 768px)");
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!overflowMenuOpen) {
+      return;
+    }
+    const close = (e: MouseEvent | TouchEvent) => {
+      if (overflowMenuRef.current && !overflowMenuRef.current.contains(e.target as Node)) {
+        setOverflowMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("touchstart", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+    };
+  }, [overflowMenuOpen]);
+
+  const overflowAction = useCallback((action: () => void) => {
+    setOverflowMenuOpen(false);
+    action();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -549,12 +581,6 @@ export function App() {
         </div>
         <div className="toolbar">
           <div className="toolbar-actions">
-            <button type="button" className="toolbar-button" onClick={() => void handleCopySelection()}>
-              Copy Selection
-            </button>
-            <button type="button" className="toolbar-button" onClick={() => void handleCopyRecentOutput()}>
-              Copy Recent
-            </button>
             <button
               type="button"
               className={`toolbar-button ${softKeyboardActive ? "toolbar-button-active" : ""}`}
@@ -568,26 +594,14 @@ export function App() {
             <button
               type="button"
               className={`toolbar-button ${extraKeysOpen ? "toolbar-button-active" : ""}`}
-              onClick={() => setExtraKeysOpen((previous) => !previous)}
+              onClick={() => {
+                setExtraKeysOpen((previous) => !previous);
+                setOverflowMenuOpen(false);
+              }}
               aria-pressed={extraKeysOpen}
             >
               Extra Keys
             </button>
-            {mobileSelectionState.enabled && (
-              <button
-                type="button"
-                className="toolbar-button"
-                onClick={() => void handleToolbarPaste()}
-                disabled={mobileMouseMode !== "nativeScroll"}
-                title={
-                  mobileMouseMode === "nativeScroll"
-                    ? "Paste from clipboard. If blocked, a helper panel opens for iOS paste."
-                    : "Switch to Mode: Native to paste."
-                }
-              >
-                Paste
-              </button>
-            )}
             <button
               type="button"
               className={`toolbar-button ${mobileMouseMode === "passToTerminal" ? "toolbar-button-active" : ""}`}
@@ -604,30 +618,114 @@ export function App() {
             >
               {mobileMouseMode === "passToTerminal" ? "Mode: App" : "Mode: Native"}
             </button>
-            <button type="button" className="toolbar-button" onClick={openSelectableText}>
-              Select Text
+            <button
+              type="button"
+              className="toolbar-button"
+              onClick={() => void handleToolbarPaste()}
+              disabled={mobileMouseMode !== "nativeScroll"}
+              title={
+                mobileMouseMode === "nativeScroll"
+                  ? "Paste from clipboard. If blocked, a helper panel opens for iOS paste."
+                  : "Switch to Mode: Native to paste."
+              }
+            >
+              Paste
             </button>
-            {connectionStatus === "connected" ? (
-              <button
-                type="button"
-                className="toolbar-button"
-                onClick={() => {
-                  if (window.confirm("Restart terminal session?")) {
-                    reconnect();
-                  }
-                }}
-              >
-                Restart
-              </button>
+            {isMobile ? (
+              <div className="overflow-menu" ref={overflowMenuRef}>
+                <button
+                  type="button"
+                  className="toolbar-button overflow-menu-trigger"
+                  onClick={() => setOverflowMenuOpen((prev) => !prev)}
+                  aria-expanded={overflowMenuOpen}
+                  aria-label="More actions"
+                >
+                  &#8942;
+                </button>
+                {overflowMenuOpen && (
+                  <div className="overflow-menu-panel">
+                    <button
+                      type="button"
+                      className="toolbar-button overflow-menu-item"
+                      onClick={() => overflowAction(() => void handleCopySelection())}
+                    >
+                      Copy Selection
+                    </button>
+                    <button
+                      type="button"
+                      className="toolbar-button overflow-menu-item"
+                      onClick={() => overflowAction(() => void handleCopyRecentOutput())}
+                    >
+                      Copy Recent
+                    </button>
+                    <button
+                      type="button"
+                      className="toolbar-button overflow-menu-item"
+                      onClick={() => overflowAction(openSelectableText)}
+                    >
+                      Select Text
+                    </button>
+                    {connectionStatus === "connected" ? (
+                      <button
+                        type="button"
+                        className="toolbar-button overflow-menu-item"
+                        onClick={() =>
+                          overflowAction(() => {
+                            if (window.confirm("Restart terminal session?")) {
+                              reconnect();
+                            }
+                          })
+                        }
+                      >
+                        Restart
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="toolbar-button overflow-menu-item reconnect-button"
+                        onClick={() => overflowAction(reconnect)}
+                        disabled={connectionStatus === "connecting"}
+                      >
+                        Reconnect
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             ) : (
-              <button
-                type="button"
-                className="toolbar-button reconnect-button"
-                onClick={reconnect}
-                disabled={connectionStatus === "connecting"}
-              >
-                Reconnect
-              </button>
+              <>
+                <button type="button" className="toolbar-button" onClick={() => void handleCopySelection()}>
+                  Copy Selection
+                </button>
+                <button type="button" className="toolbar-button" onClick={() => void handleCopyRecentOutput()}>
+                  Copy Recent
+                </button>
+                <button type="button" className="toolbar-button" onClick={openSelectableText}>
+                  Select Text
+                </button>
+                {connectionStatus === "connected" ? (
+                  <button
+                    type="button"
+                    className="toolbar-button"
+                    onClick={() => {
+                      if (window.confirm("Restart terminal session?")) {
+                        reconnect();
+                      }
+                    }}
+                  >
+                    Restart
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="toolbar-button reconnect-button"
+                    onClick={reconnect}
+                    disabled={connectionStatus === "connecting"}
+                  >
+                    Reconnect
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -184,6 +184,40 @@ body {
   cursor: wait;
 }
 
+.overflow-menu {
+  position: relative;
+}
+
+.overflow-menu-trigger {
+  min-width: 2.4rem;
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0.42rem 0.5rem;
+}
+
+.overflow-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.45rem;
+  z-index: 20;
+  border-radius: 12px;
+  border: 1px solid rgba(172, 255, 236, 0.36);
+  background: rgba(4, 18, 31, 0.94);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  min-width: 10rem;
+}
+
+.overflow-menu-item {
+  width: 100%;
+  text-align: left;
+  border-radius: 8px;
+}
+
 .extra-keys-panel {
   width: 100%;
   display: grid;
