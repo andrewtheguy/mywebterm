@@ -34,6 +34,7 @@ const hostname = process.env.HOST || "::";
 const port = parseInt(process.env.PORT || "8671", 10);
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
+const RESTART_CLOSE_CODE = 4000;
 
 function clampDimension(value: number | undefined, fallback: number, max: number): number {
   return Math.max(1, Math.min(max, Math.floor(value ?? fallback)));
@@ -66,6 +67,27 @@ function cleanupSession(connectionId: string): void {
     } catch {
       // Process may already be dead.
     }
+  }
+}
+
+function cleanupAllSessions(): void {
+  for (const [connectionId, session] of ptySessions) {
+    ptySessions.delete(connectionId);
+
+    if (session.proc) {
+      try {
+        session.proc.terminal?.close();
+      } catch {
+        // Terminal may already be closed.
+      }
+      try {
+        session.proc.kill();
+      } catch {
+        // Process may already be dead.
+      }
+    }
+
+    closeClientSocket(session.ws, RESTART_CLOSE_CODE, "Restart");
   }
 }
 
@@ -215,6 +237,12 @@ const server = serve<PtySessionData>({
       }
 
       return undefined;
+    },
+    "/api/restart": {
+      POST: () => {
+        cleanupAllSessions();
+        return Response.json({ ok: true });
+      },
     },
     "/api/config": () =>
       Response.json({

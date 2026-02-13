@@ -1326,6 +1326,14 @@ export function useTtydTerminal({
       }
       socketRef.current = null;
       setConnectionStatus("disconnected");
+
+      if (event.code === 4000) {
+        terminal.reset();
+        toast.info("Restarting...", { id: "connection-status" });
+        setReconnectToken((previous) => previous + 1);
+        return;
+      }
+
       toast.error(`Disconnected (code ${event.code}).`, { id: "connection-status" });
     };
 
@@ -1343,9 +1351,14 @@ export function useTtydTerminal({
     if (!wsUrl) {
       return;
     }
-    closeSocket();
-    terminalRef.current?.reset();
-    setReconnectToken((previous) => previous + 1);
+    fetch("/api/restart", { method: "POST" }).catch(() => {});
+    // If already disconnected, the server can't close our socket with code 4000,
+    // so trigger the reconnect directly.
+    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+      closeSocket();
+      terminalRef.current?.reset();
+      setReconnectToken((previous) => previous + 1);
+    }
   }, [closeSocket, wsUrl]);
 
   const focusTerminalInput = useCallback((): boolean => {
