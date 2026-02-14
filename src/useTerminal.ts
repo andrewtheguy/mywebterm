@@ -38,21 +38,23 @@ interface UseTerminalResult {
   getVerticalScrollState(): { viewportY: number; baseY: number; rows: number } | null;
 }
 
-const isMobileViewport = typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches;
+const MOBILE_VIEWPORT_QUERY = "(max-width: 768px)";
 
-const terminalOptions: ITerminalOptions = {
-  cursorBlink: true,
-  convertEol: true,
-  scrollback: 5000,
-  fontSize: isMobileViewport ? 10 : 14,
-  fontFamily: "JetBrainsMono Nerd Font Mono, Symbols Nerd Font Mono, Menlo, monospace",
-  theme: {
-    background: "#041425",
-    foreground: "#d8ecff",
-    cursor: "#71f1d6",
-    selectionBackground: "#17416a",
-  },
-};
+function buildTerminalOptions(isMobileViewport: boolean): ITerminalOptions {
+  return {
+    cursorBlink: true,
+    convertEol: true,
+    scrollback: 5000,
+    fontSize: isMobileViewport ? 10 : 14,
+    fontFamily: "JetBrainsMono Nerd Font Mono, Symbols Nerd Font Mono, Menlo, monospace",
+    theme: {
+      background: "#041425",
+      foreground: "#d8ecff",
+      cursor: "#71f1d6",
+      selectionBackground: "#17416a",
+    },
+  };
+}
 
 const MIN_COLS = 80;
 const DEFAULT_SCROLLBAR_WIDTH = 14;
@@ -155,6 +157,17 @@ export function useTerminal({ wsUrl, onTitleChange, hscroll }: UseTerminalOption
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [reconnectToken, setReconnectToken] = useState(0);
+  const [isMobileViewport, setIsMobileViewport] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches,
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia(MOBILE_VIEWPORT_QUERY);
+    const onChange = (e: MediaQueryListEvent) => setIsMobileViewport(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
 
   const mobileTouchSupported =
     typeof navigator !== "undefined" && isLikelyIOS(navigator.userAgent, navigator.maxTouchPoints ?? 0);
@@ -313,7 +326,7 @@ export function useTerminal({ wsUrl, onTitleChange, hscroll }: UseTerminalOption
       return;
     }
 
-    const terminal = new Terminal(terminalOptions);
+    const terminal = new Terminal(buildTerminalOptions(isMobileViewport));
     const fitAddon = new FitAddon();
 
     terminal.loadAddon(fitAddon);
@@ -472,7 +485,7 @@ export function useTerminal({ wsUrl, onTitleChange, hscroll }: UseTerminalOption
       pendingTouchRef.current = null;
       clearScrollGesture();
     };
-  }, [closeSocket, container, clearScrollGesture, hscroll, mobileTouchSupported, sendInputFrame]);
+  }, [closeSocket, container, clearScrollGesture, hscroll, isMobileViewport, mobileTouchSupported, sendInputFrame]);
 
   useEffect(() => {
     if (!container || !mobileTouchSupported) {
