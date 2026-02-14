@@ -1030,6 +1030,7 @@ export function App() {
                       <>
                         <ExtraKeyButton
                           softKey={FRAME_ESC}
+                          className="extra-key-wide-md"
                           startKeyRepeat={startKeyRepeat}
                           stopKeyRepeat={stopKeyRepeat}
                         >
