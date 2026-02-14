@@ -58,7 +58,7 @@ function buildTerminalOptions(isMobileViewport: boolean): ITerminalOptions {
 }
 
 const MIN_COLS = 80;
-const MIN_ROWS = 24;
+const MIN_ROWS = 10;
 const DEFAULT_SCROLLBAR_WIDTH = 14;
 const RECENT_OUTPUT_LINES = 2000;
 const MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX = 8;

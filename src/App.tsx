@@ -634,19 +634,6 @@ export function App() {
             onMouseDown={(e) => e.preventDefault()}
             onTouchStart={(e) => e.preventDefault()}
           >
-            {isMobile && (
-              <button
-                type="button"
-                className={`toolbar-button ${sysKeyActive ? "toolbar-button-active" : ""}`}
-                onClick={() => {
-                  setSoftKeysOpen(false);
-                  focusSysKeyboard();
-                }}
-                aria-pressed={sysKeyActive}
-              >
-                Sys Keys
-              </button>
-            )}
             <button
               type="button"
               className={`toolbar-button ${softKeysOpen ? "toolbar-button-active" : ""}`}
@@ -666,6 +653,19 @@ export function App() {
             >
               Soft Keys
             </button>
+            {isMobile && (
+              <button
+                type="button"
+                className={`toolbar-button ${sysKeyActive ? "toolbar-button-active" : ""}`}
+                onClick={() => {
+                  setSoftKeysOpen(false);
+                  focusSysKeyboard();
+                }}
+                aria-pressed={sysKeyActive}
+              >
+                Sys Keys
+              </button>
+            )}
             <button type="button" className="toolbar-button" onClick={() => void openSelectableText()}>
               Copy Text
             </button>
@@ -795,24 +795,24 @@ export function App() {
               </div>
             </div>
           )}
+
+          {horizontalOverflow && (
+            <div className="custom-scrollbar">
+              <div className="custom-scrollbar-track" ref={scrollbarTrackRef}>
+                <div
+                  className="custom-scrollbar-thumb"
+                  ref={scrollbarThumbRef}
+                  onPointerDown={handleScrollbarPointerDown}
+                  onPointerMove={handleScrollbarPointerMove}
+                  onPointerUp={handleScrollbarPointerUp}
+                  onPointerCancel={handleScrollbarPointerUp}
+                  onLostPointerCapture={handleScrollbarPointerUp}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </main>
-
-      {horizontalOverflow && (
-        <div className="custom-scrollbar">
-          <div className="custom-scrollbar-track" ref={scrollbarTrackRef}>
-            <div
-              className="custom-scrollbar-thumb"
-              ref={scrollbarThumbRef}
-              onPointerDown={handleScrollbarPointerDown}
-              onPointerMove={handleScrollbarPointerMove}
-              onPointerUp={handleScrollbarPointerUp}
-              onPointerCancel={handleScrollbarPointerUp}
-              onLostPointerCapture={handleScrollbarPointerUp}
-            />
-          </div>
-        </div>
-      )}
 
       {softKeysOpen &&
         (() => {
