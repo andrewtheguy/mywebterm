@@ -242,6 +242,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
   const autoScrollLayoutRetryRef = useRef(0);
   const terminalMountedRef = useRef(false);
   const customFitRef = useRef<(() => void) | null>(null);
+  const fitSuppressedRef = useRef(false);
   const verticalScrollSyncRef = useRef<(() => void) | null>(null);
 
   const getVerticalScrollState = useCallback((): { viewportY: number; baseY: number; rows: number } | null => {
@@ -782,6 +783,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     }
 
     const customFit = () => {
+      if (fitSuppressedRef.current) {
+        return;
+      }
       const proposed = fitAddon.proposeDimensions();
       if (!proposed || Number.isNaN(proposed.cols) || Number.isNaN(proposed.rows)) {
         return;
@@ -1499,7 +1503,13 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       return "";
     }
 
+    fitSuppressedRef.current = true;
     const recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
+    fitSuppressedRef.current = false;
+
+    // Catch up on any resize that was skipped during capture.
+    customFitRef.current?.();
+
     if (recentOutput.length === 0) {
       toast.info("No terminal output available.");
       return "";
