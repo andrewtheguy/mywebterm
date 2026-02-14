@@ -10,6 +10,9 @@
   --status-connecting: #ffd36f;
   --status-disconnected: #ff8e84;
   --status-error: #ff5f7d;
+  --mono-font:
+    "Iosevka Term", "IosevkaTerm Nerd Font Mono", "JetBrainsMono Nerd Font Mono", "JetBrains Mono",
+    "Symbols Nerd Font Mono", "Consolas", "Menlo", monospace;
 }
 
 *,
@@ -377,7 +380,7 @@ body {
   min-width: 3.5rem;
   padding: 0.38rem 1rem;
   font-size: 0.85rem;
-  font-family: "Iosevka Term", "JetBrains Mono", "Consolas", monospace;
+  font-family: var(--mono-font);
   background: rgba(20, 40, 60, 0.6);
   border: 1px solid rgba(80, 130, 170, 0.4);
   box-shadow: none;
@@ -685,7 +688,7 @@ body {
   padding: 0.65rem;
   font-size: 0.86rem;
   line-height: 1.35;
-  font-family: "Iosevka Term", "JetBrains Mono", "Consolas", monospace;
+  font-family: var(--mono-font);
   resize: vertical;
 }
 
@@ -797,7 +800,7 @@ body {
 
   .extra-key-button.extra-key-arrow {
     font-size: 0.65rem;
-    font-family: "Iosevka Term", "JetBrains Mono", "Consolas", monospace;
+    font-family: var(--mono-font);
     flex: 0 0 3.2rem;
   }
 
