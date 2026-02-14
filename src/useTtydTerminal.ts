@@ -84,7 +84,7 @@ const terminalOptions: ITerminalOptions = {
   scrollback: 5000,
   fontSize: isMobileViewport ? 10 : 14,
   fontFamily:
-    "Iosevka Term, IosevkaTerm Nerd Font Mono, JetBrainsMono Nerd Font Mono, JetBrains Mono, Symbols Nerd Font Mono, Menlo, monospace",
+    "IosevkaTerm Nerd Font Mono, Iosevka Term, JetBrainsMono Nerd Font Mono, JetBrains Mono, Symbols Nerd Font Mono, Menlo, monospace",
   theme: {
     background: "#041425",
     foreground: "#d8ecff",
