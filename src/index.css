@@ -398,8 +398,7 @@ body {
 }
 
 .extra-key-fkey {
-  flex: 0 0 10%;
-  width: 10%;
+  flex: 1 0 0;
   min-height: 2.6rem;
   padding: 0.38rem 0.75rem;
   font-size: 0.78rem;
@@ -426,7 +425,7 @@ body {
 }
 
 .extra-key-combo {
-  flex: 0 0 auto;
+  flex: 1 0 0;
   min-height: 2.6rem;
   min-width: 3.2rem;
   padding: 0.38rem 1rem;
