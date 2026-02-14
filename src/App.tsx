@@ -64,14 +64,6 @@ function ExtraKeyButton({
   );
 }
 
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-
-  return "Copy failed.";
-}
-
 export function App() {
   const [config, setConfig] = useState<TtydConfig | null>(null);
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
@@ -154,9 +146,9 @@ export function App() {
     blurTerminalInput,
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
-    copySelection,
-    copyRecentOutput,
     getSelectableText,
+    getTerminalSelection,
+    copyTextToClipboard,
     mobileSelectionState,
     mobileMouseMode,
     clearMobileSelection,
@@ -170,7 +162,7 @@ export function App() {
   } = useTtydTerminal({
     wsUrl: config?.wsUrl,
     onTitleChange: handleTitleChange,
-    experimentalHScroll: config?.experimentalHScroll,
+    hscroll: config?.hscroll,
   });
 
   const appShellRef = useRef<HTMLDivElement>(null);
@@ -284,26 +276,6 @@ export function App() {
     pasteHelperFocusedRef.current = false;
     setPasteHelperText(null);
   }, []);
-
-  const handleCopySelection = useCallback(async (): Promise<boolean> => {
-    try {
-      await copySelection();
-      toast.success("Selection copied.", { id: "copy" });
-      return true;
-    } catch (error) {
-      toast.error(toErrorMessage(error), { id: "copy" });
-      return false;
-    }
-  }, [copySelection]);
-
-  const handleCopyRecentOutput = useCallback(async () => {
-    try {
-      await copyRecentOutput();
-      toast.success("Recent output copied.", { id: "copy" });
-    } catch (error) {
-      toast.error(toErrorMessage(error), { id: "copy" });
-    }
-  }, [copyRecentOutput]);
 
   const handleToolbarPaste = useCallback(async () => {
     const result = await attemptPasteFromClipboard();
@@ -501,13 +473,19 @@ export function App() {
   }, [fetchSessionsText]);
 
   const handleMobileCopySelection = useCallback(async () => {
-    const copied = await handleCopySelection();
-    if (copied) {
-      clearMobileSelection();
+    const selectedText = getTerminalSelection();
+    if (selectedText.length === 0) {
       return;
     }
-    setActiveHandle(null);
-  }, [clearMobileSelection, handleCopySelection, setActiveHandle]);
+    const copied = await copyTextToClipboard(selectedText);
+    if (copied) {
+      toast.success("Selection copied.", { id: "copy" });
+      clearMobileSelection();
+    } else {
+      toast.error("Clipboard copy failed.", { id: "copy" });
+      setActiveHandle(null);
+    }
+  }, [clearMobileSelection, copyTextToClipboard, getTerminalSelection, setActiveHandle]);
 
   const syncScrollbarThumb = useCallback(() => {
     const track = scrollbarTrackRef.current;
@@ -764,20 +742,6 @@ export function App() {
                     <button
                       type="button"
                       className="toolbar-button overflow-menu-item"
-                      onClick={() => overflowAction(() => void handleCopySelection())}
-                    >
-                      Copy Selection
-                    </button>
-                    <button
-                      type="button"
-                      className="toolbar-button overflow-menu-item"
-                      onClick={() => overflowAction(() => void handleCopyRecentOutput())}
-                    >
-                      Copy Recent
-                    </button>
-                    <button
-                      type="button"
-                      className="toolbar-button overflow-menu-item"
                       onClick={() => overflowAction(openSelectableText)}
                     >
                       Select Text
@@ -819,12 +783,6 @@ export function App() {
               </div>
             ) : (
               <>
-                <button type="button" className="toolbar-button" onClick={() => void handleCopySelection()}>
-                  Copy Selection
-                </button>
-                <button type="button" className="toolbar-button" onClick={() => void handleCopyRecentOutput()}>
-                  Copy Recent
-                </button>
                 <button type="button" className="toolbar-button" onClick={openSelectableText}>
                   Select Text
                 </button>
@@ -1101,10 +1059,27 @@ export function App() {
       {selectableText !== null && (
         <section className="copy-sheet" aria-label="Selectable terminal text">
           <div className="copy-sheet-header">
-            <h2>Select And Copy</h2>
-            <button type="button" className="toolbar-button" onClick={closeSelectableText}>
-              Close
-            </button>
+            <h2>Select Text</h2>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button
+                type="button"
+                className="toolbar-button"
+                onClick={() => {
+                  void copyTextToClipboard(selectableText).then((ok) => {
+                    if (ok) {
+                      toast.success("Copied all text.", { id: "copy" });
+                    } else {
+                      toast.error("Clipboard copy failed.", { id: "copy" });
+                    }
+                  });
+                }}
+              >
+                Copy All
+              </button>
+              <button type="button" className="toolbar-button" onClick={closeSelectableText}>
+                Close
+              </button>
+            </div>
           </div>
           <p className="copy-sheet-hint">Use native touch selection handles here, then copy.</p>
           <textarea ref={selectableTextRef} className="copy-sheet-textarea" value={selectableText} readOnly />
