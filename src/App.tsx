@@ -727,6 +727,8 @@ export function App() {
           <div
             className="toolbar-actions"
             role="toolbar"
+            // Prevent default on mouse/touch so that pressing toolbar buttons
+            // doesn't trigger text selection or steal focus from the terminal.
             onMouseDown={(e) => e.preventDefault()}
             onTouchStart={(e) => e.preventDefault()}
           >
@@ -766,9 +768,7 @@ export function App() {
               <button
                 type="button"
                 className={`toolbar-button ${mobileMouseMode === "passToTerminal" ? "toolbar-button-active" : ""}`}
-                onClick={() => {
-                  toggleMobileMouseMode();
-                }}
+                onClick={toggleMobileMouseMode}
                 disabled={!mobileSelectionState.enabled}
                 aria-pressed={mobileMouseMode === "passToTerminal"}
                 title={
@@ -783,9 +783,7 @@ export function App() {
               <button
                 type="button"
                 className={`toolbar-button ${forceSelectionMode ? "toolbar-button-active" : ""}`}
-                onClick={() => {
-                  toggleForceSelectionMode();
-                }}
+                onClick={toggleForceSelectionMode}
                 aria-pressed={forceSelectionMode}
                 title={
                   forceSelectionMode

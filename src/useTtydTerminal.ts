@@ -247,7 +247,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
   const terminalMountedRef = useRef(false);
   const customFitRef = useRef<(() => void) | null>(null);
   const fitSuppressedRef = useRef(false);
-  const forceSelectionRef = useRef(false);
   const selectionEnabledRef = useRef(selectionEnabled);
   selectionEnabledRef.current = selectionEnabled;
   const verticalScrollSyncRef = useRef<(() => void) | null>(null);
@@ -1513,8 +1512,12 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     }
 
     fitSuppressedRef.current = true;
-    const recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
-    fitSuppressedRef.current = false;
+    let recentOutput: string;
+    try {
+      recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
+    } finally {
+      fitSuppressedRef.current = false;
+    }
 
     // Catch up on any resize that was skipped during capture.
     customFitRef.current?.();
@@ -1538,7 +1541,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
   const toggleForceSelectionMode = useCallback(() => {
     setForceSelectionMode((prev) => {
       const next = !prev;
-      forceSelectionRef.current = next;
       if (!next) {
         clearMobileSelection();
       }

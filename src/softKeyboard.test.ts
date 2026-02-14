@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildSoftKeySequence,
   COMBO_KEY_ROW,
+  type ComboSoftKeyDefinition,
   DEFAULT_SOFT_KEY_MODIFIERS,
   FUNCTION_KEY_ROW,
   FUNCTION_SCREEN_ROWS,
@@ -181,11 +182,12 @@ describe("softKeyboard", () => {
       "^K",
       "^Q",
     ]);
-    const combos = COMBO_KEY_ROW.filter((k) => k.kind === "combo");
+    function isCombo(k: SoftKeyDefinition): k is ComboSoftKeyDefinition {
+      return k.kind === "combo";
+    }
+    const combos = COMBO_KEY_ROW.filter(isCombo);
     for (const combo of combos) {
-      if (combo.kind === "combo") {
-        expect(combo.modifiers.ctrl).toBe(true);
-      }
+      expect(combo.modifiers.ctrl).toBe(true);
     }
   });
 
