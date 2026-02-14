@@ -313,7 +313,9 @@ body {
   min-height: 2rem;
   border-radius: 6px;
   padding: 0.32rem 0.62rem;
+  font-family: system-ui, sans-serif;
   font-size: 0.82rem;
+  font-weight: 600;
   letter-spacing: 0.01em;
   border: 1px solid rgba(80, 130, 170, 0.4);
   -webkit-tap-highlight-color: transparent;
@@ -418,6 +420,21 @@ body {
 .extra-key-data-group > .extra-key-button {
   flex: 1 1 0;
   min-width: 0;
+}
+
+.extra-keys-zrow {
+  flex-wrap: nowrap;
+}
+
+.extra-keys-zrow > .extra-key-button {
+  flex: 2.5 1 0;
+  min-width: 0;
+}
+
+.extra-keys-zrow > .extra-key-zrow-group {
+  flex: 5 1 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .extra-key-wide-xl {
@@ -847,6 +864,17 @@ body {
 
   .extra-key-wide-xl {
     flex: 2 1 0;
+  }
+
+  .extra-keys-zrow > .extra-key-button {
+    flex: 1.2 1 0;
+    min-width: 0;
+  }
+
+  .extra-keys-zrow > .extra-key-zrow-group {
+    flex: 7.3 1 0;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .extra-key-button.extra-key-arrow {

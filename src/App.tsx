@@ -1056,7 +1056,10 @@ export function App() {
                   </div>
                 )}
                 {screenRows.map((row, rowIndex) => (
-                  <div key={ROW_KEYS[rowIndex]} className="extra-keys-row">
+                  <div
+                    key={ROW_KEYS[rowIndex]}
+                    className={`extra-keys-row${rowIndex === 3 && keyboardScreen === "primary" ? " extra-keys-zrow" : ""}`}
+                  >
                     {rowIndex === 3 && (
                       <button
                         type="button"
@@ -1064,7 +1067,7 @@ export function App() {
                         onClick={() => toggleSoftModifier("shift")}
                         aria-pressed={softKeyModifiers.shift}
                       >
-                        Shift
+                        ⇧
                       </button>
                     )}
                     {rowIndex === 4 && (
@@ -1146,6 +1149,9 @@ export function App() {
                           </>
                         );
                       }
+                      if (rowIndex === 3 && keyboardScreen === "primary") {
+                        return <div className="extra-key-data-group extra-key-zrow-group">{dataKeys}</div>;
+                      }
                       return dataKeys;
                     })()}
                     {rowIndex === 3 && keyboardScreen === "primary" && (
@@ -1155,7 +1161,7 @@ export function App() {
                         startKeyRepeat={startKeyRepeat}
                         stopKeyRepeat={stopKeyRepeat}
                       >
-                        Bksp
+                        ⌫
                       </ExtraKeyButton>
                     )}
                     {rowIndex === 4 && (
