@@ -42,14 +42,17 @@ export function parseClientControl(text: string): ClientControlMessage | null {
   }
 
   const msg = parsed as Record<string, unknown>;
+  const isValidDimension = (v: unknown): v is number =>
+    typeof v === "number" && Number.isFinite(v) && Number.isInteger(v) && v > 0;
+
   switch (msg.type) {
     case "handshake":
-      if (typeof msg.columns === "number" && typeof msg.rows === "number") {
+      if (isValidDimension(msg.columns) && isValidDimension(msg.rows)) {
         return { type: "handshake", columns: msg.columns, rows: msg.rows };
       }
       return null;
     case "reconnect":
-      if (typeof msg.sessionId === "string" && typeof msg.columns === "number" && typeof msg.rows === "number") {
+      if (typeof msg.sessionId === "string" && isValidDimension(msg.columns) && isValidDimension(msg.rows)) {
         return { type: "reconnect", sessionId: msg.sessionId, columns: msg.columns, rows: msg.rows };
       }
       return null;
@@ -90,7 +93,7 @@ export function buildHandshake(columns: number, rows: number): string {
   // Contract: handshake dimensions must be finite, positive integers.
   const normalizedColumns = normalizeHandshakeDimension("columns", columns);
   const normalizedRows = normalizeHandshakeDimension("rows", rows);
-  return JSON.stringify({ columns: normalizedColumns, rows: normalizedRows });
+  return JSON.stringify({ type: "handshake", columns: normalizedColumns, rows: normalizedRows });
 }
 
 export function encodeInput(data: string | Uint8Array): Uint8Array {

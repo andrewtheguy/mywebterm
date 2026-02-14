@@ -53,6 +53,7 @@ describe("ttyProtocol", () => {
   test("builds handshake JSON shape", () => {
     const handshake = buildHandshake(100, 33);
     expect(JSON.parse(handshake)).toEqual({
+      type: "handshake",
       columns: 100,
       rows: 33,
     });
@@ -61,6 +62,7 @@ describe("ttyProtocol", () => {
   test("normalizes handshake dimensions to positive integers", () => {
     const handshake = buildHandshake(100.9, 33.2);
     expect(JSON.parse(handshake)).toEqual({
+      type: "handshake",
       columns: 100,
       rows: 33,
     });
@@ -72,5 +74,8 @@ describe("ttyProtocol", () => {
     expect(() => buildHandshake(Number.NaN, 10)).toThrow(TypeError);
     expect(() => buildHandshake(Number.POSITIVE_INFINITY, 10)).toThrow(TypeError);
     expect(() => buildHandshake(10, 0)).toThrow(TypeError);
+    expect(() => buildHandshake(10, -1)).toThrow(TypeError);
+    expect(() => buildHandshake(10, Number.NaN)).toThrow(TypeError);
+    expect(() => buildHandshake(10, Number.POSITIVE_INFINITY)).toThrow(TypeError);
   });
 });

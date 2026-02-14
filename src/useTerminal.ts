@@ -170,9 +170,15 @@ export function useTerminal({ wsUrl, onTitleChange, hscroll }: UseTerminalOption
   const onTitleChangeRef = useRef(onTitleChange);
   const connectionEpochRef = useRef(0);
 
-  const sessionIdRef = useRef<string | null>(sessionStorage.getItem(SESSION_STORAGE_KEY));
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionIdRestoredRef = useRef(false);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  if (!sessionIdRestoredRef.current && typeof window !== "undefined") {
+    sessionIdRef.current = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    sessionIdRestoredRef.current = true;
+  }
 
   const pendingTouchRef = useRef<PendingTouch | null>(null);
   const scrollGestureRef = useRef<ScrollGesture | null>(null);
