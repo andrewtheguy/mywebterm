@@ -592,6 +592,7 @@ body {
   padding: 8px 0;
   background-clip: content-box;
   box-sizing: content-box;
+  margin-top: -8px;
   -webkit-tap-highlight-color: transparent;
 }
 
