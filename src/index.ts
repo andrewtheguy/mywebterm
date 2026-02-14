@@ -1,7 +1,9 @@
 import { spawn as cpSpawn } from "node:child_process";
-import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { type Server, type ServerWebSocket, serve } from "bun";
+import boldFont from "./fonts/JetBrainsMonoNerdFontMono-Bold.woff2" with { type: "file" };
+import regularFont from "./fonts/JetBrainsMonoNerdFontMono-Regular.woff2" with { type: "file" };
+import symbolsFont from "./fonts/SymbolsNerdFontMono-Regular.woff2" with { type: "file" };
 import index from "./index.html";
 import { ClientCommand, decodeFrame } from "./ttydProtocol";
 
@@ -59,19 +61,13 @@ interface PtySession {
   handshakeReceived: boolean;
 }
 
-// Pre-index font files so the production server can serve them.
-// Bun's HTML-import dev server handles this automatically, but in
-// production mode (`development: false`) only explicit routes and
-// the `fetch()` fallback are active.
-const fontDir = join(import.meta.dir, "fonts");
-const fontPaths = new Map<string, string>();
-try {
-  for (const name of new Bun.Glob("*.woff2").scanSync(fontDir)) {
-    fontPaths.set(name, join(fontDir, name));
-  }
-} catch {
-  console.warn(`Font directory not found: ${fontDir} — font serving disabled.`);
-}
+// Embed font files into memory at startup so they work without
+// the fonts directory on the filesystem at runtime.
+const fontBuffers = new Map<string, ArrayBuffer>([
+  ["JetBrainsMonoNerdFontMono-Bold.woff2", await Bun.file(boldFont).arrayBuffer()],
+  ["JetBrainsMonoNerdFontMono-Regular.woff2", await Bun.file(regularFont).arrayBuffer()],
+  ["SymbolsNerdFontMono-Regular.woff2", await Bun.file(symbolsFont).arrayBuffer()],
+]);
 
 const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh"];
 const hostname = process.env.HOST || "::";
@@ -336,9 +332,9 @@ const server = serve<PtySessionData>({
       const requested = pathname.split("/").pop() ?? "";
       // Bun's bundler adds a content hash: "Font-e5tw0acz.woff2" -> try "Font.woff2"
       const unhashed = requested.replace(/-[a-z0-9]{8}\.woff2$/, ".woff2");
-      const fontPath = fontPaths.get(unhashed) ?? fontPaths.get(requested);
-      if (fontPath) {
-        return new Response(Bun.file(fontPath), {
+      const buffer = fontBuffers.get(unhashed) ?? fontBuffers.get(requested);
+      if (buffer) {
+        return new Response(buffer, {
           headers: {
             "Content-Type": "font/woff2",
             "Cache-Control": "public, max-age=31536000, immutable",
