@@ -149,6 +149,13 @@ body {
   background: var(--status-error);
 }
 
+.clipboard-pending-badge {
+  background: var(--status-connecting);
+  cursor: pointer;
+  border: none;
+  animation: pulse-badge 0.5s ease 1;
+}
+
 @keyframes pulse-badge {
   0%,
   100% {
@@ -160,7 +167,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .status-connecting {
+  .status-connecting,
+  .clipboard-pending-badge {
     animation: none;
   }
 }
