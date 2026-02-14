@@ -833,6 +833,10 @@ body {
     min-height: 0;
   }
 
+  .vertical-scrollbar {
+    display: none;
+  }
+
   .terminal-viewport {
     border-radius: 0;
   }
