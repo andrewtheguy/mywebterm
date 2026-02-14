@@ -1041,6 +1041,7 @@ export function App() {
                           onClick={() => {
                             setKeyboardScreen(keyboardScreen === "primary" ? "secondary" : "primary");
                           }}
+                          aria-label={keyboardScreen === "primary" ? "Switch to symbols keyboard" : "Switch to alphabet keyboard"}
                         >
                           {keyboardScreen === "primary" ? "sym" : "abc"}
                         </button>
@@ -1196,7 +1197,7 @@ export function App() {
       )}
 
       {sessionsText !== null && (
-        <section className="copy-sheet" aria-label="Server sessions">
+        <section className="copy-sheet" aria-label="Processes">
           <div className="copy-sheet-header">
             <h2>Processes</h2>
             <div style={{ display: "flex", gap: "6px" }}>
