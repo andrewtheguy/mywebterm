@@ -23,7 +23,7 @@ export async function loadTtydConfig(locationLike: Pick<Location, "origin"> = wi
     const res = await fetch(configUrl, { signal: controller.signal });
     if (res.ok) {
       const json = await res.json();
-      hscroll = json.hscroll === true;
+      hscroll = json.hscroll ?? true;
     }
   } catch {
     // Endpoint unavailable or timed out — keep default.

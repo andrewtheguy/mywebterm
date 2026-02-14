@@ -223,9 +223,13 @@ export function App() {
         textarea.focus();
       });
     });
-    setTimeout(() => {
-      textarea.scrollTop = textarea.scrollHeight;
+    const timerId = setTimeout(() => {
+      const current = selectableTextRef.current;
+      if (current) {
+        current.scrollTop = current.scrollHeight;
+      }
     }, 100);
+    return () => clearTimeout(timerId);
   }, [selectableText]);
 
   useEffect(() => {
@@ -1065,39 +1069,44 @@ export function App() {
         </section>
       )}
 
-      {selectableText !== null && (
-        <section className="copy-sheet" aria-label="Selectable terminal text">
-          <div className="copy-sheet-header">
-            <h2>
-              Select Text To Copy ({selectableText.split("\n").length} line
-              {selectableText.split("\n").length === 1 ? "" : "s"} available)
-            </h2>
-            <div style={{ display: "flex", gap: "6px" }}>
-              <button
-                type="button"
-                className="toolbar-button"
-                onClick={() => {
-                  const lineCount = selectableText.split("\n").length;
-                  void copyTextToClipboard(selectableText).then((ok) => {
-                    if (ok) {
-                      toast.success(`Copied ${lineCount} line${lineCount === 1 ? "" : "s"}.`, { id: "copy" });
-                    } else {
-                      toast.error("Clipboard copy failed.", { id: "copy" });
-                    }
-                  });
-                }}
-              >
-                Copy All
-              </button>
-              <button type="button" className="toolbar-button" onClick={closeSelectableText}>
-                Close
-              </button>
-            </div>
-          </div>
-          <textarea ref={selectableTextRef} className="copy-sheet-textarea" value={selectableText} readOnly />
-          <p className="copy-sheet-hint">Use native touch selection handles here, then copy.</p>
-        </section>
-      )}
+      {selectableText !== null &&
+        (() => {
+          const lineCount = selectableText.split("\n").length;
+          return (
+            <section className="copy-sheet" aria-label="Selectable terminal text">
+              <div className="copy-sheet-header">
+                <h2>
+                  Select Text To Copy ({lineCount} line{lineCount === 1 ? "" : "s"} available)
+                </h2>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <button
+                    type="button"
+                    className="toolbar-button"
+                    onClick={async () => {
+                      try {
+                        const ok = await copyTextToClipboard(selectableText);
+                        if (ok) {
+                          toast.success(`Copied ${lineCount} line${lineCount === 1 ? "" : "s"}.`, { id: "copy" });
+                        } else {
+                          toast.error("Clipboard copy failed.", { id: "copy" });
+                        }
+                      } catch {
+                        toast.error("Clipboard copy failed.", { id: "copy" });
+                      }
+                    }}
+                  >
+                    Copy All
+                  </button>
+                  <button type="button" className="toolbar-button" onClick={closeSelectableText}>
+                    Close
+                  </button>
+                </div>
+              </div>
+              <textarea ref={selectableTextRef} className="copy-sheet-textarea" value={selectableText} readOnly />
+              <p className="copy-sheet-hint">Use native touch selection handles here, then copy.</p>
+            </section>
+          );
+        })()}
 
       {pasteHelperText !== null && (
         <section className="copy-sheet" aria-label="Paste helper">
