@@ -98,7 +98,7 @@ export function App() {
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
   const [sessionsText, setSessionsText] = useState<string | null>(null);
-  const [extraKeysOpen, setExtraKeysOpen] = useState(false);
+  const [softKeysOpen, setSoftKeysOpen] = useState(false);
   const [keyboardScreen, setKeyboardScreen] = useState<SoftKeyboardScreen>("primary");
   const [softKeyModifiers, setSoftKeyModifiers] = useState(() => ({
     ...DEFAULT_SOFT_KEY_MODIFIERS,
@@ -168,9 +168,9 @@ export function App() {
   const {
     containerRef,
     connectionStatus,
-    softKeyboardActive,
+    sysKeyActive,
     reconnect,
-    focusSoftKeyboard,
+    focusSysKeyboard,
     sendSoftKeySequence,
     blurTerminalInput,
     attemptPasteFromClipboard,
@@ -277,7 +277,7 @@ export function App() {
   }, [pasteHelperText]);
 
   useEffect(() => {
-    if (extraKeysOpen) {
+    if (softKeysOpen) {
       return;
     }
 
@@ -295,7 +295,7 @@ export function App() {
       repeatIntervalRef.current = null;
     }
     repeatModifiersRef.current = null;
-  }, [extraKeysOpen]);
+  }, [softKeysOpen]);
 
   const openSelectableText = useCallback(() => {
     const text = getSelectableText();
@@ -711,23 +711,23 @@ export function App() {
             {isMobile && (
               <button
                 type="button"
-                className={`toolbar-button ${softKeyboardActive ? "toolbar-button-active" : ""}`}
+                className={`toolbar-button ${sysKeyActive ? "toolbar-button-active" : ""}`}
                 onMouseDown={(e) => e.preventDefault()}
                 onTouchStart={(e) => e.preventDefault()}
                 onClick={() => {
-                  setExtraKeysOpen(false);
-                  focusSoftKeyboard();
+                  setSoftKeysOpen(false);
+                  focusSysKeyboard();
                 }}
-                aria-pressed={softKeyboardActive}
+                aria-pressed={sysKeyActive}
               >
-                {softKeyboardActive ? "Hide KB" : "Keyboard"}
+                Sys Keys
               </button>
             )}
             <button
               type="button"
-              className={`toolbar-button ${extraKeysOpen ? "toolbar-button-active" : ""}`}
+              className={`toolbar-button ${softKeysOpen ? "toolbar-button-active" : ""}`}
               onClick={() => {
-                setExtraKeysOpen((previous) => {
+                setSoftKeysOpen((previous) => {
                   const nextOpen = !previous;
                   if (nextOpen) {
                     blurTerminalInput();
@@ -736,9 +736,9 @@ export function App() {
                 });
                 setOverflowMenuOpen(false);
               }}
-              aria-pressed={extraKeysOpen}
+              aria-pressed={softKeysOpen}
             >
-              Extra Keys
+              Soft Keys
             </button>
             <button
               type="button"
@@ -957,7 +957,7 @@ export function App() {
         </div>
       )}
 
-      {extraKeysOpen &&
+      {softKeysOpen &&
         (() => {
           const screenRows =
             keyboardScreen === "primary"
