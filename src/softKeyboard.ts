@@ -182,7 +182,7 @@ export const SECONDARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = 
     createPrintableKey(";"),
     createPrintableKey(","),
     createPrintableKey("?"),
-    createSpecialKey("backspace", "Bksp"),
+    createPrintableKey("@"),
     createSpecialKey("arrowUp", "▲"),
     createSpecialKey("insert", "Ins"),
   ],
@@ -197,7 +197,7 @@ export const SECONDARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = 
     createSpecialKey("arrowDown", "▼"),
     createSpecialKey("arrowRight", "▶"),
   ],
-  [createPrintableKey("@")],
+  [createSpecialKey("backspace", "Bksp")],
 ];
 
 export const FUNCTION_KEY_ROW: readonly FunctionSoftKeyDefinition[] = [

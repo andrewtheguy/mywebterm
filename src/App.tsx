@@ -960,7 +960,7 @@ export function App() {
       {softKeysOpen &&
         (() => {
           const screenRows = keyboardScreen === "primary" ? PRIMARY_SCREEN_ROWS : SECONDARY_SCREEN_ROWS;
-          const secondaryRow2ArrowLabels = new Set(["Bksp", "▲", "Ins"]);
+          const secondaryRow2ArrowLabels = new Set(["@", "▲", "Ins"]);
           const secondaryRow3ArrowLabels = new Set(["◀", "▼", "▶"]);
           return (
             <section className="extra-keys-panel" aria-label="Extra key controls">
@@ -1028,7 +1028,11 @@ export function App() {
                         </button>
                         <ExtraKeyButton
                           softKey={FRAME_SPACE}
-                          className="extra-key-button-space"
+                          className={
+                            keyboardScreen === "secondary"
+                              ? "extra-key-button-space extra-key-button-space-wide"
+                              : "extra-key-button-space"
+                          }
                           startKeyRepeat={startKeyRepeat}
                           stopKeyRepeat={stopKeyRepeat}
                         >
@@ -1046,6 +1050,9 @@ export function App() {
                         key.label === "Tab" ? "extra-key-wide-md" : "",
                         label.length === 1 ? "extra-key-single-char" : "",
                         isSecondaryArrow ? "extra-key-arrow" : "",
+                        keyboardScreen === "secondary" && rowIndex === 4 && key.label === "Bksp"
+                          ? "extra-key-wide-xl"
+                          : "",
                       ]
                         .filter(Boolean)
                         .join(" ");

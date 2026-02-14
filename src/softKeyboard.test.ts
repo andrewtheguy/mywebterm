@@ -133,9 +133,16 @@ describe("softKeyboard", () => {
     }
   });
 
-  test("secondary row 2 contains Bksp as data key", () => {
+  test("secondary row 2 contains @ as data key", () => {
     const row2 = SECONDARY_SCREEN_ROWS[2] as readonly SoftKeyDefinition[];
-    const bksp = row2.find((k) => k.label === "Bksp");
+    const at = row2.find((k) => k.label === "@");
+    expect(at).toBeDefined();
+    expect(at?.kind).toBe("printable");
+  });
+
+  test("secondary row 4 contains Bksp as data key", () => {
+    const row4 = SECONDARY_SCREEN_ROWS[4] as readonly SoftKeyDefinition[];
+    const bksp = row4.find((k) => k.label === "Bksp");
     expect(bksp).toBeDefined();
     expect(bksp?.kind).toBe("special");
     if (bksp?.kind === "special") {
