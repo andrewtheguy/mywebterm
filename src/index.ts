@@ -5,7 +5,20 @@ import boldFont from "./fonts/JetBrainsMonoNerdFontMono-Bold.woff2" with { type:
 import regularFont from "./fonts/JetBrainsMonoNerdFontMono-Regular.woff2" with { type: "file" };
 import symbolsFont from "./fonts/SymbolsNerdFontMono-Regular.woff2" with { type: "file" };
 import index from "./index.html";
-import { ClientCommand, decodeFrame } from "./ttydProtocol";
+import {
+  attachSession,
+  createSession,
+  destroyAllSessions,
+  detachSession,
+  getSession,
+  getSessionSummaries,
+  handlePong,
+  registerShutdownHandlers,
+  setShellCommand,
+  startStaleSweep,
+  type WsData,
+} from "./sessionManager";
+import { ClientCommand, decodeFrame, parseClientControl } from "./ttydProtocol";
 
 declare const BUILD_VERSION: string;
 const VERSION = typeof BUILD_VERSION !== "undefined" ? BUILD_VERSION : "dev";
@@ -51,16 +64,6 @@ if (process.env.DAEMONIZE === "1") {
   process.exit(0);
 }
 
-interface PtySessionData {
-  connectionId: string;
-}
-
-interface PtySession {
-  proc: ReturnType<typeof Bun.spawn> | null;
-  ws: ServerWebSocket<PtySessionData>;
-  handshakeReceived: boolean;
-}
-
 // Embed font files into memory at startup so they work without
 // the fonts directory on the filesystem at runtime.
 const fontBuffers = new Map<string, ArrayBuffer>([
@@ -74,139 +77,55 @@ const hostname = process.env.HOST || "::";
 const port = parseInt(process.env.PORT || "8671", 10);
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
-const RESTART_CLOSE_CODE = 4000;
+
 function clampDimension(value: number | undefined, fallback: number, max: number): number {
   return Math.max(1, Math.min(max, Math.floor(value ?? fallback)));
 }
-const ptySessions = new Map<string, PtySession>();
-let nextConnectionId = 0;
 
+let nextConnectionId = 0;
 function createConnectionId(): string {
   nextConnectionId += 1;
   return `${Date.now()}-${nextConnectionId}`;
 }
 
-function cleanupProcessResources(session: PtySession): void {
-  if (session.proc) {
-    try {
-      session.proc.terminal?.close();
-    } catch {
-      // Terminal may already be closed.
-    }
-    try {
-      session.proc.kill();
-    } catch {
-      // Process may already be dead.
-    }
-  }
-}
+setShellCommand(command);
+registerShutdownHandlers();
+startStaleSweep();
 
-function cleanupSession(connectionId: string): void {
-  const session = ptySessions.get(connectionId);
-  if (!session) {
-    return;
-  }
-
-  ptySessions.delete(connectionId);
-  cleanupProcessResources(session);
-}
-
-function cleanupAllSessions(): void {
-  for (const [connectionId, session] of ptySessions) {
-    ptySessions.delete(connectionId);
-    cleanupProcessResources(session);
-    closeClientSocket(session.ws, RESTART_CLOSE_CODE, "Restart");
-  }
-}
-
-function closeClientSocket(ws: ServerWebSocket<PtySessionData>, code?: number, reason?: string): void {
-  if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-    ws.close(code, reason);
-  }
-}
-
-const OUTPUT_PREFIX = 0x30; // "0" — ServerCommand.OUTPUT
-
-function sendOutputFrame(ws: ServerWebSocket<PtySessionData>, data: Uint8Array): void {
-  if (ws.readyState !== WebSocket.OPEN) {
-    return;
-  }
-
-  const frame = new Uint8Array(data.length + 1);
-  frame[0] = OUTPUT_PREFIX;
-  frame.set(data, 1);
-  ws.send(frame);
-}
-
-function spawnPtyForSession(
-  connectionId: string,
-  ws: ServerWebSocket<PtySessionData>,
-  cols: number,
-  rows: number,
-): void {
-  const session: PtySession = { proc: null, ws, handshakeReceived: true };
-  ptySessions.set(connectionId, session);
-
-  let proc: ReturnType<typeof Bun.spawn>;
-  try {
-    proc = Bun.spawn(command, {
-      terminal: {
-        cols,
-        rows,
-        data(_terminal, data: Uint8Array) {
-          const current = ptySessions.get(connectionId);
-          if (!current) {
-            return;
-          }
-          sendOutputFrame(current.ws, data);
-        },
-        exit(_terminal, _exitCode, _signal) {
-          const current = ptySessions.get(connectionId);
-          if (!current) {
-            return;
-          }
-          ptySessions.delete(connectionId);
-          closeClientSocket(current.ws, 1000, "Shell exited");
-        },
-      },
-      env: { ...process.env, TERM: "xterm-256color" },
-    });
-  } catch {
-    ptySessions.delete(connectionId);
-    closeClientSocket(ws, 1011, "Failed to spawn shell");
-    return;
-  }
-
-  session.proc = proc;
-}
-
-function handleWsMessage(ws: ServerWebSocket<PtySessionData>, message: string | Buffer): void {
-  const connectionId = ws.data.connectionId;
-  const session = ptySessions.get(connectionId);
-
-  if (!session || !session.handshakeReceived) {
-    // First message is the JSON handshake: {"columns":N,"rows":N}
-    let handshake: { columns?: number; rows?: number };
-    try {
-      const text = typeof message === "string" ? message : new TextDecoder().decode(message);
-      handshake = JSON.parse(text);
-    } catch {
-      ws.close(1002, "Invalid handshake");
+function handleWsMessage(ws: ServerWebSocket<WsData>, message: string | Buffer): void {
+  // Text messages are control messages (JSON)
+  if (typeof message === "string") {
+    const ctrl = parseClientControl(message);
+    if (!ctrl) {
+      ws.close(1002, "Invalid control message");
       return;
     }
 
-    const cols = clampDimension(handshake.columns, 80, MAX_COLS);
-    const rows = clampDimension(handshake.rows, 24, MAX_ROWS);
-
-    spawnPtyForSession(connectionId, ws, cols, rows);
+    switch (ctrl.type) {
+      case "handshake":
+        createSession(ws, ctrl.columns, ctrl.rows);
+        return;
+      case "reconnect":
+        attachSession(ctrl.sessionId, ws, ctrl.columns, ctrl.rows);
+        return;
+      case "pong":
+        if (ws.data.sessionId) {
+          handlePong(ws.data.sessionId);
+        }
+        return;
+    }
     return;
   }
 
-  // Subsequent messages are binary ttyd frames
+  // Binary messages are ttyd frames — require an attached session
+  const sessionId = ws.data.sessionId;
+  if (!sessionId) return;
+
+  const session = getSession(sessionId);
+  if (!session) return;
+
   let rawBuffer: ArrayBuffer;
-  if (typeof message === "string") {
-    rawBuffer = new TextEncoder().encode(message).buffer as ArrayBuffer;
-  } else if (message instanceof ArrayBuffer) {
+  if (message instanceof ArrayBuffer) {
     rawBuffer = message;
   } else {
     rawBuffer = message.buffer.slice(message.byteOffset, message.byteOffset + message.byteLength) as ArrayBuffer;
@@ -220,9 +139,7 @@ function handleWsMessage(ws: ServerWebSocket<PtySessionData>, message: string | 
   }
 
   const terminal = session.proc?.terminal;
-  if (!terminal) {
-    return;
-  }
+  if (!terminal) return;
 
   switch (frame.command) {
     case ClientCommand.INPUT:
@@ -239,6 +156,8 @@ function handleWsMessage(ws: ServerWebSocket<PtySessionData>, message: string | 
 
       const newCols = clampDimension(resize.columns, 80, MAX_COLS);
       const newRows = clampDimension(resize.rows, 24, MAX_ROWS);
+      session.cols = newCols;
+      session.rows = newRows;
       terminal.resize(newCols, newRows);
       break;
     }
@@ -248,16 +167,16 @@ function handleWsMessage(ws: ServerWebSocket<PtySessionData>, message: string | 
   }
 }
 
-const server = serve<PtySessionData>({
+const server = serve<WsData>({
   routes: {
-    "/ttyd/ws": (req: Request, server: Server<PtySessionData>) => {
+    "/ttyd/ws": (req: Request, server: Server<WsData>) => {
       if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") {
         return new Response("WebSocket upgrade required", { status: 426 });
       }
 
       const connectionId = createConnectionId();
       const upgraded = server.upgrade(req, {
-        data: { connectionId },
+        data: { sessionId: null, connectionId },
       });
 
       if (!upgraded) {
@@ -268,7 +187,7 @@ const server = serve<PtySessionData>({
     },
     "/api/restart": {
       POST: () => {
-        cleanupAllSessions();
+        destroyAllSessions();
         return Response.json({ ok: true });
       },
     },
@@ -294,7 +213,7 @@ const server = serve<PtySessionData>({
           // ps may not be available
         }
 
-        return Response.json({ ppid, children });
+        return Response.json({ ppid, children, sessions: getSessionSummaries() });
       },
     },
     "/api/config": () =>
@@ -306,19 +225,23 @@ const server = serve<PtySessionData>({
   },
 
   websocket: {
-    open(ws) {
-      // Session starts without a PTY — handshake will spawn it.
-      ptySessions.set(ws.data.connectionId, {
-        proc: null,
-        ws,
-        handshakeReceived: false,
-      });
+    open(_ws) {
+      // WS is open but no session yet — wait for handshake or reconnect control message.
     },
     message(ws, message) {
       handleWsMessage(ws, message);
     },
     close(ws) {
-      cleanupSession(ws.data.connectionId);
+      const sessionId = ws.data.sessionId;
+      if (!sessionId) return;
+
+      const session = getSession(sessionId);
+      if (!session) return;
+
+      // Detach (keep PTY alive) instead of destroying
+      if (session.attachedWs === ws) {
+        detachSession(session);
+      }
     },
   },
 

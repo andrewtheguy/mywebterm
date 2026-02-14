@@ -173,6 +173,7 @@ export function App() {
     containerRef,
     connectionStatus,
     sysKeyActive,
+    restart,
     reconnect,
     focusSysKeyboard,
     focusTerminalInput,
@@ -671,7 +672,7 @@ export function App() {
                           overflowAction(() => {
                             if (window.confirm("Restart terminal session?")) {
                               setProcessesText(null);
-                              reconnect();
+                              restart();
                             }
                           })
                         }
@@ -707,7 +708,7 @@ export function App() {
                     onClick={() => {
                       if (window.confirm("Restart terminal session?")) {
                         setProcessesText(null);
-                        reconnect();
+                        restart();
                       }
                     }}
                   >

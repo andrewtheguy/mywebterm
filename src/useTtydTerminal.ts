@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import "@xterm/xterm/css/xterm.css";
 
 import { isLikelyIOS, type Point } from "./mobileTouchSelection";
-import { buildHandshake, decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttydProtocol";
+import type { ServerControlMessage } from "./ttydProtocol";
+import { decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttydProtocol";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 export type PasteResult = "pasted" | "empty" | "fallback-required" | "terminal-unavailable";
@@ -21,6 +22,7 @@ interface UseTtydTerminalResult {
   containerRef: (node: HTMLDivElement | null) => void;
   connectionStatus: ConnectionStatus;
   sysKeyActive: boolean;
+  restart: () => void;
   reconnect: () => void;
   focusSysKeyboard: () => void;
   focusTerminalInput: () => boolean;
@@ -57,6 +59,14 @@ const DEFAULT_SCROLLBAR_WIDTH = 14;
 const RECENT_OUTPUT_LINES = 2000;
 const MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX = 8;
 const FALLBACK_PIXELS_PER_LINE = 12;
+
+const SESSION_STORAGE_KEY = "mywebterm-session-id";
+const MAX_RECONNECT_DELAY_MS = 30_000;
+const BASE_RECONNECT_DELAY_MS = 1_000;
+
+// Close codes from server
+const CLOSE_CODE_RESTART = 4000;
+const CLOSE_CODE_HEARTBEAT = 4001;
 
 type TerminalLayout = {
   containerRect: DOMRect;
@@ -135,6 +145,12 @@ function euclideanDistance(pointA: Point, pointB: Point): number {
   return Math.hypot(pointA.x - pointB.x, pointA.y - pointB.y);
 }
 
+function computeReconnectDelay(attempt: number): number {
+  const exponentialDelay = Math.min(MAX_RECONNECT_DELAY_MS, BASE_RECONNECT_DELAY_MS * 2 ** attempt);
+  const jitter = 0.5 + Math.random() * 0.5;
+  return exponentialDelay * jitter;
+}
+
 export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTerminalOptions): UseTtydTerminalResult {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
@@ -153,6 +169,10 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
   const terminalDisposablesRef = useRef<IDisposable[]>([]);
   const onTitleChangeRef = useRef(onTitleChange);
   const connectionEpochRef = useRef(0);
+
+  const sessionIdRef = useRef<string | null>(sessionStorage.getItem(SESSION_STORAGE_KEY));
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pendingTouchRef = useRef<PendingTouch | null>(null);
   const scrollGestureRef = useRef<ScrollGesture | null>(null);
@@ -244,6 +264,13 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
 
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     setContainer(node);
+  }, []);
+
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current !== null) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
   }, []);
 
   const closeSocket = useCallback(() => {
@@ -556,11 +583,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     const onTouchEnd = (event: TouchEvent) => {
       const pendingTouch = pendingTouchRef.current;
 
-      // xterm.js's Gesture handler calls preventDefault() on the native
-      // touchstart (registered on document, passive:false), which stops the
-      // browser from ever synthesising mousedown/mouseup/click.  Detect
-      // taps here and dispatch synthetic mouse events so xterm.js's own
-      // mousedown handler fires (focus + mouse-mode reporting).
       if (
         pendingTouch !== null &&
         euclideanDistance(pendingTouch.latestPoint, pendingTouch.startPoint) < MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX
@@ -620,6 +642,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
   useEffect(() => {
     if (!wsUrl) {
       closeSocket();
+      clearReconnectTimer();
       setConnectionStatus("disconnected");
       return;
     }
@@ -631,6 +654,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     }
 
     closeSocket();
+    clearReconnectTimer();
     setConnectionStatus("connecting");
     toast.info("Connecting.", { id: "connection-status" });
 
@@ -670,22 +694,79 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       }
     };
 
+    const handleControlMessage = (text: string) => {
+      if (!isCurrentConnection()) return;
+
+      let msg: ServerControlMessage;
+      try {
+        msg = JSON.parse(text);
+      } catch {
+        return;
+      }
+
+      if (typeof msg !== "object" || msg === null || !("type" in msg)) return;
+
+      switch (msg.type) {
+        case "session_info":
+          sessionIdRef.current = msg.sessionId;
+          sessionStorage.setItem(SESSION_STORAGE_KEY, msg.sessionId);
+          reconnectAttemptRef.current = 0;
+          setConnectionStatus("connected");
+          toast.dismiss("connection-status");
+          break;
+
+        case "ping":
+          socket.send(JSON.stringify({ type: "pong", timestamp: msg.timestamp }));
+          break;
+
+        case "session_ended":
+          sessionIdRef.current = null;
+          sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          break;
+
+        case "error":
+          // Session not found — clear stored session and retry as fresh handshake
+          sessionIdRef.current = null;
+          sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          terminal.reset();
+          socket.send(JSON.stringify({ type: "handshake", columns: terminal.cols, rows: terminal.rows }));
+          break;
+      }
+    };
+
     socket.onopen = () => {
       if (!isCurrentConnection()) {
         return;
       }
 
-      socket.send(buildHandshake(terminal.cols, terminal.rows));
+      if (sessionIdRef.current) {
+        // Reconnecting to existing session — reset terminal for scrollback replay
+        terminal.reset();
+        socket.send(
+          JSON.stringify({
+            type: "reconnect",
+            sessionId: sessionIdRef.current,
+            columns: terminal.cols,
+            rows: terminal.rows,
+          }),
+        );
+      } else {
+        socket.send(JSON.stringify({ type: "handshake", columns: terminal.cols, rows: terminal.rows }));
+      }
+
       customFitRef.current?.();
       if (!mobileTouchSupported) {
         terminal.focus();
       }
-      setConnectionStatus("connected");
-      toast.dismiss("connection-status");
     };
 
     socket.onmessage = (event) => {
       if (!isCurrentConnection()) {
+        return;
+      }
+
+      if (typeof event.data === "string") {
+        handleControlMessage(event.data);
         return;
       }
 
@@ -703,11 +784,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
           .catch(() => {
             // Ignore malformed binary frames.
           });
-        return;
-      }
-
-      if (typeof event.data === "string") {
-        terminal.write(event.data);
       }
     };
 
@@ -726,14 +802,44 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       socketRef.current = null;
       setConnectionStatus("disconnected");
 
-      if (event.code === 4000) {
-        terminal.reset();
-        toast.info("Restarting...", { id: "connection-status" });
-        setReconnectToken((previous) => previous + 1);
-        return;
+      switch (event.code) {
+        case CLOSE_CODE_RESTART:
+          // Server restart: clear session, reset terminal, reconnect immediately
+          sessionIdRef.current = null;
+          sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          terminal.reset();
+          toast.info("Restarting...", { id: "connection-status" });
+          reconnectAttemptRef.current = 0;
+          setReconnectToken((prev) => prev + 1);
+          return;
+
+        case CLOSE_CODE_HEARTBEAT:
+          // Heartbeat timeout: keep session ID, auto-reconnect with backoff
+          toast.info("Connection lost. Reconnecting...", { id: "connection-status" });
+          break;
+
+        case 1000:
+          // Normal close (shell exited): clear session
+          sessionIdRef.current = null;
+          sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          toast.error(`Disconnected: ${event.reason || "Shell exited"}.`, { id: "connection-status" });
+          return;
+
+        default:
+          // Unexpected: keep session ID, auto-reconnect with backoff
+          toast.error(`Disconnected (code ${event.code}).`, { id: "connection-status" });
+          break;
       }
 
-      toast.error(`Disconnected (code ${event.code}).`, { id: "connection-status" });
+      // Auto-reconnect with exponential backoff
+      const delay = computeReconnectDelay(reconnectAttemptRef.current);
+      reconnectAttemptRef.current += 1;
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+        if (isCurrentConnection()) {
+          setReconnectToken((prev) => prev + 1);
+        }
+      }, delay);
     };
 
     return () => {
@@ -744,29 +850,36 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
         closeSocket();
       }
     };
-  }, [wsUrl, reconnectToken, closeSocket, container, mobileTouchSupported]);
-
-  const forceLocalReconnect = useCallback(() => {
-    closeSocket();
-    terminalRef.current?.reset();
-    setReconnectToken((previous) => previous + 1);
-  }, [closeSocket]);
+  }, [wsUrl, reconnectToken, closeSocket, clearReconnectTimer, container, mobileTouchSupported]);
 
   const reconnect = useCallback(() => {
-    if (!wsUrl) {
-      return;
-    }
+    // Resume existing session — just trigger a new WebSocket connection
+    clearReconnectTimer();
+    reconnectAttemptRef.current = 0;
+    setReconnectToken((prev) => prev + 1);
+  }, [clearReconnectTimer]);
+
+  const restart = useCallback(() => {
+    if (!wsUrl) return;
+
+    // Clear session ID so we get a fresh session
+    sessionIdRef.current = null;
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    clearReconnectTimer();
+    reconnectAttemptRef.current = 0;
+
     fetch("/api/restart", { method: "POST" }).catch((error: unknown) => {
       console.error("Failed to POST /api/restart:", error);
       toast.error("Restart request failed. Reconnecting locally.", { id: "restart" });
-      forceLocalReconnect();
     });
+
     // If already disconnected, the server can't close our socket with code 4000,
     // so trigger the reconnect directly.
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
-      forceLocalReconnect();
+      terminalRef.current?.reset();
+      setReconnectToken((prev) => prev + 1);
     }
-  }, [forceLocalReconnect, wsUrl]);
+  }, [clearReconnectTimer, wsUrl]);
 
   const focusTerminalInput = useCallback((): boolean => {
     const terminal = terminalRef.current;
@@ -886,11 +999,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       return Promise.resolve("");
     }
 
-    // Flush xterm.js's internal write queue before reading the buffer.
-    // terminal.write() is internally asynchronous — it batches incoming
-    // data and parses it across animation frames.  Writing an empty
-    // string with a callback guarantees all previously queued data has
-    // been parsed, so collectRecentOutput sees the full buffer.
     return new Promise<string>((resolve) => {
       terminal.write("", () => {
         fitSuppressedRef.current = true;
@@ -901,7 +1009,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
           fitSuppressedRef.current = false;
         }
 
-        // Catch up on any resize that was skipped during capture.
         customFitRef.current?.();
 
         if (recentOutput.length === 0) {
@@ -923,6 +1030,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     containerRef,
     connectionStatus,
     sysKeyActive,
+    restart,
     reconnect,
     focusSysKeyboard,
     focusTerminalInput,
