@@ -61,7 +61,7 @@ interface UseTtydTerminalResult {
   blurTerminalInput: () => void;
   attemptPasteFromClipboard: () => Promise<PasteResult>;
   pasteTextIntoTerminal: (text: string) => boolean;
-  getSelectableText: () => string;
+  getSelectableText: () => Promise<string>;
   getTerminalSelection: () => string;
   copyTextToClipboard: (text: string) => Promise<boolean>;
   mobileSelectionState: MobileSelectionState;
@@ -1503,30 +1503,40 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     }
   }, [mobileMouseMode, pasteTextIntoTerminal]);
 
-  const getSelectableText = useCallback(() => {
+  const getSelectableText = useCallback((): Promise<string> => {
     const terminal = terminalRef.current;
     if (!terminal) {
       toast.error("Terminal not ready for selection.");
-      return "";
+      return Promise.resolve("");
     }
 
-    fitSuppressedRef.current = true;
-    let recentOutput: string;
-    try {
-      recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
-    } finally {
-      fitSuppressedRef.current = false;
-    }
+    // Flush xterm.js's internal write queue before reading the buffer.
+    // terminal.write() is internally asynchronous — it batches incoming
+    // data and parses it across animation frames.  Writing an empty
+    // string with a callback guarantees all previously queued data has
+    // been parsed, so collectRecentOutput sees the full buffer.
+    return new Promise<string>((resolve) => {
+      terminal.write("", () => {
+        fitSuppressedRef.current = true;
+        let recentOutput: string;
+        try {
+          recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
+        } finally {
+          fitSuppressedRef.current = false;
+        }
 
-    // Catch up on any resize that was skipped during capture.
-    customFitRef.current?.();
+        // Catch up on any resize that was skipped during capture.
+        customFitRef.current?.();
 
-    if (recentOutput.length === 0) {
-      toast.info("No terminal output available.");
-      return "";
-    }
+        if (recentOutput.length === 0) {
+          toast.info("No terminal output available.");
+          resolve("");
+          return;
+        }
 
-    return recentOutput;
+        resolve(recentOutput);
+      });
+    });
   }, []);
 
   const getTerminalSelection = useCallback((): string => {
