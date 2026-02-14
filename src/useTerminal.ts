@@ -258,7 +258,7 @@ export function useTerminal({
   }, []);
 
   const emitWheelDelta = useCallback(
-    (deltaY: number) => {
+    (deltaY: number, clientX?: number, clientY?: number) => {
       const terminal = terminalRef.current;
       if (!terminal || deltaY === 0) {
         return;
@@ -266,11 +266,24 @@ export function useTerminal({
 
       const viewportElement = container?.querySelector(".xterm-viewport") as HTMLElement | null;
       if (viewportElement && typeof WheelEvent !== "undefined") {
+        // Use provided coordinates, or fall back to center of viewport so
+        // that apps with mouse-tracking (e.g. Zellij) receive a position
+        // inside the pane content area rather than (0,0) which often maps
+        // to the tab-bar.
+        let cx = clientX;
+        let cy = clientY;
+        if (cx === undefined || cy === undefined) {
+          const rect = viewportElement.getBoundingClientRect();
+          cx = rect.left + rect.width / 2;
+          cy = rect.top + rect.height / 2;
+        }
         const wheelEvent = new WheelEvent("wheel", {
           bubbles: true,
           cancelable: true,
           deltaMode: WheelEvent.DOM_DELTA_PIXEL,
           deltaY,
+          clientX: cx,
+          clientY: cy,
         });
         viewportElement.dispatchEvent(wheelEvent);
         return;
@@ -651,7 +664,7 @@ export function useTerminal({
       }
 
       scrollGesture.remainderPx = combinedDeltaPx - lineDelta * cellHeight;
-      emitWheelDelta(lineDelta * cellHeight);
+      emitWheelDelta(lineDelta * cellHeight, matchingTouch.clientX, matchingTouch.clientY);
     };
 
     const onTouchEnd = (event: TouchEvent) => {
