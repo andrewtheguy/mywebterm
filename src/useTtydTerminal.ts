@@ -5,44 +5,11 @@ import { toast } from "sonner";
 
 import "@xterm/xterm/css/xterm.css";
 
-import {
-  clamp,
-  clientPointToBufferCoord,
-  computeEdgeAutoScrollVelocity,
-  getWordRangeInLine,
-  getWordSeparators,
-  isLikelyIOS,
-  normalizeSelectionRange,
-  type Point,
-  type SelectionRange,
-  selectionRangeToXtermSelectArgs,
-  toHandleAnchorClientPoint,
-} from "./mobileTouchSelection";
+import { isLikelyIOS, type Point } from "./mobileTouchSelection";
 import { buildHandshake, decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttydProtocol";
 
-export type { BufferCoord, SelectionRange } from "./mobileTouchSelection";
-
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
-
-export type MobileSelectionHandle = "start" | "end";
-export type MobileSelectionMode = "idle" | "pendingLongPress" | "selecting" | "draggingStart" | "draggingEnd";
-export type MobileMouseMode = "nativeScroll" | "passToTerminal";
-export type PasteResult = "pasted" | "empty" | "fallback-required" | "terminal-unavailable" | "wrong-mode";
-
-export interface MobileOverlayAnchor {
-  left: number;
-  top: number;
-}
-
-export interface MobileSelectionState {
-  enabled: boolean;
-  mode: MobileSelectionMode;
-  activeHandle: MobileSelectionHandle | null;
-  range: SelectionRange | null;
-  startHandle: MobileOverlayAnchor | null;
-  endHandle: MobileOverlayAnchor | null;
-  toolbarAnchor: MobileOverlayAnchor | null;
-}
+export type PasteResult = "pasted" | "empty" | "fallback-required" | "terminal-unavailable";
 
 interface UseTtydTerminalOptions {
   wsUrl?: string;
@@ -62,16 +29,7 @@ interface UseTtydTerminalResult {
   attemptPasteFromClipboard: () => Promise<PasteResult>;
   pasteTextIntoTerminal: (text: string) => boolean;
   getSelectableText: () => Promise<string>;
-  getTerminalSelection: () => string;
   copyTextToClipboard: (text: string) => Promise<boolean>;
-  mobileSelectionState: MobileSelectionState;
-  mobileMouseMode: MobileMouseMode;
-  clearMobileSelection: () => void;
-  setActiveHandle: (handle: MobileSelectionHandle | null) => void;
-  updateActiveHandleFromClientPoint: (clientX: number, clientY: number) => void;
-  toggleMobileMouseMode: () => MobileMouseMode | null;
-  forceSelectionMode: boolean;
-  toggleForceSelectionMode: () => void;
   horizontalOverflow: boolean;
   containerElement: HTMLDivElement | null;
   verticalScrollSyncRef: React.MutableRefObject<(() => void) | null>;
@@ -97,16 +55,7 @@ const terminalOptions: ITerminalOptions = {
 const MIN_COLS = 80;
 const DEFAULT_SCROLLBAR_WIDTH = 14;
 const RECENT_OUTPUT_LINES = 2000;
-const MOBILE_LONG_PRESS_MS = 420;
 const MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX = 8;
-const MOBILE_TOOLBAR_GAP_PX = 10;
-const MOBILE_TOOLBAR_ESTIMATED_HEIGHT_PX = 44;
-const MOBILE_TOOLBAR_ESTIMATED_HALF_WIDTH_PX = 132;
-const MOBILE_TOOLBAR_SAFE_TOP_PX = 8;
-const MOBILE_TOOLBAR_SAFE_BOTTOM_PX = 8;
-const MOBILE_TOOLBAR_SIDE_PADDING_PX = 16;
-const MOBILE_HANDLE_SAFE_EDGE_PX = 8;
-const AUTO_SCROLL_LAYOUT_MAX_RETRIES = 24;
 const FALLBACK_PIXELS_PER_LINE = 12;
 
 type TerminalLayout = {
@@ -182,28 +131,6 @@ async function writeClipboardText(text: string): Promise<boolean> {
   }
 }
 
-function createInitialMobileSelectionState(enabled: boolean): MobileSelectionState {
-  return {
-    enabled,
-    mode: "idle",
-    activeHandle: null,
-    range: null,
-    startHandle: null,
-    endHandle: null,
-    toolbarAnchor: null,
-  };
-}
-
-function getDragMode(handle: MobileSelectionHandle | null): MobileSelectionMode {
-  if (handle === "start") {
-    return "draggingStart";
-  }
-  if (handle === "end") {
-    return "draggingEnd";
-  }
-  return "selecting";
-}
-
 function euclideanDistance(pointA: Point, pointB: Point): number {
   return Math.hypot(pointA.x - pointB.x, pointA.y - pointB.y);
 }
@@ -216,13 +143,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
   const mobileTouchSupported =
     typeof navigator !== "undefined" && isLikelyIOS(navigator.userAgent, navigator.maxTouchPoints ?? 0);
 
-  const [mobileSelectionState, setMobileSelectionState] = useState<MobileSelectionState>(() =>
-    createInitialMobileSelectionState(mobileTouchSupported),
-  );
-  const [mobileMouseMode, setMobileMouseMode] = useState<MobileMouseMode>("nativeScroll");
   const [sysKeyActive, setSysKeyActive] = useState(false);
-  const [forceSelectionMode, setForceSelectionMode] = useState(false);
-  const selectionEnabled = mobileTouchSupported || forceSelectionMode;
   const [horizontalOverflow, setHorizontalOverflow] = useState(false);
 
   const terminalRef = useRef<Terminal | null>(null);
@@ -235,19 +156,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
 
   const pendingTouchRef = useRef<PendingTouch | null>(null);
   const scrollGestureRef = useRef<ScrollGesture | null>(null);
-  const longPressTimerRef = useRef<number | null>(null);
-  const activeHandleRef = useRef<MobileSelectionHandle | null>(null);
-  const selectionRangeRef = useRef<SelectionRange | null>(null);
-  const dragPointRef = useRef<Point | null>(null);
-  const autoScrollAnimationRef = useRef<number | null>(null);
-  const autoScrollLastTimestampRef = useRef<number | null>(null);
-  const autoScrollRemainderPxRef = useRef(0);
-  const autoScrollLayoutRetryRef = useRef(0);
   const terminalMountedRef = useRef(false);
   const customFitRef = useRef<(() => void) | null>(null);
   const fitSuppressedRef = useRef(false);
-  const selectionEnabledRef = useRef(selectionEnabled);
-  selectionEnabledRef.current = selectionEnabled;
   const verticalScrollSyncRef = useRef<(() => void) | null>(null);
 
   const getVerticalScrollState = useCallback((): { viewportY: number; baseY: number; rows: number } | null => {
@@ -327,416 +238,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     [container],
   );
 
-  const stopAutoScrollLoop = useCallback(() => {
-    if (autoScrollAnimationRef.current !== null) {
-      window.cancelAnimationFrame(autoScrollAnimationRef.current);
-      autoScrollAnimationRef.current = null;
-    }
-    autoScrollLastTimestampRef.current = null;
-    autoScrollRemainderPxRef.current = 0;
-    autoScrollLayoutRetryRef.current = 0;
-  }, []);
-
-  const setMobileVisualStateFromRange = useCallback(
-    (range: SelectionRange | null, mode: MobileSelectionMode, activeHandle: MobileSelectionHandle | null) => {
-      if (!selectionEnabledRef.current) {
-        setMobileSelectionState(createInitialMobileSelectionState(false));
-        return;
-      }
-
-      if (!range) {
-        setMobileSelectionState({
-          enabled: true,
-          mode,
-          activeHandle,
-          range: null,
-          startHandle: null,
-          endHandle: null,
-          toolbarAnchor: null,
-        });
-        return;
-      }
-
-      const layout = getTerminalLayout();
-      if (!layout) {
-        setMobileSelectionState({
-          enabled: true,
-          mode,
-          activeHandle,
-          range,
-          startHandle: null,
-          endHandle: null,
-          toolbarAnchor: null,
-        });
-        return;
-      }
-
-      const startAnchor = toHandleAnchorClientPoint({
-        coord: range.start,
-        side: "start",
-        screenRect: layout.screenRect,
-        viewportY: layout.viewportY,
-        rows: layout.rows,
-        cellWidth: layout.cellWidth,
-        cellHeight: layout.cellHeight,
-      });
-
-      const endAnchor = toHandleAnchorClientPoint({
-        coord: range.end,
-        side: "end",
-        screenRect: layout.screenRect,
-        viewportY: layout.viewportY,
-        rows: layout.rows,
-        cellWidth: layout.cellWidth,
-        cellHeight: layout.cellHeight,
-      });
-
-      const startHandle = {
-        left: clamp(
-          startAnchor.x - layout.containerRect.left,
-          MOBILE_HANDLE_SAFE_EDGE_PX,
-          layout.containerRect.width - MOBILE_HANDLE_SAFE_EDGE_PX,
-        ),
-        top: clamp(
-          startAnchor.y - layout.containerRect.top,
-          MOBILE_HANDLE_SAFE_EDGE_PX,
-          layout.containerRect.height - MOBILE_HANDLE_SAFE_EDGE_PX,
-        ),
-      };
-      const endHandle = {
-        left: clamp(
-          endAnchor.x - layout.containerRect.left,
-          MOBILE_HANDLE_SAFE_EDGE_PX,
-          layout.containerRect.width - MOBILE_HANDLE_SAFE_EDGE_PX,
-        ),
-        top: clamp(
-          endAnchor.y - layout.containerRect.top,
-          MOBILE_HANDLE_SAFE_EDGE_PX,
-          layout.containerRect.height - MOBILE_HANDLE_SAFE_EDGE_PX,
-        ),
-      };
-
-      const selectionTop = Math.min(startHandle.top, endHandle.top);
-      const selectionBottom = Math.max(startHandle.top, endHandle.top);
-      const toolbarTopAbove = selectionTop - MOBILE_TOOLBAR_ESTIMATED_HEIGHT_PX - MOBILE_TOOLBAR_GAP_PX;
-      const toolbarTopBelow = selectionBottom + MOBILE_TOOLBAR_GAP_PX;
-      const preferredToolbarTop = toolbarTopAbove >= MOBILE_TOOLBAR_SAFE_TOP_PX ? toolbarTopAbove : toolbarTopBelow;
-
-      const maxToolbarTop = Math.max(
-        MOBILE_TOOLBAR_SAFE_TOP_PX,
-        layout.containerRect.height - MOBILE_TOOLBAR_ESTIMATED_HEIGHT_PX - MOBILE_TOOLBAR_SAFE_BOTTOM_PX,
-      );
-      const toolbarTop = clamp(preferredToolbarTop, MOBILE_TOOLBAR_SAFE_TOP_PX, maxToolbarTop);
-
-      const minToolbarLeft = Math.min(
-        layout.containerRect.width / 2,
-        MOBILE_TOOLBAR_ESTIMATED_HALF_WIDTH_PX + MOBILE_TOOLBAR_SIDE_PADDING_PX,
-      );
-      const maxToolbarLeft = Math.max(
-        minToolbarLeft,
-        layout.containerRect.width - MOBILE_TOOLBAR_ESTIMATED_HALF_WIDTH_PX - MOBILE_TOOLBAR_SIDE_PADDING_PX,
-      );
-      const toolbarLeft = clamp((startHandle.left + endHandle.left) / 2, minToolbarLeft, maxToolbarLeft);
-
-      setMobileSelectionState({
-        enabled: true,
-        mode,
-        activeHandle,
-        range,
-        startHandle,
-        endHandle,
-        toolbarAnchor: {
-          left: toolbarLeft,
-          top: toolbarTop,
-        },
-      });
-    },
-    [getTerminalLayout],
-  );
-
-  const applySelectionRange = useCallback(
-    (
-      range: SelectionRange,
-      mode: MobileSelectionMode = "selecting",
-      activeHandle: MobileSelectionHandle | null = null,
-    ) => {
-      const terminal = terminalRef.current;
-      if (!terminal || !selectionEnabledRef.current) {
-        return;
-      }
-
-      const normalized = normalizeSelectionRange(range.start, range.end);
-      const selectArgs = selectionRangeToXtermSelectArgs(normalized, terminal.cols);
-
-      terminal.select(selectArgs.column, selectArgs.row, selectArgs.length);
-      selectionRangeRef.current = normalized;
-      setMobileVisualStateFromRange(normalized, mode, activeHandle);
-    },
-    [setMobileVisualStateFromRange],
-  );
-
-  const runAutoScrollFrame = useCallback(
-    (timestamp: number) => {
-      if (!selectionEnabledRef.current) {
-        stopAutoScrollLoop();
-        return;
-      }
-
-      const activeHandle = activeHandleRef.current;
-      const dragPoint = dragPointRef.current;
-      const existingRange = selectionRangeRef.current;
-      const terminal = terminalRef.current;
-      if (!terminalMountedRef.current || !activeHandle || !dragPoint || !existingRange || !terminal) {
-        stopAutoScrollLoop();
-        return;
-      }
-
-      const layout = getTerminalLayout();
-      if (!layout) {
-        const canRetry =
-          terminalMountedRef.current &&
-          activeHandleRef.current !== null &&
-          autoScrollLayoutRetryRef.current < AUTO_SCROLL_LAYOUT_MAX_RETRIES;
-        if (!canRetry) {
-          stopAutoScrollLoop();
-          return;
-        }
-        autoScrollLayoutRetryRef.current += 1;
-        autoScrollAnimationRef.current = window.requestAnimationFrame(runAutoScrollFrame);
-        return;
-      }
-      autoScrollLayoutRetryRef.current = 0;
-
-      const velocityPxPerSecond = computeEdgeAutoScrollVelocity({
-        clientY: dragPoint.y,
-        top: layout.screenRect.top,
-        bottom: layout.screenRect.bottom,
-      });
-
-      const previousTimestamp = autoScrollLastTimestampRef.current;
-      const elapsedMs = previousTimestamp === null ? 16 : Math.max(1, Math.min(48, timestamp - previousTimestamp));
-      autoScrollLastTimestampRef.current = timestamp;
-
-      if (velocityPxPerSecond !== 0) {
-        const deltaPx = autoScrollRemainderPxRef.current + (velocityPxPerSecond * elapsedMs) / 1000;
-        let nextRemainderPx = deltaPx;
-        const lineDelta =
-          deltaPx >= 0 ? Math.floor(deltaPx / layout.cellHeight) : Math.ceil(deltaPx / layout.cellHeight);
-
-        if (lineDelta !== 0) {
-          terminal.scrollLines(lineDelta);
-          nextRemainderPx = deltaPx - lineDelta * layout.cellHeight;
-        }
-
-        autoScrollRemainderPxRef.current = nextRemainderPx;
-
-        const updatedLayout = getTerminalLayout();
-        if (updatedLayout) {
-          const coord = clientPointToBufferCoord({
-            clientPoint: dragPoint,
-            screenRect: updatedLayout.screenRect,
-            cols: updatedLayout.cols,
-            rows: updatedLayout.rows,
-            viewportY: updatedLayout.viewportY,
-            cellWidth: updatedLayout.cellWidth,
-            cellHeight: updatedLayout.cellHeight,
-          });
-
-          const nextRange =
-            activeHandle === "start"
-              ? {
-                  start: coord,
-                  end: existingRange.end,
-                }
-              : {
-                  start: existingRange.start,
-                  end: coord,
-                };
-
-          applySelectionRange(nextRange, getDragMode(activeHandle), activeHandle);
-        }
-      } else {
-        autoScrollRemainderPxRef.current = 0;
-      }
-
-      if (terminalMountedRef.current && activeHandleRef.current !== null) {
-        autoScrollAnimationRef.current = window.requestAnimationFrame(runAutoScrollFrame);
-      } else {
-        stopAutoScrollLoop();
-      }
-    },
-    [applySelectionRange, getTerminalLayout, stopAutoScrollLoop],
-  );
-
-  const ensureAutoScrollLoop = useCallback(() => {
-    if (autoScrollAnimationRef.current !== null) {
-      return;
-    }
-    if (!terminalMountedRef.current || activeHandleRef.current === null) {
-      return;
-    }
-    autoScrollLayoutRetryRef.current = 0;
-    autoScrollLastTimestampRef.current = null;
-    autoScrollAnimationRef.current = window.requestAnimationFrame(runAutoScrollFrame);
-  }, [runAutoScrollFrame]);
-
-  const clearMobileSelection = useCallback(() => {
-    const terminal = terminalRef.current;
-    if (terminal) {
-      terminal.clearSelection();
-    }
-
-    pendingTouchRef.current = null;
-    if (longPressTimerRef.current !== null) {
-      window.clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    activeHandleRef.current = null;
-    selectionRangeRef.current = null;
-    dragPointRef.current = null;
-    clearScrollGesture();
-    stopAutoScrollLoop();
-    setMobileVisualStateFromRange(null, "idle", null);
-  }, [clearScrollGesture, setMobileVisualStateFromRange, stopAutoScrollLoop]);
-
-  const updateActiveHandleFromClientPoint = useCallback(
-    (clientX: number, clientY: number) => {
-      if (!selectionEnabledRef.current) {
-        return;
-      }
-
-      const activeHandle = activeHandleRef.current;
-      const existingRange = selectionRangeRef.current;
-      if (!activeHandle || !existingRange) {
-        return;
-      }
-
-      const layout = getTerminalLayout();
-      if (!layout) {
-        return;
-      }
-
-      const point = { x: clientX, y: clientY };
-      dragPointRef.current = point;
-
-      const coord = clientPointToBufferCoord({
-        clientPoint: point,
-        screenRect: layout.screenRect,
-        cols: layout.cols,
-        rows: layout.rows,
-        viewportY: layout.viewportY,
-        cellWidth: layout.cellWidth,
-        cellHeight: layout.cellHeight,
-      });
-
-      const nextRange =
-        activeHandle === "start"
-          ? {
-              start: coord,
-              end: existingRange.end,
-            }
-          : {
-              start: existingRange.start,
-              end: coord,
-            };
-
-      applySelectionRange(nextRange, getDragMode(activeHandle), activeHandle);
-      ensureAutoScrollLoop();
-    },
-    [applySelectionRange, ensureAutoScrollLoop, getTerminalLayout],
-  );
-
-  const setActiveHandle = useCallback(
-    (handle: MobileSelectionHandle | null) => {
-      if (!selectionEnabledRef.current) {
-        return;
-      }
-
-      activeHandleRef.current = handle;
-      if (handle === null) {
-        dragPointRef.current = null;
-        stopAutoScrollLoop();
-        setMobileVisualStateFromRange(
-          selectionRangeRef.current,
-          selectionRangeRef.current ? "selecting" : "idle",
-          null,
-        );
-        return;
-      }
-
-      setMobileVisualStateFromRange(selectionRangeRef.current, getDragMode(handle), handle);
-    },
-    [setMobileVisualStateFromRange, stopAutoScrollLoop],
-  );
-
-  const startWordSelectionFromPoint = useCallback(
-    (point: Point) => {
-      const terminal = terminalRef.current;
-      if (!terminal || !selectionEnabledRef.current) {
-        return;
-      }
-
-      const layout = getTerminalLayout();
-      if (!layout) {
-        return;
-      }
-
-      const coord = clientPointToBufferCoord({
-        clientPoint: point,
-        screenRect: layout.screenRect,
-        cols: layout.cols,
-        rows: layout.rows,
-        viewportY: layout.viewportY,
-        cellWidth: layout.cellWidth,
-        cellHeight: layout.cellHeight,
-      });
-
-      const line = terminal.buffer.active.getLine(coord.row);
-      if (!line) {
-        return;
-      }
-
-      const lineText = line.translateToString(false);
-      const separators = getWordSeparators(terminal);
-      const word = getWordRangeInLine(lineText, coord.col, separators, terminal.cols);
-
-      applySelectionRange(
-        {
-          start: {
-            col: word.startCol,
-            row: coord.row,
-          },
-          end: {
-            col: word.endCol,
-            row: coord.row,
-          },
-        },
-        "selecting",
-        null,
-      );
-    },
-    [applySelectionRange, getTerminalLayout],
-  );
-
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
   }, [onTitleChange]);
-
-  useEffect(() => {
-    if (!selectionEnabled) {
-      setMobileSelectionState(createInitialMobileSelectionState(false));
-      if (!mobileTouchSupported) {
-        setMobileMouseMode("nativeScroll");
-      }
-      clearScrollGesture();
-      return;
-    }
-
-    setMobileSelectionState((previous) => ({
-      ...previous,
-      enabled: true,
-    }));
-  }, [clearScrollGesture, mobileTouchSupported, selectionEnabled]);
 
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     setContainer(node);
@@ -773,7 +277,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
   useEffect(() => {
     if (!container) {
       terminalMountedRef.current = false;
-      stopAutoScrollLoop();
       return;
     }
 
@@ -859,35 +362,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
         if (cursorLayer) {
           cursorLayer.style.visibility = isAtBottom ? "" : "hidden";
         }
-
-        const range = selectionRangeRef.current;
-        if (!range) {
-          return;
-        }
-
-        setMobileVisualStateFromRange(range, getDragMode(activeHandleRef.current), activeHandleRef.current);
-      }),
-      terminal.onSelectionChange(() => {
-        if (!selectionEnabledRef.current) {
-          return;
-        }
-
-        const selectionText = terminal.getSelection();
-        if (selectionText.length === 0) {
-          selectionRangeRef.current = null;
-          activeHandleRef.current = null;
-          dragPointRef.current = null;
-          stopAutoScrollLoop();
-          setMobileVisualStateFromRange(null, "idle", null);
-          return;
-        }
-
-        const range = selectionRangeRef.current;
-        if (!range) {
-          return;
-        }
-
-        setMobileVisualStateFromRange(range, getDragMode(activeHandleRef.current), activeHandleRef.current);
       }),
     ];
 
@@ -900,10 +374,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       if (elapsed >= fitThrottleMs) {
         lastFitTime = now;
         customFit();
-        const range = selectionRangeRef.current;
-        if (range) {
-          setMobileVisualStateFromRange(range, getDragMode(activeHandleRef.current), activeHandleRef.current);
-        }
         return;
       }
 
@@ -915,10 +385,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
         throttledFitTimeout = undefined;
         lastFitTime = Date.now();
         customFit();
-        const range = selectionRangeRef.current;
-        if (range) {
-          setMobileVisualStateFromRange(range, getDragMode(activeHandleRef.current), activeHandleRef.current);
-        }
       }, fitThrottleMs - elapsed);
     };
 
@@ -970,47 +436,15 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       terminalRef.current = null;
       customFitRef.current = null;
 
-      if (longPressTimerRef.current !== null) {
-        window.clearTimeout(longPressTimerRef.current);
-        longPressTimerRef.current = null;
-      }
       pendingTouchRef.current = null;
       clearScrollGesture();
-      selectionRangeRef.current = null;
-      activeHandleRef.current = null;
-      dragPointRef.current = null;
-      stopAutoScrollLoop();
-      setMobileVisualStateFromRange(null, "idle", null);
     };
-  }, [
-    closeSocket,
-    container,
-    clearScrollGesture,
-    hscroll,
-    mobileTouchSupported,
-    sendInputFrame,
-    setMobileVisualStateFromRange,
-    stopAutoScrollLoop,
-  ]);
+  }, [closeSocket, container, clearScrollGesture, hscroll, mobileTouchSupported, sendInputFrame]);
 
   useEffect(() => {
     if (!container || !mobileTouchSupported) {
       return;
     }
-    const shouldPassTouchScroll = mobileMouseMode === "passToTerminal";
-
-    const clearPendingLongPress = (setIdleIfNoSelection: boolean) => {
-      if (longPressTimerRef.current !== null) {
-        window.clearTimeout(longPressTimerRef.current);
-        longPressTimerRef.current = null;
-      }
-      const hadPendingTouch = pendingTouchRef.current !== null;
-      pendingTouchRef.current = null;
-
-      if (setIdleIfNoSelection && hadPendingTouch && selectionRangeRef.current === null) {
-        setMobileVisualStateFromRange(null, "idle", activeHandleRef.current);
-      }
-    };
 
     const findTouchById = (touches: TouchList, identifier: number): Touch | null => {
       for (let index = 0; index < touches.length; index += 1) {
@@ -1025,8 +459,8 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     let hScrollTouch: { identifier: number; lastX: number } | null = null;
 
     const onTouchStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1 || activeHandleRef.current !== null) {
-        clearPendingLongPress(true);
+      if (event.touches.length !== 1) {
+        pendingTouchRef.current = null;
         clearScrollGesture();
         hScrollTouch = null;
         return;
@@ -1043,45 +477,17 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
           : null;
 
       const point = { x: touch.clientX, y: touch.clientY };
-      if (shouldPassTouchScroll && selectionRangeRef.current === null) {
-        scrollGestureRef.current = {
-          identifier: touch.identifier,
-          lastY: touch.clientY,
-          remainderPx: 0,
-        };
-      } else {
-        clearScrollGesture();
-      }
+      scrollGestureRef.current = {
+        identifier: touch.identifier,
+        lastY: touch.clientY,
+        remainderPx: 0,
+      };
 
       pendingTouchRef.current = {
         identifier: touch.identifier,
         startPoint: point,
         latestPoint: point,
       };
-
-      setMobileVisualStateFromRange(
-        selectionRangeRef.current,
-        selectionRangeRef.current ? "selecting" : "pendingLongPress",
-        activeHandleRef.current,
-      );
-
-      if (longPressTimerRef.current !== null) {
-        window.clearTimeout(longPressTimerRef.current);
-      }
-
-      if (!shouldPassTouchScroll) {
-        longPressTimerRef.current = window.setTimeout(() => {
-          const pendingTouch = pendingTouchRef.current;
-          pendingTouchRef.current = null;
-          longPressTimerRef.current = null;
-
-          if (!pendingTouch) {
-            return;
-          }
-
-          startWordSelectionFromPoint(pendingTouch.latestPoint);
-        }, MOBILE_LONG_PRESS_MS);
-      }
     };
 
     const onTouchMove = (event: TouchEvent) => {
@@ -1096,7 +502,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
           pendingTouch.latestPoint = nextPoint;
 
           if (euclideanDistance(nextPoint, pendingTouch.startPoint) >= MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX) {
-            clearPendingLongPress(true);
+            pendingTouchRef.current = null;
           }
         }
       }
@@ -1112,10 +518,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
         } else {
           hScrollTouch = null;
         }
-      }
-
-      if (!shouldPassTouchScroll || activeHandleRef.current !== null || selectionRangeRef.current !== null) {
-        return;
       }
 
       const scrollGesture = scrollGestureRef.current;
@@ -1161,7 +563,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       // mousedown handler fires (focus + mouse-mode reporting).
       if (
         pendingTouch !== null &&
-        selectionRangeRef.current === null &&
         euclideanDistance(pendingTouch.latestPoint, pendingTouch.startPoint) < MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX
       ) {
         const endedTouch = findTouchById(event.changedTouches, pendingTouch.identifier);
@@ -1181,19 +582,19 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
         }
       }
 
-      clearPendingLongPress(true);
+      pendingTouchRef.current = null;
       clearScrollGesture();
       hScrollTouch = null;
     };
 
     const onTouchCancel = () => {
-      clearPendingLongPress(true);
+      pendingTouchRef.current = null;
       clearScrollGesture();
       hScrollTouch = null;
     };
 
     const onContextMenu = (event: MouseEvent) => {
-      if (pendingTouchRef.current !== null || selectionRangeRef.current !== null) {
+      if (pendingTouchRef.current !== null) {
         event.preventDefault();
       }
     };
@@ -1210,20 +611,10 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       container.removeEventListener("touchend", onTouchEnd);
       container.removeEventListener("touchcancel", onTouchCancel);
       container.removeEventListener("contextmenu", onContextMenu);
-      clearPendingLongPress(false);
+      pendingTouchRef.current = null;
       clearScrollGesture();
     };
-  }, [
-    clearScrollGesture,
-    container,
-    emitWheelDelta,
-    hscroll,
-    getTerminalLayout,
-    mobileMouseMode,
-    mobileTouchSupported,
-    setMobileVisualStateFromRange,
-    startWordSelectionFromPoint,
-  ]);
+  }, [clearScrollGesture, container, emitWheelDelta, hscroll, getTerminalLayout, mobileTouchSupported]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reconnectToken and container are intentional triggers for reconnection
   useEffect(() => {
@@ -1451,17 +842,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     [focusTerminalInput, sendInputFrame],
   );
 
-  const toggleMobileMouseMode = useCallback((): MobileMouseMode | null => {
-    if (!mobileTouchSupported) {
-      return null;
-    }
-
-    const nextMode: MobileMouseMode = mobileMouseMode === "nativeScroll" ? "passToTerminal" : "nativeScroll";
-    clearScrollGesture();
-    setMobileMouseMode(nextMode);
-    return nextMode;
-  }, [clearScrollGesture, mobileMouseMode, mobileTouchSupported]);
-
   const pasteTextIntoTerminal = useCallback((text: string): boolean => {
     const terminal = terminalRef.current;
     if (!terminal) {
@@ -1482,10 +862,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       return "terminal-unavailable";
     }
 
-    if (mobileMouseMode !== "nativeScroll") {
-      return "wrong-mode";
-    }
-
     if (typeof navigator === "undefined" || !navigator.clipboard?.readText) {
       return "fallback-required";
     }
@@ -1501,7 +877,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     } catch {
       return "fallback-required";
     }
-  }, [mobileMouseMode, pasteTextIntoTerminal]);
+  }, [pasteTextIntoTerminal]);
 
   const getSelectableText = useCallback((): Promise<string> => {
     const terminal = terminalRef.current;
@@ -1539,48 +915,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     });
   }, []);
 
-  const getTerminalSelection = useCallback((): string => {
-    return terminalRef.current?.getSelection() ?? "";
-  }, []);
-
   const copyTextToClipboard = useCallback(async (text: string): Promise<boolean> => {
     return writeClipboardText(text);
   }, []);
-
-  const toggleForceSelectionMode = useCallback(() => {
-    setForceSelectionMode((prev) => {
-      const next = !prev;
-      if (!next) {
-        clearMobileSelection();
-      }
-      return next;
-    });
-  }, [clearMobileSelection]);
-
-  useEffect(() => {
-    const el = container;
-    if (!el || !forceSelectionMode) {
-      return;
-    }
-
-    // In force-selection mode on desktop, intercept mousedown to start
-    // word selection (mirroring the mobile long-press flow) and prevent
-    // mouse events from reaching xterm.js's mouse reporting.
-    const onMouseDown = (e: MouseEvent) => {
-      // Only handle left-button clicks on the terminal area.
-      if (e.button !== 0) {
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      startWordSelectionFromPoint({ x: e.clientX, y: e.clientY });
-    };
-
-    el.addEventListener("mousedown", onMouseDown, true);
-    return () => {
-      el.removeEventListener("mousedown", onMouseDown, true);
-    };
-  }, [container, forceSelectionMode, startWordSelectionFromPoint]);
 
   return {
     containerRef,
@@ -1594,16 +931,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
     getSelectableText,
-    getTerminalSelection,
     copyTextToClipboard,
-    mobileSelectionState,
-    mobileMouseMode,
-    clearMobileSelection,
-    setActiveHandle,
-    updateActiveHandleFromClientPoint,
-    toggleMobileMouseMode,
-    forceSelectionMode,
-    toggleForceSelectionMode,
     horizontalOverflow,
     containerElement: container,
     verticalScrollSyncRef,
