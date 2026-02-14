@@ -65,8 +65,12 @@ interface PtySession {
 // the `fetch()` fallback are active.
 const fontDir = join(import.meta.dir, "fonts");
 const fontPaths = new Map<string, string>();
-for (const name of new Bun.Glob("*.woff2").scanSync(fontDir)) {
-  fontPaths.set(name, join(fontDir, name));
+try {
+  for (const name of new Bun.Glob("*.woff2").scanSync(fontDir)) {
+    fontPaths.set(name, join(fontDir, name));
+  }
+} catch {
+  console.warn(`Font directory not found: ${fontDir} — font serving disabled.`);
 }
 
 const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh"];

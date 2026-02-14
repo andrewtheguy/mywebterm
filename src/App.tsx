@@ -864,7 +864,7 @@ export function App() {
               </div>
             ) : (
               <>
-                <button type="button" className="toolbar-button" onClick={openSelectableText}>
+                <button type="button" className="toolbar-button" onClick={() => void openSelectableText()}>
                   Copy Text
                 </button>
                 {connectionStatus === "connected" ? (
