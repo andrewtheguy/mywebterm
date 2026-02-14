@@ -101,6 +101,11 @@ function handleWsMessage(ws: ServerWebSocket<WsData>, message: string | Buffer):
       return;
     }
 
+    if (ws.data.handshakeTimer !== null) {
+      clearTimeout(ws.data.handshakeTimer);
+      ws.data.handshakeTimer = null;
+    }
+
     switch (ctrl.type) {
       case "handshake":
         createSession(ws, ctrl.columns, ctrl.rows);
@@ -176,7 +181,7 @@ const server = serve<WsData>({
 
       const connectionId = createConnectionId();
       const upgraded = server.upgrade(req, {
-        data: { sessionId: null, connectionId },
+        data: { sessionId: null, connectionId, handshakeTimer: null },
       });
 
       if (!upgraded) {
@@ -225,13 +230,23 @@ const server = serve<WsData>({
   },
 
   websocket: {
-    open(_ws) {
-      // WS is open but no session yet — wait for handshake or reconnect control message.
+    open(ws) {
+      // Close the connection if no handshake/reconnect arrives within 30s.
+      ws.data.handshakeTimer = setTimeout(() => {
+        if (!ws.data.sessionId) {
+          ws.close(4003, "Handshake timeout");
+        }
+      }, 30_000);
     },
     message(ws, message) {
       handleWsMessage(ws, message);
     },
     close(ws) {
+      if (ws.data.handshakeTimer !== null) {
+        clearTimeout(ws.data.handshakeTimer);
+        ws.data.handshakeTimer = null;
+      }
+
       const sessionId = ws.data.sessionId;
       if (!sessionId) return;
 

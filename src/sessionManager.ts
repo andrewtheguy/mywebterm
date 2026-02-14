@@ -6,6 +6,7 @@ import { encodeServerControl } from "./ttyProtocol";
 export interface WsData {
   sessionId: string | null;
   connectionId: string;
+  handshakeTimer: ReturnType<typeof setTimeout> | null;
 }
 
 export interface PtySession {

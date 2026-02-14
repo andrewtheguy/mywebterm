@@ -25,7 +25,7 @@ mywebterm -- python3
 
 ## Features
 
-- Direct PTY via Bun — no external processes needed
+- Direct PTY via Bun — spawns shell processes but does not require external terminal daemons (e.g., ttyd)
 - Session persistence — PTY survives connection drops, auto-reconnect with scrollback replay
 - Heartbeat — server-initiated ping/pong detects stale connections; detached sessions are cleaned up after 5 minutes
 - Graceful shutdown — SIGTERM/SIGINT kill all PTY processes for fast systemd restarts

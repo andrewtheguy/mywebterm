@@ -102,7 +102,9 @@ export function encodeInput(data: string | Uint8Array): Uint8Array {
 }
 
 export function encodeResize(columns: number, rows: number): Uint8Array {
-  const payload = encoder.encode(JSON.stringify({ columns, rows }));
+  const normalizedColumns = normalizeHandshakeDimension("columns", columns);
+  const normalizedRows = normalizeHandshakeDimension("rows", rows);
+  const payload = encoder.encode(JSON.stringify({ columns: normalizedColumns, rows: normalizedRows }));
   return encodePrefixedPayload(ClientCommand.RESIZE_TERMINAL, payload);
 }
 

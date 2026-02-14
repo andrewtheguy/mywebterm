@@ -5,10 +5,12 @@ import { buildHandshake, decodeFrame, encodeInput, encodeResize, ServerCommand }
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-function createFrame(command: string, payload: string): ArrayBuffer {
+type ServerCommandValue = (typeof ServerCommand)[keyof typeof ServerCommand];
+
+function createFrame(command: ServerCommandValue, payload: string): ArrayBuffer {
   const payloadBytes = encoder.encode(payload);
   const frame = new Uint8Array(payloadBytes.length + 1);
-  frame[0] = command.charCodeAt(0);
+  frame[0] = String(command).charCodeAt(0);
   frame.set(payloadBytes, 1);
   return frame.buffer;
 }
