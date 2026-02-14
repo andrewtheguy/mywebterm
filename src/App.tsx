@@ -313,8 +313,8 @@ export function App() {
     repeatModifiersRef.current = null;
   }, [softKeysOpen]);
 
-  const openSelectableText = useCallback(() => {
-    const text = getSelectableText();
+  const openSelectableText = useCallback(async () => {
+    const text = await getSelectableText();
     if (text.length === 0) {
       return;
     }
@@ -864,7 +864,7 @@ export function App() {
               </div>
             ) : (
               <>
-                <button type="button" className="toolbar-button" onClick={openSelectableText}>
+                <button type="button" className="toolbar-button" onClick={() => void openSelectableText()}>
                   Copy Text
                 </button>
                 {connectionStatus === "connected" ? (
