@@ -196,6 +196,8 @@ export function App() {
     setActiveHandle,
     updateActiveHandleFromClientPoint,
     toggleMobileMouseMode,
+    forceSelectionMode,
+    toggleForceSelectionMode,
     horizontalOverflow,
     containerElement,
     verticalScrollSyncRef,
@@ -760,29 +762,47 @@ export function App() {
             >
               Soft Keys
             </button>
-            <button
-              type="button"
-              className={`toolbar-button ${mobileMouseMode === "passToTerminal" ? "toolbar-button-active" : ""}`}
-              onClick={() => {
-                toggleMobileMouseMode();
-              }}
-              disabled={!mobileSelectionState.enabled}
-              aria-pressed={mobileMouseMode === "passToTerminal"}
-              title={
-                mobileMouseMode === "passToTerminal"
-                  ? "Touch input is forwarded to the terminal app. Tap to switch back to native scrolling."
-                  : "Touch input uses native scrolling. Tap to forward touch input to the terminal app."
-              }
-            >
-              Pass Touch
-            </button>
+            {isMobile ? (
+              <button
+                type="button"
+                className={`toolbar-button ${mobileMouseMode === "passToTerminal" ? "toolbar-button-active" : ""}`}
+                onClick={() => {
+                  toggleMobileMouseMode();
+                }}
+                disabled={!mobileSelectionState.enabled}
+                aria-pressed={mobileMouseMode === "passToTerminal"}
+                title={
+                  mobileMouseMode === "passToTerminal"
+                    ? "Touch input is forwarded to the terminal app. Tap to switch back to native scrolling."
+                    : "Touch input uses native scrolling. Tap to forward touch input to the terminal app."
+                }
+              >
+                Pass Touch
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={`toolbar-button ${forceSelectionMode ? "toolbar-button-active" : ""}`}
+                onClick={() => {
+                  toggleForceSelectionMode();
+                }}
+                aria-pressed={forceSelectionMode}
+                title={
+                  forceSelectionMode
+                    ? "Selection mode active. Click/drag selects text even when tmux/vim captures the mouse. Click to disable."
+                    : "Force selection mode so you can select text even when an app captures the mouse."
+                }
+              >
+                Select
+              </button>
+            )}
             <button
               type="button"
               className="toolbar-button"
               onClick={() => void handleToolbarPaste()}
-              disabled={mobileMouseMode !== "nativeScroll"}
+              disabled={isMobile && mobileMouseMode !== "nativeScroll"}
               title={
-                mobileMouseMode === "nativeScroll"
+                !isMobile || mobileMouseMode === "nativeScroll"
                   ? "Paste from clipboard. If blocked, a helper panel opens for iOS paste."
                   : "Disable Pass Touch to paste."
               }
