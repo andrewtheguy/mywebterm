@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { Toaster, toast } from "sonner";
-import { loadTtydConfig, type TtydConfig } from "./config";
+import { DEFAULT_APP_TITLE, loadTtydConfig, type TtydConfig } from "./config";
 import type { SoftKeyModifiers } from "./softKeyboard";
 import {
   applyShiftToPrintable,
@@ -33,6 +33,15 @@ function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
     }
   }
   return key.label;
+}
+
+function softKeyShiftHint(key: SoftKeyDefinition, shiftActive: boolean): string | null {
+  if (shiftActive) return null;
+  if (key.kind !== "printable") return null;
+  if (/^[a-z]$/.test(key.value)) return null;
+  const shifted = applyShiftToPrintable(key.value, true);
+  if (shifted === key.value) return null;
+  return shifted;
 }
 
 const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
@@ -107,7 +116,7 @@ export function App() {
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
-  const [sessionsText, setSessionsText] = useState<string | null>(null);
+  const [processesText, setProcessesText] = useState<string | null>(null);
   const [softKeysOpen, setSoftKeysOpen] = useState(false);
   const [keyboardScreen, setKeyboardScreen] = useState<SoftKeyboardScreen>("primary");
   const [softKeyModifiers, setSoftKeyModifiers] = useState(() => ({
@@ -245,9 +254,11 @@ export function App() {
     };
   }, []);
 
+  const appTitle = config?.appTitle ?? DEFAULT_APP_TITLE;
+
   useEffect(() => {
-    document.title = remoteTitle ? `${remoteTitle} | MyWebTerm` : "MyWebTerm";
-  }, [remoteTitle]);
+    document.title = remoteTitle ? `${remoteTitle} | ${appTitle}` : appTitle;
+  }, [appTitle, remoteTitle]);
 
   useEffect(() => {
     if (!selectableTextRef.current || selectableText === null) {
@@ -489,10 +500,10 @@ export function App() {
     [setActiveHandle],
   );
 
-  const fetchSessionsText = useCallback(async (): Promise<string> => {
+  const fetchProcessesText = useCallback(async (): Promise<string> => {
     const res = await fetch("/api/sessions");
     if (!res.ok) {
-      throw new Error(`Failed to fetch sessions: ${res.status} ${res.statusText}`);
+      throw new Error(`Failed to fetch processes: ${res.status} ${res.statusText}`);
     }
     const data = await res.json();
     const children = (data.children as { pid: number; command: string }[]) ?? [];
@@ -509,21 +520,21 @@ export function App() {
     return lines.join("\n");
   }, []);
 
-  const inspectSessions = useCallback(async () => {
+  const inspectProcesses = useCallback(async () => {
     try {
-      setSessionsText(await fetchSessionsText());
+      setProcessesText(await fetchProcessesText());
     } catch {
-      toast.error("Failed to fetch sessions.");
+      toast.error("Failed to fetch processes.");
     }
-  }, [fetchSessionsText]);
+  }, [fetchProcessesText]);
 
-  const refreshSessions = useCallback(async () => {
+  const refreshProcesses = useCallback(async () => {
     try {
-      setSessionsText(await fetchSessionsText());
+      setProcessesText(await fetchProcessesText());
     } catch {
-      toast.error("Failed to refresh sessions.");
+      toast.error("Failed to refresh processes.");
     }
-  }, [fetchSessionsText]);
+  }, [fetchProcessesText]);
 
   const handleMobileCopySelection = useCallback(async () => {
     const selectedText = getTerminalSelection();
@@ -697,7 +708,7 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <h1>
-            MyWebTerm
+            {appTitle}
             <span
               className={`status-badge status-${connectionStatus}`}
               role="status"
@@ -777,7 +788,7 @@ export function App() {
                   : "Disable Pass Touch to paste."
               }
             >
-              Paste
+              Paste Text
             </button>
             {isMobile ? (
               <div className="overflow-menu" ref={overflowMenuRef}>
@@ -806,7 +817,7 @@ export function App() {
                         onClick={() =>
                           overflowAction(() => {
                             if (window.confirm("Restart terminal session?")) {
-                              setSessionsText(null);
+                              setProcessesText(null);
                               reconnect();
                             }
                           })
@@ -827,9 +838,9 @@ export function App() {
                     <button
                       type="button"
                       className="toolbar-button overflow-menu-item"
-                      onClick={() => overflowAction(() => void inspectSessions())}
+                      onClick={() => overflowAction(() => void inspectProcesses())}
                     >
-                      Sessions
+                      Processes
                     </button>
                   </div>
                 )}
@@ -845,7 +856,7 @@ export function App() {
                     className="toolbar-button"
                     onClick={() => {
                       if (window.confirm("Restart terminal session?")) {
-                        setSessionsText(null);
+                        setProcessesText(null);
                         reconnect();
                       }
                     }}
@@ -862,8 +873,8 @@ export function App() {
                     Reconnect
                   </button>
                 )}
-                <button type="button" className="toolbar-button" onClick={() => void inspectSessions()}>
-                  Sessions
+                <button type="button" className="toolbar-button" onClick={() => void inspectProcesses()}>
+                  Processes
                 </button>
               </>
             )}
@@ -1019,11 +1030,24 @@ export function App() {
                       <>
                         <ExtraKeyButton
                           softKey={FRAME_ESC}
+                          className="extra-key-wide-md"
                           startKeyRepeat={startKeyRepeat}
                           stopKeyRepeat={stopKeyRepeat}
                         >
                           Esc
                         </ExtraKeyButton>
+                        <button
+                          type="button"
+                          className="toolbar-button extra-key-button extra-key-meta extra-key-wide-md"
+                          onClick={() => {
+                            setKeyboardScreen(keyboardScreen === "primary" ? "secondary" : "primary");
+                          }}
+                          aria-label={
+                            keyboardScreen === "primary" ? "Switch to symbols keyboard" : "Switch to alphabet keyboard"
+                          }
+                        >
+                          {keyboardScreen === "primary" ? "sym" : "abc"}
+                        </button>
                         <button
                           type="button"
                           className={`toolbar-button extra-key-button extra-key-wide-sm ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
@@ -1040,15 +1064,6 @@ export function App() {
                         >
                           Alt
                         </button>
-                        <button
-                          type="button"
-                          className="toolbar-button extra-key-button extra-key-meta extra-key-wide-md"
-                          onClick={() => {
-                            setKeyboardScreen(keyboardScreen === "primary" ? "secondary" : "primary");
-                          }}
-                        >
-                          {keyboardScreen === "primary" ? "sym" : "abc"}
-                        </button>
                         <ExtraKeyButton
                           softKey={FRAME_SPACE}
                           className="extra-key-button-space"
@@ -1062,6 +1077,7 @@ export function App() {
                     {(() => {
                       const dataKeys = row.map((key) => {
                         const label = softKeyLabel(key, softKeyModifiers.shift);
+                        const hint = softKeyShiftHint(key, softKeyModifiers.shift);
                         const isSecondaryArrow =
                           keyboardScreen === "secondary" &&
                           ((rowIndex === 2 && SECONDARY_ROW2_ARROW_LABELS.has(key.label)) ||
@@ -1082,6 +1098,7 @@ export function App() {
                             stopKeyRepeat={stopKeyRepeat}
                           >
                             {label}
+                            {hint && <span className="extra-key-shift-hint">{hint}</span>}
                           </ExtraKeyButton>
                         );
                       });
@@ -1182,21 +1199,21 @@ export function App() {
         </section>
       )}
 
-      {sessionsText !== null && (
-        <section className="copy-sheet" aria-label="Server sessions">
+      {processesText !== null && (
+        <section className="copy-sheet" aria-label="Processes">
           <div className="copy-sheet-header">
-            <h2>Sessions</h2>
+            <h2>Processes</h2>
             <div style={{ display: "flex", gap: "6px" }}>
-              <button type="button" className="toolbar-button" onClick={() => void refreshSessions()}>
+              <button type="button" className="toolbar-button" onClick={() => void refreshProcesses()}>
                 Refresh
               </button>
-              <button type="button" className="toolbar-button" onClick={() => setSessionsText(null)}>
+              <button type="button" className="toolbar-button" onClick={() => setProcessesText(null)}>
                 Close
               </button>
             </div>
           </div>
           <p className="copy-sheet-hint">Child processes of the server. Empty after restart = no leaks.</p>
-          <textarea className="copy-sheet-textarea" value={sessionsText} readOnly />
+          <textarea className="copy-sheet-textarea" value={processesText} readOnly />
         </section>
       )}
       <Toaster position="top-right" theme="dark" duration={3000} />

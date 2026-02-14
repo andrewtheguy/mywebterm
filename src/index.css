@@ -273,15 +273,14 @@ body {
 .extra-keys-fkey-row {
   display: flex;
   gap: 0.4rem;
-  overflow-x: auto;
+  overflow-x: scroll;
   padding: 0.35rem 0.4rem;
   background: rgba(40, 30, 65, 0.5);
   border-radius: 8px 8px 0 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(120, 100, 180, 0.4) transparent;
-  box-shadow:
-    inset -16px 0 12px -10px rgba(0, 0, 0, 0.6),
-    inset 16px 0 12px -10px rgba(0, 0, 0, 0.6);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent);
+  mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent);
 }
 
 .extra-keys-fkey-row::-webkit-scrollbar {
@@ -298,6 +297,7 @@ body {
 }
 
 .extra-key-button {
+  position: relative;
   min-width: 2.45rem;
   min-height: 2rem;
   border-radius: 6px;
@@ -313,6 +313,16 @@ body {
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
+}
+
+.extra-key-shift-hint {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 0.8rem;
+  line-height: 1;
+  color: var(--muted-ink);
+  pointer-events: none;
 }
 
 @media (hover: hover) {
@@ -562,7 +572,7 @@ body {
   width: 100%;
   height: 6px;
   border-radius: 3px;
-  background: rgba(106, 232, 206, 0.12);
+  background: transparent;
 }
 
 .custom-scrollbar-thumb {
@@ -579,7 +589,6 @@ body {
   padding: 8px 0;
   background-clip: content-box;
   box-sizing: content-box;
-  margin-top: -8px;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -762,7 +771,7 @@ body {
   }
 
   .extra-key-button-space {
-    flex: 3 1 0;
+    flex: 2 1 0;
   }
 
   .extra-key-data-group {
@@ -837,7 +846,11 @@ body {
     min-height: 0;
   }
 
-  .vertical-scrollbar {
+  .terminal-viewport .xterm .xterm-viewport {
+    scrollbar-width: none;
+  }
+
+  .terminal-viewport .xterm .xterm-viewport::-webkit-scrollbar {
     display: none;
   }
 

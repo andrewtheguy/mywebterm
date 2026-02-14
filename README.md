@@ -38,6 +38,7 @@ mywebterm -- python3
 | `PORT` | `8671` | Port to listen on |
 | `DAEMONIZE` | `0` | Set to `1` to detach from the parent process (strips `ZELLIJ`/`TMUX` env vars from spawned shells) |
 | `DISABLE_HSCROLL` | `0` | Set to `1` to disable the minimum 80-column width with horizontal scrollbar on narrow viewports |
+| `APP_TITLE` | `MyWebTerm` | Customize the app heading and browser tab title |
 
 `SHELL` is read from the system environment (set by your OS/login shell) and used as the default command when nothing is passed after `--`. Do not set it manually — use `-- command` to override instead.
 
