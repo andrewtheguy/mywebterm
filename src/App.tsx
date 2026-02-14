@@ -182,6 +182,7 @@ export function App() {
     sysKeyActive,
     reconnect,
     focusSysKeyboard,
+    focusTerminalInput,
     sendSoftKeySequence,
     blurTerminalInput,
     attemptPasteFromClipboard,
@@ -337,6 +338,7 @@ export function App() {
     const result = await attemptPasteFromClipboard();
     if (result === "pasted") {
       toast.success("Pasted from clipboard.", { id: "paste" });
+      focusTerminalInput();
     } else if (result === "fallback-required") {
       openPasteHelper();
     } else if (result === "empty") {
@@ -346,7 +348,7 @@ export function App() {
     } else if (result === "terminal-unavailable") {
       toast.error("Terminal not ready.", { id: "paste" });
     }
-  }, [attemptPasteFromClipboard, openPasteHelper]);
+  }, [attemptPasteFromClipboard, focusTerminalInput, openPasteHelper]);
 
   const submitPasteHelperText = useCallback(() => {
     if (pasteHelperText === null) {
@@ -720,13 +722,16 @@ export function App() {
           <p className="brand-tagline">Web terminal powered by Bun PTY</p>
         </div>
         <div className="toolbar">
-          <div className="toolbar-actions">
+          <div
+            className="toolbar-actions"
+            role="toolbar"
+            onMouseDown={(e) => e.preventDefault()}
+            onTouchStart={(e) => e.preventDefault()}
+          >
             {isMobile && (
               <button
                 type="button"
                 className={`toolbar-button ${sysKeyActive ? "toolbar-button-active" : ""}`}
-                onMouseDown={(e) => e.preventDefault()}
-                onTouchStart={(e) => e.preventDefault()}
                 onClick={() => {
                   setSoftKeysOpen(false);
                   focusSysKeyboard();
@@ -744,6 +749,8 @@ export function App() {
                   const nextOpen = !previous;
                   if (nextOpen) {
                     blurTerminalInput();
+                  } else {
+                    focusTerminalInput();
                   }
                   return nextOpen;
                 });

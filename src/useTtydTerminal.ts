@@ -56,6 +56,7 @@ interface UseTtydTerminalResult {
   sysKeyActive: boolean;
   reconnect: () => void;
   focusSysKeyboard: () => void;
+  focusTerminalInput: () => boolean;
   sendSoftKeySequence: (sequence: string, label: string, skipFocus?: boolean) => boolean;
   blurTerminalInput: () => void;
   attemptPasteFromClipboard: () => Promise<PasteResult>;
@@ -1521,6 +1522,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     sysKeyActive,
     reconnect,
     focusSysKeyboard,
+    focusTerminalInput,
     sendSoftKeySequence,
     blurTerminalInput,
     attemptPasteFromClipboard,
