@@ -215,8 +215,17 @@ export function App() {
       return;
     }
 
-    selectableTextRef.current.focus();
-    selectableTextRef.current.setSelectionRange(0, selectableText.length);
+    const textarea = selectableTextRef.current;
+    // Double rAF + setTimeout to ensure the browser has fully laid out the content
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        textarea.scrollTop = textarea.scrollHeight;
+        textarea.focus();
+      });
+    });
+    setTimeout(() => {
+      textarea.scrollTop = textarea.scrollHeight;
+    }, 100);
   }, [selectableText]);
 
   useEffect(() => {
@@ -744,7 +753,7 @@ export function App() {
                       className="toolbar-button overflow-menu-item"
                       onClick={() => overflowAction(openSelectableText)}
                     >
-                      Select Text
+                      Copy Text
                     </button>
                     {connectionStatus === "connected" ? (
                       <button
@@ -784,7 +793,7 @@ export function App() {
             ) : (
               <>
                 <button type="button" className="toolbar-button" onClick={openSelectableText}>
-                  Select Text
+                  Copy Text
                 </button>
                 {connectionStatus === "connected" ? (
                   <button
@@ -1059,15 +1068,19 @@ export function App() {
       {selectableText !== null && (
         <section className="copy-sheet" aria-label="Selectable terminal text">
           <div className="copy-sheet-header">
-            <h2>Select Text</h2>
+            <h2>
+              Select Text To Copy ({selectableText.split("\n").length} line
+              {selectableText.split("\n").length === 1 ? "" : "s"} available)
+            </h2>
             <div style={{ display: "flex", gap: "6px" }}>
               <button
                 type="button"
                 className="toolbar-button"
                 onClick={() => {
+                  const lineCount = selectableText.split("\n").length;
                   void copyTextToClipboard(selectableText).then((ok) => {
                     if (ok) {
-                      toast.success("Copied all text.", { id: "copy" });
+                      toast.success(`Copied ${lineCount} line${lineCount === 1 ? "" : "s"}.`, { id: "copy" });
                     } else {
                       toast.error("Clipboard copy failed.", { id: "copy" });
                     }
@@ -1081,8 +1094,8 @@ export function App() {
               </button>
             </div>
           </div>
-          <p className="copy-sheet-hint">Use native touch selection handles here, then copy.</p>
           <textarea ref={selectableTextRef} className="copy-sheet-textarea" value={selectableText} readOnly />
+          <p className="copy-sheet-hint">Use native touch selection handles here, then copy.</p>
         </section>
       )}
 
