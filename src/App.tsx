@@ -108,14 +108,14 @@ export function App() {
     ...DEFAULT_SOFT_KEY_MODIFIERS,
   }));
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 768px)").matches);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(pointer: coarse)").matches);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperFocusedRef = useRef(false);
 
   useEffect(() => {
-    const mql = window.matchMedia("(max-width: 768px)");
+    const mql = window.matchMedia("(pointer: coarse)");
     const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     mql.addEventListener("change", onChange);
     return () => mql.removeEventListener("change", onChange);
