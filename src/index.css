@@ -161,9 +161,12 @@ body {
 }
 
 .toolbar-button-active {
-  background: rgba(106, 232, 206, 0.28);
-  border-color: rgba(172, 255, 236, 0.95);
-  box-shadow: inset 0 0 0 1px rgba(214, 255, 245, 0.35);
+  background: rgba(106, 232, 206, 0.38);
+  border-color: rgba(172, 255, 236, 1);
+  color: #b4ffe8;
+  box-shadow:
+    inset 0 0 0 1px rgba(214, 255, 245, 0.4),
+    0 0 8px rgba(106, 232, 206, 0.4);
 }
 
 .toolbar-button:focus {
