@@ -49,14 +49,6 @@ const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
 const SECONDARY_ROW2_ARROW_LABELS = new Set([",", "▲", "Ins"]);
 const SECONDARY_ROW3_ARROW_LABELS = new Set(["◀", "▼", "▶"]);
 
-const FRAME_ESC: SoftKeyDefinition = {
-  id: "special-escape",
-  label: "Esc",
-  kind: "special",
-  special: "escape",
-  group: "main",
-};
-
 const FRAME_BKSP: SoftKeyDefinition = {
   id: "special-backspace",
   label: "Bksp",
@@ -1028,14 +1020,6 @@ export function App() {
                     )}
                     {rowIndex === 4 && (
                       <>
-                        <ExtraKeyButton
-                          softKey={FRAME_ESC}
-                          className="extra-key-wide-md"
-                          startKeyRepeat={startKeyRepeat}
-                          stopKeyRepeat={stopKeyRepeat}
-                        >
-                          Esc
-                        </ExtraKeyButton>
                         <button
                           type="button"
                           className="toolbar-button extra-key-button extra-key-meta extra-key-wide-md"
@@ -1050,7 +1034,7 @@ export function App() {
                         </button>
                         <button
                           type="button"
-                          className={`toolbar-button extra-key-button extra-key-wide-sm ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
+                          className={`toolbar-button extra-key-button extra-key-wide-md ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
                           onClick={() => toggleSoftModifier("ctrl")}
                           aria-pressed={softKeyModifiers.ctrl}
                         >
@@ -1058,7 +1042,7 @@ export function App() {
                         </button>
                         <button
                           type="button"
-                          className={`toolbar-button extra-key-button extra-key-wide-sm ${softKeyModifiers.alt ? "toolbar-button-active" : ""}`}
+                          className={`toolbar-button extra-key-button extra-key-wide-md ${softKeyModifiers.alt ? "toolbar-button-active" : ""}`}
                           onClick={() => toggleSoftModifier("alt")}
                           aria-pressed={softKeyModifiers.alt}
                         >
@@ -1083,7 +1067,6 @@ export function App() {
                           ((rowIndex === 2 && SECONDARY_ROW2_ARROW_LABELS.has(key.label)) ||
                             (rowIndex === 3 && SECONDARY_ROW3_ARROW_LABELS.has(key.label)));
                         const classes = [
-                          key.label === "Tab" ? "extra-key-wide-md" : "",
                           label.length === 1 ? "extra-key-single-char" : "",
                           isSecondaryArrow ? "extra-key-arrow" : "",
                         ]
@@ -1102,7 +1085,19 @@ export function App() {
                           </ExtraKeyButton>
                         );
                       });
-                      return rowIndex === 4 ? <div className="extra-key-data-group">{dataKeys}</div> : dataKeys;
+                      if (rowIndex === 4) {
+                        return <div className="extra-key-data-group">{dataKeys}</div>;
+                      }
+                      if (rowIndex === 2 && keyboardScreen === "primary") {
+                        return (
+                          <>
+                            <div className="extra-key-spacer extra-key-half-spacer" />
+                            {dataKeys}
+                            <div className="extra-key-spacer extra-key-half-spacer" />
+                          </>
+                        );
+                      }
+                      return dataKeys;
                     })()}
                     {rowIndex === 3 && keyboardScreen === "primary" && (
                       <ExtraKeyButton

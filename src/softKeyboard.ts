@@ -146,7 +146,6 @@ export const PRIMARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
     createPrintableKey("p", "P"),
   ],
   [
-    createSpecialKey("tab", "Tab"),
     createPrintableKey("a", "A"),
     createPrintableKey("s", "S"),
     createPrintableKey("d", "D"),
@@ -165,7 +164,6 @@ export const PRIMARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
     createPrintableKey("b", "B"),
     createPrintableKey("n", "N"),
     createPrintableKey("m", "M"),
-    createPrintableKey("."),
   ],
   [createPrintableKey("-"), createPrintableKey("/")],
 ];
@@ -178,6 +176,7 @@ export const SECONDARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = 
     createPrintableKey("#"),
     createPrintableKey("*"),
     createPrintableKey("="),
+    createPrintableKey("."),
     createSpecialKey("delete", "Del"),
   ],
   [
@@ -223,7 +222,9 @@ export const FUNCTION_KEY_ROW: readonly FunctionSoftKeyDefinition[] = [
   createFunctionKey(12),
 ];
 
-export const COMBO_KEY_ROW: readonly ComboSoftKeyDefinition[] = [
+export const COMBO_KEY_ROW: readonly SoftKeyDefinition[] = [
+  createSpecialKey("escape", "Esc"),
+  createSpecialKey("tab", "Tab"),
   createComboKey("^C", "c", { ctrl: true }),
   createComboKey("^D", "d", { ctrl: true }),
   createComboKey("^Z", "z", { ctrl: true }),
@@ -242,7 +243,7 @@ export const COMBO_KEY_ROW: readonly ComboSoftKeyDefinition[] = [
 export const FUNCTION_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
   FUNCTION_KEY_ROW.slice(0, 10),
   FUNCTION_KEY_ROW.slice(10),
-  [createSpecialKey("tab", "Tab")],
+  [],
   [], // row 3: empty content; App.tsx adds Shift + Bksp frame keys
   [], // row 4: empty content; App.tsx adds Esc, Ctrl, Alt, Switch, Space, Enter
 ];

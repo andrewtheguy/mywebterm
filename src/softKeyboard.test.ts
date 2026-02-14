@@ -162,12 +162,30 @@ describe("softKeyboard", () => {
     expect(labels).toEqual(["PgUp", "PgDn", "◀", "▼", "▶"]);
   });
 
-  test("COMBO_KEY_ROW contains expected combos", () => {
+  test("COMBO_KEY_ROW contains expected entries", () => {
     const labels = COMBO_KEY_ROW.map((k) => k.label);
-    expect(labels).toEqual(["^C", "^D", "^Z", "^A", "^E", "^R", "^B", "^W", "^N", "^T", "^L", "^K", "^Q"]);
-    for (const combo of COMBO_KEY_ROW) {
-      expect(combo.kind).toBe("combo");
-      expect(combo.modifiers.ctrl).toBe(true);
+    expect(labels).toEqual([
+      "Esc",
+      "Tab",
+      "^C",
+      "^D",
+      "^Z",
+      "^A",
+      "^E",
+      "^R",
+      "^B",
+      "^W",
+      "^N",
+      "^T",
+      "^L",
+      "^K",
+      "^Q",
+    ]);
+    const combos = COMBO_KEY_ROW.filter((k) => k.kind === "combo");
+    for (const combo of combos) {
+      if (combo.kind === "combo") {
+        expect(combo.modifiers.ctrl).toBe(true);
+      }
     }
   });
 
