@@ -288,7 +288,7 @@ const server = serve<PtySessionData>({
     },
     "/api/config": () =>
       Response.json({
-        experimentalHScroll: process.env.EXPERIMENTAL_HSCROLL === "1",
+        hscroll: process.env.DISABLE_HSCROLL !== "1",
       }),
     "/*": index,
   },

@@ -47,7 +47,7 @@ export interface MobileSelectionState {
 interface UseTtydTerminalOptions {
   wsUrl?: string;
   onTitleChange?: (title: string) => void;
-  experimentalHScroll?: boolean;
+  hscroll?: boolean;
 }
 
 interface UseTtydTerminalResult {
@@ -60,9 +60,9 @@ interface UseTtydTerminalResult {
   blurTerminalInput: () => void;
   attemptPasteFromClipboard: () => Promise<PasteResult>;
   pasteTextIntoTerminal: (text: string) => boolean;
-  copySelection: () => Promise<void>;
-  copyRecentOutput: () => Promise<void>;
   getSelectableText: () => string;
+  getTerminalSelection: () => string;
+  copyTextToClipboard: (text: string) => Promise<boolean>;
   mobileSelectionState: MobileSelectionState;
   mobileMouseMode: MobileMouseMode;
   clearMobileSelection: () => void;
@@ -206,11 +206,7 @@ function euclideanDistance(pointA: Point, pointB: Point): number {
   return Math.hypot(pointA.x - pointB.x, pointA.y - pointB.y);
 }
 
-export function useTtydTerminal({
-  wsUrl,
-  onTitleChange,
-  experimentalHScroll,
-}: UseTtydTerminalOptions): UseTtydTerminalResult {
+export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTerminalOptions): UseTtydTerminalResult {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [reconnectToken, setReconnectToken] = useState(0);
@@ -790,7 +786,7 @@ export function useTtydTerminal({
         return;
       }
 
-      const finalCols = experimentalHScroll ? Math.max(proposed.cols, MIN_COLS) : proposed.cols;
+      const finalCols = hscroll ? Math.max(proposed.cols, MIN_COLS) : proposed.cols;
       const finalRows = proposed.rows;
       const needsOverflow = finalCols > proposed.cols;
 
@@ -978,7 +974,7 @@ export function useTtydTerminal({
     closeSocket,
     container,
     clearScrollGesture,
-    experimentalHScroll,
+    hscroll,
     mobileTouchSupported,
     sendInputFrame,
     setMobileVisualStateFromRange,
@@ -1030,7 +1026,7 @@ export function useTtydTerminal({
       }
 
       hScrollTouch =
-        experimentalHScroll && container.scrollWidth > container.clientWidth
+        hscroll && container.scrollWidth > container.clientWidth
           ? { identifier: touch.identifier, lastX: touch.clientX }
           : null;
 
@@ -1209,7 +1205,7 @@ export function useTtydTerminal({
     clearScrollGesture,
     container,
     emitWheelDelta,
-    experimentalHScroll,
+    hscroll,
     getTerminalLayout,
     mobileMouseMode,
     mobileTouchSupported,
@@ -1495,50 +1491,11 @@ export function useTtydTerminal({
     }
   }, [mobileMouseMode, pasteTextIntoTerminal]);
 
-  const copySelection = useCallback(async () => {
-    const terminal = terminalRef.current;
-    if (!terminal) {
-      throw new Error("Terminal not ready for copy.");
-    }
-
-    const selectedText = terminal.getSelection();
-    if (selectedText.length === 0) {
-      throw new Error("No terminal selection to copy.");
-    }
-
-    const copied = await writeClipboardText(selectedText);
-    if (!copied) {
-      throw new Error("Clipboard copy failed.");
-    }
-  }, []);
-
-  const copyRecentOutput = useCallback(async () => {
-    const terminal = terminalRef.current;
-    if (!terminal) {
-      throw new Error("Terminal not ready for copy.");
-    }
-
-    const recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
-    if (recentOutput.length === 0) {
-      throw new Error("No terminal output available to copy.");
-    }
-
-    const copied = await writeClipboardText(recentOutput);
-    if (!copied) {
-      throw new Error("Clipboard copy failed.");
-    }
-  }, []);
-
   const getSelectableText = useCallback(() => {
     const terminal = terminalRef.current;
     if (!terminal) {
       toast.error("Terminal not ready for selection.");
       return "";
-    }
-
-    const selectedText = terminal.getSelection();
-    if (selectedText.length > 0) {
-      return selectedText;
     }
 
     const recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
@@ -1548,6 +1505,14 @@ export function useTtydTerminal({
     }
 
     return recentOutput;
+  }, []);
+
+  const getTerminalSelection = useCallback((): string => {
+    return terminalRef.current?.getSelection() ?? "";
+  }, []);
+
+  const copyTextToClipboard = useCallback(async (text: string): Promise<boolean> => {
+    return writeClipboardText(text);
   }, []);
 
   return {
@@ -1560,9 +1525,9 @@ export function useTtydTerminal({
     blurTerminalInput,
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
-    copySelection,
-    copyRecentOutput,
     getSelectableText,
+    getTerminalSelection,
+    copyTextToClipboard,
     mobileSelectionState,
     mobileMouseMode,
     clearMobileSelection,
