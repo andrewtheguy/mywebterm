@@ -1035,6 +1035,15 @@ export function App() {
                         </ExtraKeyButton>
                         <button
                           type="button"
+                          className="toolbar-button extra-key-button extra-key-meta extra-key-wide-md"
+                          onClick={() => {
+                            setKeyboardScreen(keyboardScreen === "primary" ? "secondary" : "primary");
+                          }}
+                        >
+                          {keyboardScreen === "primary" ? "sym" : "abc"}
+                        </button>
+                        <button
+                          type="button"
                           className={`toolbar-button extra-key-button extra-key-wide-sm ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
                           onClick={() => toggleSoftModifier("ctrl")}
                           aria-pressed={softKeyModifiers.ctrl}
@@ -1048,15 +1057,6 @@ export function App() {
                           aria-pressed={softKeyModifiers.alt}
                         >
                           Alt
-                        </button>
-                        <button
-                          type="button"
-                          className="toolbar-button extra-key-button extra-key-meta extra-key-wide-md"
-                          onClick={() => {
-                            setKeyboardScreen(keyboardScreen === "primary" ? "secondary" : "primary");
-                          }}
-                        >
-                          {keyboardScreen === "primary" ? "sym" : "abc"}
                         </button>
                         <ExtraKeyButton
                           softKey={FRAME_SPACE}
