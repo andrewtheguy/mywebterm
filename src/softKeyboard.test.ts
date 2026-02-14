@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildSoftKeySequence,
   DEFAULT_SOFT_KEY_MODIFIERS,
+  FUNCTION_KEY_ROW,
   FUNCTION_SCREEN_ROWS,
   flattenSoftKeyRows,
   PRIMARY_SCREEN_ROWS,
@@ -118,6 +119,38 @@ describe("softKeyboard", () => {
     if (allModifiersF12.ok) {
       expect(allModifiersF12.sequence).toBe("\x1b[24;8~");
     }
+  });
+
+  test("FUNCTION_KEY_ROW contains F1-F12 in order", () => {
+    expect(FUNCTION_KEY_ROW).toHaveLength(12);
+    for (let i = 0; i < 12; i++) {
+      const fkey = FUNCTION_KEY_ROW[i] as SoftKeyDefinition;
+      expect(fkey.kind).toBe("function");
+      expect(fkey.label).toBe(`F${i + 1}`);
+      if (fkey.kind === "function") {
+        expect(fkey.number).toBe(i + 1);
+      }
+    }
+  });
+
+  test("secondary row 2 contains Bksp as data key", () => {
+    const row2 = SECONDARY_SCREEN_ROWS[2] as readonly SoftKeyDefinition[];
+    const bksp = row2.find((k) => k.label === "Bksp");
+    expect(bksp).toBeDefined();
+    expect(bksp?.kind).toBe("special");
+    if (bksp?.kind === "special") {
+      expect(bksp.special).toBe("backspace");
+    }
+  });
+
+  test("secondary row 3 has ~ between PgDn and ◀", () => {
+    const row3 = SECONDARY_SCREEN_ROWS[3] as readonly SoftKeyDefinition[];
+    const labels = row3.map((k) => k.label);
+    const pgDnIndex = labels.indexOf("PgDn");
+    const leftIndex = labels.indexOf("◀");
+    const tildeIndex = labels.indexOf("~");
+    expect(tildeIndex).toBeGreaterThan(pgDnIndex);
+    expect(tildeIndex).toBeLessThan(leftIndex);
   });
 
   test("encodes printable and navigation keys with ctrl/alt/shift modifiers", () => {

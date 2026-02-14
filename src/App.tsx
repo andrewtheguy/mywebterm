@@ -12,7 +12,7 @@ import type { SoftKeyModifiers } from "./softKeyboard";
 import {
   buildSoftKeySequence,
   DEFAULT_SOFT_KEY_MODIFIERS,
-  FUNCTION_SCREEN_ROWS,
+  FUNCTION_KEY_ROW,
   PRIMARY_SCREEN_ROWS,
   SECONDARY_SCREEN_ROWS,
   type SoftKeyboardScreen,
@@ -959,15 +959,27 @@ export function App() {
 
       {softKeysOpen &&
         (() => {
-          const screenRows =
-            keyboardScreen === "primary"
-              ? PRIMARY_SCREEN_ROWS
-              : keyboardScreen === "secondary"
-                ? SECONDARY_SCREEN_ROWS
-                : FUNCTION_SCREEN_ROWS;
+          const screenRows = keyboardScreen === "primary" ? PRIMARY_SCREEN_ROWS : SECONDARY_SCREEN_ROWS;
+          const secondaryRow2ArrowLabels = new Set(["Bksp", "▲", "Ins"]);
+          const secondaryRow3ArrowLabels = new Set(["◀", "▼", "▶"]);
           return (
             <section className="extra-keys-panel" aria-label="Extra key controls">
               <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
+                {keyboardScreen === "secondary" && (
+                  <div className="extra-keys-fkey-row">
+                    {FUNCTION_KEY_ROW.map((fkey) => (
+                      <ExtraKeyButton
+                        key={fkey.id}
+                        softKey={fkey}
+                        className="extra-key-fkey"
+                        startKeyRepeat={startKeyRepeat}
+                        stopKeyRepeat={stopKeyRepeat}
+                      >
+                        {fkey.label}
+                      </ExtraKeyButton>
+                    ))}
+                  </div>
+                )}
                 {screenRows.map((row, rowIndex) => (
                   <div key={ROW_KEYS[rowIndex]} className="extra-keys-row">
                     {rowIndex === 3 && (
@@ -1007,25 +1019,12 @@ export function App() {
                         </button>
                         <button
                           type="button"
-                          className="toolbar-button extra-key-button extra-key-meta"
+                          className="toolbar-button extra-key-button extra-key-meta extra-key-wide-xl"
                           onClick={() => {
-                            if (keyboardScreen === "primary") {
-                              setKeyboardScreen("secondary");
-                            } else {
-                              setKeyboardScreen("primary");
-                            }
+                            setKeyboardScreen(keyboardScreen === "primary" ? "secondary" : "primary");
                           }}
                         >
                           {keyboardScreen === "primary" ? "#+" : "abc"}
-                        </button>
-                        <button
-                          type="button"
-                          className={`toolbar-button extra-key-button extra-key-meta ${keyboardScreen === "function" ? "toolbar-button-active" : ""}`}
-                          onClick={() => {
-                            setKeyboardScreen(keyboardScreen === "function" ? "primary" : "function");
-                          }}
-                        >
-                          Fn
                         </button>
                         <ExtraKeyButton
                           softKey={FRAME_SPACE}
@@ -1039,9 +1038,14 @@ export function App() {
                     )}
                     {row.map((key) => {
                       const label = softKeyLabel(key, softKeyModifiers.shift);
+                      const isSecondaryArrow =
+                        keyboardScreen === "secondary" &&
+                        ((rowIndex === 2 && secondaryRow2ArrowLabels.has(key.label)) ||
+                          (rowIndex === 3 && secondaryRow3ArrowLabels.has(key.label)));
                       const classes = [
                         key.label === "Tab" ? "extra-key-wide-md" : "",
                         label.length === 1 ? "extra-key-single-char" : "",
+                        isSecondaryArrow ? "extra-key-arrow" : "",
                       ]
                         .filter(Boolean)
                         .join(" ");
@@ -1057,7 +1061,7 @@ export function App() {
                         </ExtraKeyButton>
                       );
                     })}
-                    {rowIndex === 3 && (
+                    {rowIndex === 3 && keyboardScreen === "primary" && (
                       <ExtraKeyButton
                         softKey={FRAME_BKSP}
                         className="extra-key-wide-lg"

@@ -16,7 +16,7 @@ export const SOFT_MODIFIER_ORDER: readonly SoftModifierName[] = ["ctrl", "alt", 
 
 export type SoftKeyGroup = "main" | "function";
 
-export type SoftKeyboardScreen = "primary" | "secondary" | "function";
+export type SoftKeyboardScreen = "primary" | "secondary";
 
 export type SpecialSoftKeyId =
   | "tab"
@@ -182,8 +182,8 @@ export const SECONDARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = 
     createPrintableKey(";"),
     createPrintableKey(","),
     createPrintableKey("?"),
+    createSpecialKey("backspace", "Bksp"),
     createSpecialKey("arrowUp", "▲"),
-    createPrintableKey("~"),
     createSpecialKey("insert", "Ins"),
   ],
   [
@@ -192,6 +192,7 @@ export const SECONDARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = 
     createSpecialKey("end", "End"),
     createSpecialKey("pageUp", "PgUp"),
     createSpecialKey("pageDown", "PgDn"),
+    createPrintableKey("~"),
     createSpecialKey("arrowLeft", "◀"),
     createSpecialKey("arrowDown", "▼"),
     createSpecialKey("arrowRight", "▶"),
@@ -199,23 +200,27 @@ export const SECONDARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = 
   [createPrintableKey("@")],
 ];
 
+export const FUNCTION_KEY_ROW: readonly FunctionSoftKeyDefinition[] = [
+  createFunctionKey(1),
+  createFunctionKey(2),
+  createFunctionKey(3),
+  createFunctionKey(4),
+  createFunctionKey(5),
+  createFunctionKey(6),
+  createFunctionKey(7),
+  createFunctionKey(8),
+  createFunctionKey(9),
+  createFunctionKey(10),
+  createFunctionKey(11),
+  createFunctionKey(12),
+];
+
 export const FUNCTION_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
-  [
-    createFunctionKey(1),
-    createFunctionKey(2),
-    createFunctionKey(3),
-    createFunctionKey(4),
-    createFunctionKey(5),
-    createFunctionKey(6),
-    createFunctionKey(7),
-    createFunctionKey(8),
-    createFunctionKey(9),
-    createFunctionKey(10),
-  ],
-  [createFunctionKey(11), createFunctionKey(12)],
+  FUNCTION_KEY_ROW.slice(0, 10),
+  FUNCTION_KEY_ROW.slice(10),
   [createSpecialKey("tab", "Tab")],
   [], // row 3: empty content; App.tsx adds Shift + Bksp frame keys
-  [], // row 4: empty content; App.tsx adds Esc, Ctrl, Alt, Switch, Fn, Space, Enter
+  [], // row 4: empty content; App.tsx adds Esc, Ctrl, Alt, Switch, Space, Enter
 ];
 
 const SHIFTED_PRINTABLE_MAP: Record<string, string> = {

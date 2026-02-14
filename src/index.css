@@ -270,6 +270,32 @@ body {
   gap: 0.4rem;
 }
 
+.extra-keys-fkey-row {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding: 0.35rem 0.4rem;
+  background: rgba(40, 30, 65, 0.5);
+  border-radius: 8px 8px 0 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 100, 180, 0.4) transparent;
+}
+
+.extra-keys-fkey-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.extra-keys-fkey-row::-webkit-scrollbar-thumb {
+  background: rgba(120, 100, 180, 0.4);
+  border-radius: 2px;
+}
+
+.extra-key-fkey {
+  flex: 0 0 auto;
+  background: linear-gradient(to bottom, rgba(55, 48, 90, 0.8), rgba(30, 25, 60, 0.9));
+  border-color: rgba(120, 100, 180, 0.5);
+}
+
 .extra-key-spacer {
   min-height: 2rem;
 }
@@ -705,6 +731,17 @@ body {
     font-family: "Iosevka Term", "JetBrains Mono", "Consolas", monospace;
     flex: 0 0 2rem;
     width: 2rem;
+  }
+
+  .extra-keys-fkey-row {
+    gap: 0;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  .extra-key-fkey {
+    flex: 0 0 10%;
+    width: 10%;
   }
 
   .extra-key-spacer {
