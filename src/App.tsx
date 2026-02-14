@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { Toaster, toast } from "sonner";
-import { loadTtydConfig, type TtydConfig } from "./config";
+import { DEFAULT_APP_TITLE, loadTtydConfig, type TtydConfig } from "./config";
 import type { SoftKeyModifiers } from "./softKeyboard";
 import {
   applyShiftToPrintable,
@@ -116,7 +116,7 @@ export function App() {
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
-  const [sessionsText, setSessionsText] = useState<string | null>(null);
+  const [processesText, setProcessesText] = useState<string | null>(null);
   const [softKeysOpen, setSoftKeysOpen] = useState(false);
   const [keyboardScreen, setKeyboardScreen] = useState<SoftKeyboardScreen>("primary");
   const [softKeyModifiers, setSoftKeyModifiers] = useState(() => ({
@@ -254,7 +254,7 @@ export function App() {
     };
   }, []);
 
-  const appTitle = config?.appTitle ?? "MyWebTerm";
+  const appTitle = config?.appTitle ?? DEFAULT_APP_TITLE;
 
   useEffect(() => {
     document.title = remoteTitle ? `${remoteTitle} | ${appTitle}` : appTitle;
@@ -500,10 +500,10 @@ export function App() {
     [setActiveHandle],
   );
 
-  const fetchSessionsText = useCallback(async (): Promise<string> => {
+  const fetchProcessesText = useCallback(async (): Promise<string> => {
     const res = await fetch("/api/sessions");
     if (!res.ok) {
-      throw new Error(`Failed to fetch sessions: ${res.status} ${res.statusText}`);
+      throw new Error(`Failed to fetch processes: ${res.status} ${res.statusText}`);
     }
     const data = await res.json();
     const children = (data.children as { pid: number; command: string }[]) ?? [];
@@ -520,21 +520,21 @@ export function App() {
     return lines.join("\n");
   }, []);
 
-  const inspectSessions = useCallback(async () => {
+  const inspectProcesses = useCallback(async () => {
     try {
-      setSessionsText(await fetchSessionsText());
+      setProcessesText(await fetchProcessesText());
     } catch {
-      toast.error("Failed to fetch sessions.");
+      toast.error("Failed to fetch processes.");
     }
-  }, [fetchSessionsText]);
+  }, [fetchProcessesText]);
 
-  const refreshSessions = useCallback(async () => {
+  const refreshProcesses = useCallback(async () => {
     try {
-      setSessionsText(await fetchSessionsText());
+      setProcessesText(await fetchProcessesText());
     } catch {
-      toast.error("Failed to refresh sessions.");
+      toast.error("Failed to refresh processes.");
     }
-  }, [fetchSessionsText]);
+  }, [fetchProcessesText]);
 
   const handleMobileCopySelection = useCallback(async () => {
     const selectedText = getTerminalSelection();
@@ -817,7 +817,7 @@ export function App() {
                         onClick={() =>
                           overflowAction(() => {
                             if (window.confirm("Restart terminal session?")) {
-                              setSessionsText(null);
+                              setProcessesText(null);
                               reconnect();
                             }
                           })
@@ -838,7 +838,7 @@ export function App() {
                     <button
                       type="button"
                       className="toolbar-button overflow-menu-item"
-                      onClick={() => overflowAction(() => void inspectSessions())}
+                      onClick={() => overflowAction(() => void inspectProcesses())}
                     >
                       Processes
                     </button>
@@ -856,7 +856,7 @@ export function App() {
                     className="toolbar-button"
                     onClick={() => {
                       if (window.confirm("Restart terminal session?")) {
-                        setSessionsText(null);
+                        setProcessesText(null);
                         reconnect();
                       }
                     }}
@@ -873,7 +873,7 @@ export function App() {
                     Reconnect
                   </button>
                 )}
-                <button type="button" className="toolbar-button" onClick={() => void inspectSessions()}>
+                <button type="button" className="toolbar-button" onClick={() => void inspectProcesses()}>
                   Processes
                 </button>
               </>
@@ -1042,7 +1042,9 @@ export function App() {
                           onClick={() => {
                             setKeyboardScreen(keyboardScreen === "primary" ? "secondary" : "primary");
                           }}
-                          aria-label={keyboardScreen === "primary" ? "Switch to symbols keyboard" : "Switch to alphabet keyboard"}
+                          aria-label={
+                            keyboardScreen === "primary" ? "Switch to symbols keyboard" : "Switch to alphabet keyboard"
+                          }
                         >
                           {keyboardScreen === "primary" ? "sym" : "abc"}
                         </button>
@@ -1197,21 +1199,21 @@ export function App() {
         </section>
       )}
 
-      {sessionsText !== null && (
+      {processesText !== null && (
         <section className="copy-sheet" aria-label="Processes">
           <div className="copy-sheet-header">
             <h2>Processes</h2>
             <div style={{ display: "flex", gap: "6px" }}>
-              <button type="button" className="toolbar-button" onClick={() => void refreshSessions()}>
+              <button type="button" className="toolbar-button" onClick={() => void refreshProcesses()}>
                 Refresh
               </button>
-              <button type="button" className="toolbar-button" onClick={() => setSessionsText(null)}>
+              <button type="button" className="toolbar-button" onClick={() => setProcessesText(null)}>
                 Close
               </button>
             </div>
           </div>
           <p className="copy-sheet-hint">Child processes of the server. Empty after restart = no leaks.</p>
-          <textarea className="copy-sheet-textarea" value={sessionsText} readOnly />
+          <textarea className="copy-sheet-textarea" value={processesText} readOnly />
         </section>
       )}
       <Toaster position="top-right" theme="dark" duration={3000} />
