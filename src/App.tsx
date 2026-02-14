@@ -37,6 +37,9 @@ function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
 
 const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
 
+const SECONDARY_ROW2_ARROW_LABELS = new Set([",", "▲", "Ins"]);
+const SECONDARY_ROW3_ARROW_LABELS = new Set(["◀", "▼", "▶"]);
+
 const FRAME_ESC: SoftKeyDefinition = {
   id: "special-escape",
   label: "Esc",
@@ -967,8 +970,6 @@ export function App() {
       {softKeysOpen &&
         (() => {
           const screenRows = keyboardScreen === "primary" ? PRIMARY_SCREEN_ROWS : SECONDARY_SCREEN_ROWS;
-          const secondaryRow2ArrowLabels = new Set([",", "▲", "Ins"]);
-          const secondaryRow3ArrowLabels = new Set(["◀", "▼", "▶"]);
           return (
             <section className="extra-keys-panel" aria-label="Extra key controls">
               <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
@@ -1063,8 +1064,8 @@ export function App() {
                         const label = softKeyLabel(key, softKeyModifiers.shift);
                         const isSecondaryArrow =
                           keyboardScreen === "secondary" &&
-                          ((rowIndex === 2 && secondaryRow2ArrowLabels.has(key.label)) ||
-                            (rowIndex === 3 && secondaryRow3ArrowLabels.has(key.label)));
+                          ((rowIndex === 2 && SECONDARY_ROW2_ARROW_LABELS.has(key.label)) ||
+                            (rowIndex === 3 && SECONDARY_ROW3_ARROW_LABELS.has(key.label)));
                         const classes = [
                           key.label === "Tab" ? "extra-key-wide-md" : "",
                           label.length === 1 ? "extra-key-single-char" : "",

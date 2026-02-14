@@ -352,8 +352,13 @@ body {
   scrollbar-color: rgba(80, 120, 150, 0.4) transparent;
 }
 
+.extra-keys-combo-row::-webkit-scrollbar {
+  height: 4px;
+}
+
 .extra-keys-combo-row::-webkit-scrollbar-thumb {
   background: rgba(80, 120, 150, 0.4);
+  border-radius: 2px;
 }
 
 .extra-key-combo {
@@ -785,7 +790,6 @@ body {
     font-size: 0.65rem;
     font-family: "Iosevka Term", "JetBrains Mono", "Consolas", monospace;
     flex: 0 0 3.2rem;
-    width: 3.2rem;
   }
 
   .extra-keys-fkey-row {

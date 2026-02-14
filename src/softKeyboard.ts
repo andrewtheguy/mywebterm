@@ -101,7 +101,7 @@ function createSpecialKey(special: SpecialSoftKeyId, label: string): SpecialSoft
 
 function createComboKey(label: string, value: string, modifiers: Partial<SoftKeyModifiers>): ComboSoftKeyDefinition {
   return {
-    id: `combo-${label}`,
+    id: `combo-${encodeURIComponent(label)}`,
     label,
     kind: "combo",
     baseKey: createPrintableKey(value),
@@ -515,6 +515,8 @@ export function buildSoftKeySequence(key: SoftKeyDefinition, modifiers: SoftKeyM
     case "function":
       return encodeFunctionKey(key, modifiers);
     case "combo":
+      // Combo keys carry their own hardcoded modifiers; ignore the passed-in
+      // modifiers so e.g. ^C always produces \x03 even if Shift is toggled.
       return buildSoftKeySequence(key.baseKey, key.modifiers);
   }
 

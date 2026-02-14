@@ -134,7 +134,7 @@ describe("softKeyboard", () => {
     }
   });
 
-  test("secondary row 4 contains Bksp as data key", () => {
+  test("secondary row 4 contains Bksp as special backspace key", () => {
     const row4 = SECONDARY_SCREEN_ROWS[4] as readonly SoftKeyDefinition[];
     const bksp = row4.find((k) => k.label === "Bksp");
     expect(bksp).toBeDefined();
