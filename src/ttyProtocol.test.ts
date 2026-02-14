@@ -1,19 +1,21 @@
 import { describe, expect, test } from "bun:test";
 
-import { buildHandshake, decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttydProtocol";
+import { buildHandshake, decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttyProtocol";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-function createFrame(command: string, payload: string): ArrayBuffer {
+type ServerCommandValue = (typeof ServerCommand)[keyof typeof ServerCommand];
+
+function createFrame(command: ServerCommandValue, payload: string): ArrayBuffer {
   const payloadBytes = encoder.encode(payload);
   const frame = new Uint8Array(payloadBytes.length + 1);
-  frame[0] = command.charCodeAt(0);
+  frame[0] = String(command).charCodeAt(0);
   frame.set(payloadBytes, 1);
   return frame.buffer;
 }
 
-describe("ttydProtocol", () => {
+describe("ttyProtocol", () => {
   test("encodes input frame prefix correctly", () => {
     const input = "ls -la";
     const encoded = encodeInput(input);
@@ -53,6 +55,7 @@ describe("ttydProtocol", () => {
   test("builds handshake JSON shape", () => {
     const handshake = buildHandshake(100, 33);
     expect(JSON.parse(handshake)).toEqual({
+      type: "handshake",
       columns: 100,
       rows: 33,
     });
@@ -61,6 +64,7 @@ describe("ttydProtocol", () => {
   test("normalizes handshake dimensions to positive integers", () => {
     const handshake = buildHandshake(100.9, 33.2);
     expect(JSON.parse(handshake)).toEqual({
+      type: "handshake",
       columns: 100,
       rows: 33,
     });
@@ -72,5 +76,8 @@ describe("ttydProtocol", () => {
     expect(() => buildHandshake(Number.NaN, 10)).toThrow(TypeError);
     expect(() => buildHandshake(Number.POSITIVE_INFINITY, 10)).toThrow(TypeError);
     expect(() => buildHandshake(10, 0)).toThrow(TypeError);
+    expect(() => buildHandshake(10, -1)).toThrow(TypeError);
+    expect(() => buildHandshake(10, Number.NaN)).toThrow(TypeError);
+    expect(() => buildHandshake(10, Number.POSITIVE_INFINITY)).toThrow(TypeError);
   });
 });

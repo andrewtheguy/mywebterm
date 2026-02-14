@@ -1,6 +1,6 @@
 import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
-import { DEFAULT_APP_TITLE, loadTtydConfig, type TtydConfig } from "./config";
+import { DEFAULT_APP_TITLE, loadTtyConfig, type TtyConfig } from "./config";
 import type { SoftKeyModifiers } from "./softKeyboard";
 import {
   applyShiftToPrintable,
@@ -14,7 +14,7 @@ import {
   type SoftKeyDefinition,
   type SoftModifierName,
 } from "./softKeyboard";
-import { useTtydTerminal } from "./useTtydTerminal";
+import { useTerminal } from "./useTerminal";
 
 function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
   if (key.kind === "printable") {
@@ -97,7 +97,7 @@ function ExtraKeyButton({
 }
 
 export function App() {
-  const [config, setConfig] = useState<TtydConfig | null>(null);
+  const [config, setConfig] = useState<TtyConfig | null>(null);
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
@@ -145,7 +145,7 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    loadTtydConfig()
+    loadTtyConfig()
       .then((cfg) => {
         if (!cancelled) {
           setConfig(cfg);
@@ -173,6 +173,7 @@ export function App() {
     containerRef,
     connectionStatus,
     sysKeyActive,
+    restart,
     reconnect,
     focusSysKeyboard,
     focusTerminalInput,
@@ -186,7 +187,7 @@ export function App() {
     containerElement,
     verticalScrollSyncRef,
     getVerticalScrollState,
-  } = useTtydTerminal({
+  } = useTerminal({
     wsUrl: config?.wsUrl,
     onTitleChange: handleTitleChange,
     hscroll: config?.hscroll,
@@ -671,7 +672,7 @@ export function App() {
                           overflowAction(() => {
                             if (window.confirm("Restart terminal session?")) {
                               setProcessesText(null);
-                              reconnect();
+                              restart();
                             }
                           })
                         }
@@ -707,7 +708,7 @@ export function App() {
                     onClick={() => {
                       if (window.confirm("Restart terminal session?")) {
                         setProcessesText(null);
-                        reconnect();
+                        restart();
                       }
                     }}
                   >
@@ -956,7 +957,7 @@ export function App() {
             <section className="copy-sheet" aria-label="Selectable terminal text">
               <div className="copy-sheet-header">
                 <h2>
-                  Copy Text ({lineCount} line{lineCount === 1 ? "" : "s"})
+                  Select Text To Copy ({lineCount} line{lineCount === 1 ? "" : "s"})
                 </h2>
                 <div style={{ display: "flex", gap: "6px" }}>
                   <button

@@ -1,6 +1,6 @@
 export const DEFAULT_APP_TITLE = "MyWebTerm";
 
-export interface TtydConfig {
+export interface TtyConfig {
   wsUrl: string;
   hscroll: boolean;
   appTitle: string;
@@ -14,8 +14,8 @@ function toWebSocketProtocol(protocol: string): "ws:" | "wss:" {
   return "ws:";
 }
 
-export async function loadTtydConfig(locationLike: Pick<Location, "origin"> = window.location): Promise<TtydConfig> {
-  const proxyWsUrl = new URL("/ttyd/ws", locationLike.origin);
+export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = window.location): Promise<TtyConfig> {
+  const proxyWsUrl = new URL("/tty/ws", locationLike.origin);
   proxyWsUrl.protocol = toWebSocketProtocol(proxyWsUrl.protocol);
 
   let hscroll = true;
