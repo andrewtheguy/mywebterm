@@ -290,23 +290,8 @@ body {
   border-radius: 2px;
 }
 
-.extra-key-fkey {
-  flex: 0 0 auto;
-  min-height: 2.3rem;
-  padding: 0.38rem 0.75rem;
-  font-size: 0.85rem;
-  background: linear-gradient(to bottom, rgba(45, 80, 110, 0.85), rgba(20, 50, 75, 0.95));
-  border-color: rgba(90, 160, 210, 0.5);
-  color: #b8e0ff;
-}
-
 .extra-key-spacer {
   min-height: 2rem;
-}
-
-.extra-key-meta {
-  background: linear-gradient(to bottom, rgba(55, 48, 90, 0.8), rgba(30, 25, 60, 0.9));
-  border-color: rgba(120, 100, 180, 0.5);
 }
 
 .extra-key-button {
@@ -341,6 +326,22 @@ body {
     0 2px 0 rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 0 8px rgba(106, 232, 206, 0.3);
+}
+
+.extra-key-meta {
+  background: linear-gradient(to bottom, rgba(75, 50, 62, 0.85), rgba(45, 28, 38, 0.95));
+  border-color: rgba(140, 100, 120, 0.45);
+  color: #d8c0cc;
+}
+
+.extra-key-fkey {
+  flex: 0 0 auto;
+  min-height: 2.3rem;
+  padding: 0.38rem 0.75rem;
+  font-size: 0.85rem;
+  background: linear-gradient(to bottom, rgba(55, 65, 45, 0.85), rgba(30, 38, 22, 0.95));
+  border-color: rgba(120, 140, 100, 0.45);
+  color: #c8d4b8;
 }
 
 .extra-key-button-space {
