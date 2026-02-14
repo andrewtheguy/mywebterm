@@ -102,6 +102,7 @@ body {
 .brand p {
   margin: 0.3rem 0 0;
   color: var(--muted-ink);
+  font-size: 12px;
 }
 
 .toolbar {
