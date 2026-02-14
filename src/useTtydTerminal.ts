@@ -56,6 +56,7 @@ interface UseTtydTerminalResult {
   sysKeyActive: boolean;
   reconnect: () => void;
   focusSysKeyboard: () => void;
+  focusTerminalInput: () => boolean;
   sendSoftKeySequence: (sequence: string, label: string, skipFocus?: boolean) => boolean;
   blurTerminalInput: () => void;
   attemptPasteFromClipboard: () => Promise<PasteResult>;
@@ -69,6 +70,8 @@ interface UseTtydTerminalResult {
   setActiveHandle: (handle: MobileSelectionHandle | null) => void;
   updateActiveHandleFromClientPoint: (clientX: number, clientY: number) => void;
   toggleMobileMouseMode: () => MobileMouseMode | null;
+  forceSelectionMode: boolean;
+  toggleForceSelectionMode: () => void;
   horizontalOverflow: boolean;
   containerElement: HTMLDivElement | null;
   verticalScrollSyncRef: React.MutableRefObject<(() => void) | null>;
@@ -82,8 +85,7 @@ const terminalOptions: ITerminalOptions = {
   convertEol: true,
   scrollback: 5000,
   fontSize: isMobileViewport ? 10 : 14,
-  fontFamily:
-    "Iosevka Term, IosevkaTerm Nerd Font Mono, JetBrainsMono Nerd Font Mono, JetBrains Mono, Symbols Nerd Font Mono, Menlo, monospace",
+  fontFamily: "JetBrainsMono Nerd Font Mono, Symbols Nerd Font Mono, Menlo, monospace",
   theme: {
     background: "#041425",
     foreground: "#d8ecff",
@@ -219,6 +221,8 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
   );
   const [mobileMouseMode, setMobileMouseMode] = useState<MobileMouseMode>("nativeScroll");
   const [sysKeyActive, setSysKeyActive] = useState(false);
+  const [forceSelectionMode, setForceSelectionMode] = useState(false);
+  const selectionEnabled = mobileTouchSupported || forceSelectionMode;
   const [horizontalOverflow, setHorizontalOverflow] = useState(false);
 
   const terminalRef = useRef<Terminal | null>(null);
@@ -241,6 +245,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
   const autoScrollLayoutRetryRef = useRef(0);
   const terminalMountedRef = useRef(false);
   const customFitRef = useRef<(() => void) | null>(null);
+  const fitSuppressedRef = useRef(false);
+  const selectionEnabledRef = useRef(selectionEnabled);
+  selectionEnabledRef.current = selectionEnabled;
   const verticalScrollSyncRef = useRef<(() => void) | null>(null);
 
   const getVerticalScrollState = useCallback((): { viewportY: number; baseY: number; rows: number } | null => {
@@ -332,7 +339,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
 
   const setMobileVisualStateFromRange = useCallback(
     (range: SelectionRange | null, mode: MobileSelectionMode, activeHandle: MobileSelectionHandle | null) => {
-      if (!mobileTouchSupported) {
+      if (!selectionEnabledRef.current) {
         setMobileSelectionState(createInitialMobileSelectionState(false));
         return;
       }
@@ -444,7 +451,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
         },
       });
     },
-    [getTerminalLayout, mobileTouchSupported],
+    [getTerminalLayout],
   );
 
   const applySelectionRange = useCallback(
@@ -454,7 +461,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       activeHandle: MobileSelectionHandle | null = null,
     ) => {
       const terminal = terminalRef.current;
-      if (!terminal || !mobileTouchSupported) {
+      if (!terminal || !selectionEnabledRef.current) {
         return;
       }
 
@@ -465,12 +472,12 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       selectionRangeRef.current = normalized;
       setMobileVisualStateFromRange(normalized, mode, activeHandle);
     },
-    [mobileTouchSupported, setMobileVisualStateFromRange],
+    [setMobileVisualStateFromRange],
   );
 
   const runAutoScrollFrame = useCallback(
     (timestamp: number) => {
-      if (!mobileTouchSupported) {
+      if (!selectionEnabledRef.current) {
         stopAutoScrollLoop();
         return;
       }
@@ -558,7 +565,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
         stopAutoScrollLoop();
       }
     },
-    [applySelectionRange, getTerminalLayout, mobileTouchSupported, stopAutoScrollLoop],
+    [applySelectionRange, getTerminalLayout, stopAutoScrollLoop],
   );
 
   const ensureAutoScrollLoop = useCallback(() => {
@@ -594,7 +601,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
 
   const updateActiveHandleFromClientPoint = useCallback(
     (clientX: number, clientY: number) => {
-      if (!mobileTouchSupported) {
+      if (!selectionEnabledRef.current) {
         return;
       }
 
@@ -636,12 +643,12 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       applySelectionRange(nextRange, getDragMode(activeHandle), activeHandle);
       ensureAutoScrollLoop();
     },
-    [applySelectionRange, ensureAutoScrollLoop, getTerminalLayout, mobileTouchSupported],
+    [applySelectionRange, ensureAutoScrollLoop, getTerminalLayout],
   );
 
   const setActiveHandle = useCallback(
     (handle: MobileSelectionHandle | null) => {
-      if (!mobileTouchSupported) {
+      if (!selectionEnabledRef.current) {
         return;
       }
 
@@ -659,13 +666,13 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
 
       setMobileVisualStateFromRange(selectionRangeRef.current, getDragMode(handle), handle);
     },
-    [mobileTouchSupported, setMobileVisualStateFromRange, stopAutoScrollLoop],
+    [setMobileVisualStateFromRange, stopAutoScrollLoop],
   );
 
   const startWordSelectionFromPoint = useCallback(
     (point: Point) => {
       const terminal = terminalRef.current;
-      if (!terminal || !mobileTouchSupported) {
+      if (!terminal || !selectionEnabledRef.current) {
         return;
       }
 
@@ -708,7 +715,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
         null,
       );
     },
-    [applySelectionRange, getTerminalLayout, mobileTouchSupported],
+    [applySelectionRange, getTerminalLayout],
   );
 
   useEffect(() => {
@@ -716,9 +723,11 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
   }, [onTitleChange]);
 
   useEffect(() => {
-    if (!mobileTouchSupported) {
+    if (!selectionEnabled) {
       setMobileSelectionState(createInitialMobileSelectionState(false));
-      setMobileMouseMode("nativeScroll");
+      if (!mobileTouchSupported) {
+        setMobileMouseMode("nativeScroll");
+      }
       clearScrollGesture();
       return;
     }
@@ -727,7 +736,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       ...previous,
       enabled: true,
     }));
-  }, [clearScrollGesture, mobileTouchSupported]);
+  }, [clearScrollGesture, mobileTouchSupported, selectionEnabled]);
 
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     setContainer(node);
@@ -781,6 +790,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     }
 
     const customFit = () => {
+      if (fitSuppressedRef.current) {
+        return;
+      }
       const proposed = fitAddon.proposeDimensions();
       if (!proposed || Number.isNaN(proposed.cols) || Number.isNaN(proposed.rows)) {
         return;
@@ -856,7 +868,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
         setMobileVisualStateFromRange(range, getDragMode(activeHandleRef.current), activeHandleRef.current);
       }),
       terminal.onSelectionChange(() => {
-        if (!mobileTouchSupported) {
+        if (!selectionEnabledRef.current) {
           return;
         }
 
@@ -1498,7 +1510,17 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       return "";
     }
 
-    const recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
+    fitSuppressedRef.current = true;
+    let recentOutput: string;
+    try {
+      recentOutput = collectRecentOutput(terminal, RECENT_OUTPUT_LINES);
+    } finally {
+      fitSuppressedRef.current = false;
+    }
+
+    // Catch up on any resize that was skipped during capture.
+    customFitRef.current?.();
+
     if (recentOutput.length === 0) {
       toast.info("No terminal output available.");
       return "";
@@ -1515,12 +1537,48 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     return writeClipboardText(text);
   }, []);
 
+  const toggleForceSelectionMode = useCallback(() => {
+    setForceSelectionMode((prev) => {
+      const next = !prev;
+      if (!next) {
+        clearMobileSelection();
+      }
+      return next;
+    });
+  }, [clearMobileSelection]);
+
+  useEffect(() => {
+    const el = container;
+    if (!el || !forceSelectionMode) {
+      return;
+    }
+
+    // In force-selection mode on desktop, intercept mousedown to start
+    // word selection (mirroring the mobile long-press flow) and prevent
+    // mouse events from reaching xterm.js's mouse reporting.
+    const onMouseDown = (e: MouseEvent) => {
+      // Only handle left-button clicks on the terminal area.
+      if (e.button !== 0) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      startWordSelectionFromPoint({ x: e.clientX, y: e.clientY });
+    };
+
+    el.addEventListener("mousedown", onMouseDown, true);
+    return () => {
+      el.removeEventListener("mousedown", onMouseDown, true);
+    };
+  }, [container, forceSelectionMode, startWordSelectionFromPoint]);
+
   return {
     containerRef,
     connectionStatus,
     sysKeyActive,
     reconnect,
     focusSysKeyboard,
+    focusTerminalInput,
     sendSoftKeySequence,
     blurTerminalInput,
     attemptPasteFromClipboard,
@@ -1534,6 +1592,8 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     setActiveHandle,
     updateActiveHandleFromClientPoint,
     toggleMobileMouseMode,
+    forceSelectionMode,
+    toggleForceSelectionMode,
     horizontalOverflow,
     containerElement: container,
     verticalScrollSyncRef,

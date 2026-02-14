@@ -1,3 +1,27 @@
+@font-face {
+  font-family: "JetBrainsMono Nerd Font Mono";
+  src: url("./fonts/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrainsMono Nerd Font Mono";
+  src: url("./fonts/JetBrainsMonoNerdFontMono-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Symbols Nerd Font Mono";
+  src: url("./fonts/SymbolsNerdFontMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --page-ink: #d8ecff;
   --panel-bg: rgba(4, 23, 41, 0.78);
@@ -10,9 +34,7 @@
   --status-connecting: #ffd36f;
   --status-disconnected: #ff8e84;
   --status-error: #ff5f7d;
-  --mono-font:
-    "Iosevka Term", "IosevkaTerm Nerd Font Mono", "JetBrainsMono Nerd Font Mono", "JetBrains Mono",
-    "Symbols Nerd Font Mono", "Consolas", "Menlo", monospace;
+  --mono-font: "JetBrainsMono Nerd Font Mono", "Symbols Nerd Font Mono", "Consolas", "Menlo", monospace;
 }
 
 *,
@@ -299,13 +321,23 @@ body {
   min-height: 2rem;
 }
 
+.extra-key-half-spacer {
+  flex: 0.5 1 0;
+  min-width: 0;
+  min-height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .extra-key-button {
   position: relative;
   min-width: 2.45rem;
   min-height: 2rem;
   border-radius: 6px;
   padding: 0.32rem 0.62rem;
+  font-family: system-ui, sans-serif;
   font-size: 0.82rem;
+  font-weight: 600;
   letter-spacing: 0.01em;
   border: 1px solid rgba(80, 130, 170, 0.4);
   -webkit-tap-highlight-color: transparent;
@@ -412,6 +444,21 @@ body {
   min-width: 0;
 }
 
+.extra-keys-zrow {
+  flex-wrap: nowrap;
+}
+
+.extra-keys-zrow > .extra-key-button {
+  flex: 2.5 1 0;
+  min-width: 0;
+}
+
+.extra-keys-zrow > .extra-key-zrow-group {
+  flex: 5 1 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .extra-key-wide-xl {
   min-width: 5rem;
 }
@@ -497,6 +544,48 @@ body {
 
 .terminal-viewport .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
   background: rgba(106, 232, 206, 0.58);
+}
+
+.disconnect-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 20, 37, 0.75);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.disconnect-overlay:focus {
+  outline: none;
+}
+
+.disconnect-overlay:focus-visible {
+  outline: 2px solid #8fffcb;
+  outline-offset: -2px;
+}
+
+.disconnect-overlay-text {
+  margin: 0;
+  padding: 0.8rem 1.4rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--status-disconnected);
+  border: 1px solid rgba(255, 142, 132, 0.4);
+  border-radius: 12px;
+  background: rgba(4, 20, 37, 0.85);
+}
+
+.disconnect-overlay-connecting {
+  color: var(--status-connecting);
+  border-color: rgba(255, 211, 111, 0.4);
+  animation: pulse-badge 1.2s ease-in-out infinite;
+}
+
+.disconnect-overlay:has(.disconnect-overlay-connecting) {
+  cursor: default;
 }
 
 .mobile-selection-overlay {
@@ -799,6 +888,17 @@ body {
     flex: 2 1 0;
   }
 
+  .extra-keys-zrow > .extra-key-button {
+    flex: 1.2 1 0;
+    min-width: 0;
+  }
+
+  .extra-keys-zrow > .extra-key-zrow-group {
+    flex: 7.3 1 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
   .extra-key-button.extra-key-arrow {
     font-size: 0.65rem;
     font-family: var(--mono-font);
@@ -834,6 +934,15 @@ body {
     min-height: 0;
     min-width: 0;
     flex: 1 1 0;
+    margin-right: -1px;
+  }
+
+  .extra-key-half-spacer {
+    flex: 0.5 1 0;
+    min-width: 0;
+    min-height: 0;
+    visibility: hidden;
+    pointer-events: none;
     margin-right: -1px;
   }
 

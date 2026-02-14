@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildSoftKeySequence,
   COMBO_KEY_ROW,
+  type ComboSoftKeyDefinition,
   DEFAULT_SOFT_KEY_MODIFIERS,
   FUNCTION_KEY_ROW,
   FUNCTION_SCREEN_ROWS,
@@ -162,11 +163,30 @@ describe("softKeyboard", () => {
     expect(labels).toEqual(["PgUp", "PgDn", "◀", "▼", "▶"]);
   });
 
-  test("COMBO_KEY_ROW contains expected combos", () => {
+  test("COMBO_KEY_ROW contains expected entries", () => {
     const labels = COMBO_KEY_ROW.map((k) => k.label);
-    expect(labels).toEqual(["^C", "^D", "^Z", "^A", "^E", "^R", "^B", "^W", "^N", "^T", "^L", "^K", "^Q"]);
-    for (const combo of COMBO_KEY_ROW) {
-      expect(combo.kind).toBe("combo");
+    expect(labels).toEqual([
+      "Esc",
+      "Tab",
+      "^C",
+      "^D",
+      "^Z",
+      "^A",
+      "^E",
+      "^R",
+      "^B",
+      "^W",
+      "^N",
+      "^T",
+      "^L",
+      "^K",
+      "^Q",
+    ]);
+    function isCombo(k: SoftKeyDefinition): k is ComboSoftKeyDefinition {
+      return k.kind === "combo";
+    }
+    const combos = COMBO_KEY_ROW.filter(isCombo);
+    for (const combo of combos) {
       expect(combo.modifiers.ctrl).toBe(true);
     }
   });

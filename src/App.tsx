@@ -49,14 +49,6 @@ const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
 const SECONDARY_ROW2_ARROW_LABELS = new Set([",", "▲", "Ins"]);
 const SECONDARY_ROW3_ARROW_LABELS = new Set(["◀", "▼", "▶"]);
 
-const FRAME_ESC: SoftKeyDefinition = {
-  id: "special-escape",
-  label: "Esc",
-  kind: "special",
-  special: "escape",
-  group: "main",
-};
-
 const FRAME_BKSP: SoftKeyDefinition = {
   id: "special-backspace",
   label: "Bksp",
@@ -190,6 +182,7 @@ export function App() {
     sysKeyActive,
     reconnect,
     focusSysKeyboard,
+    focusTerminalInput,
     sendSoftKeySequence,
     blurTerminalInput,
     attemptPasteFromClipboard,
@@ -203,6 +196,8 @@ export function App() {
     setActiveHandle,
     updateActiveHandleFromClientPoint,
     toggleMobileMouseMode,
+    forceSelectionMode,
+    toggleForceSelectionMode,
     horizontalOverflow,
     containerElement,
     verticalScrollSyncRef,
@@ -345,6 +340,7 @@ export function App() {
     const result = await attemptPasteFromClipboard();
     if (result === "pasted") {
       toast.success("Pasted from clipboard.", { id: "paste" });
+      focusTerminalInput();
     } else if (result === "fallback-required") {
       openPasteHelper();
     } else if (result === "empty") {
@@ -354,7 +350,7 @@ export function App() {
     } else if (result === "terminal-unavailable") {
       toast.error("Terminal not ready.", { id: "paste" });
     }
-  }, [attemptPasteFromClipboard, openPasteHelper]);
+  }, [attemptPasteFromClipboard, focusTerminalInput, openPasteHelper]);
 
   const submitPasteHelperText = useCallback(() => {
     if (pasteHelperText === null) {
@@ -728,13 +724,18 @@ export function App() {
           <p className="brand-tagline">Web terminal powered by Bun PTY</p>
         </div>
         <div className="toolbar">
-          <div className="toolbar-actions">
+          <div
+            className="toolbar-actions"
+            role="toolbar"
+            // Prevent default on mouse/touch so that pressing toolbar buttons
+            // doesn't trigger text selection or steal focus from the terminal.
+            onMouseDown={(e) => e.preventDefault()}
+            onTouchStart={(e) => e.preventDefault()}
+          >
             {isMobile && (
               <button
                 type="button"
                 className={`toolbar-button ${sysKeyActive ? "toolbar-button-active" : ""}`}
-                onMouseDown={(e) => e.preventDefault()}
-                onTouchStart={(e) => e.preventDefault()}
                 onClick={() => {
                   setSoftKeysOpen(false);
                   focusSysKeyboard();
@@ -752,6 +753,8 @@ export function App() {
                   const nextOpen = !previous;
                   if (nextOpen) {
                     blurTerminalInput();
+                  } else {
+                    focusTerminalInput();
                   }
                   return nextOpen;
                 });
@@ -761,29 +764,43 @@ export function App() {
             >
               Soft Keys
             </button>
-            <button
-              type="button"
-              className={`toolbar-button ${mobileMouseMode === "passToTerminal" ? "toolbar-button-active" : ""}`}
-              onClick={() => {
-                toggleMobileMouseMode();
-              }}
-              disabled={!mobileSelectionState.enabled}
-              aria-pressed={mobileMouseMode === "passToTerminal"}
-              title={
-                mobileMouseMode === "passToTerminal"
-                  ? "Touch input is forwarded to the terminal app. Tap to switch back to native scrolling."
-                  : "Touch input uses native scrolling. Tap to forward touch input to the terminal app."
-              }
-            >
-              Pass Touch
-            </button>
+            {isMobile ? (
+              <button
+                type="button"
+                className={`toolbar-button ${mobileMouseMode === "passToTerminal" ? "toolbar-button-active" : ""}`}
+                onClick={toggleMobileMouseMode}
+                disabled={!mobileSelectionState.enabled}
+                aria-pressed={mobileMouseMode === "passToTerminal"}
+                title={
+                  mobileMouseMode === "passToTerminal"
+                    ? "Touch input is forwarded to the terminal app. Tap to switch back to native scrolling."
+                    : "Touch input uses native scrolling. Tap to forward touch input to the terminal app."
+                }
+              >
+                Pass Touch
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={`toolbar-button ${forceSelectionMode ? "toolbar-button-active" : ""}`}
+                onClick={toggleForceSelectionMode}
+                aria-pressed={forceSelectionMode}
+                title={
+                  forceSelectionMode
+                    ? "Selection mode active. Click/drag selects text even when tmux/vim captures the mouse. Click to disable."
+                    : "Force selection mode so you can select text even when an app captures the mouse."
+                }
+              >
+                Select
+              </button>
+            )}
             <button
               type="button"
               className="toolbar-button"
               onClick={() => void handleToolbarPaste()}
-              disabled={mobileMouseMode !== "nativeScroll"}
+              disabled={isMobile && mobileMouseMode !== "nativeScroll"}
               title={
-                mobileMouseMode === "nativeScroll"
+                !isMobile || mobileMouseMode === "nativeScroll"
                   ? "Paste from clipboard. If blocked, a helper panel opens for iOS paste."
                   : "Disable Pass Touch to paste."
               }
@@ -888,6 +905,28 @@ export function App() {
             ref={containerRef}
             className={`terminal-viewport ${mobileMouseMode === "passToTerminal" ? "terminal-viewport-pass-through" : ""} ${horizontalOverflow ? "terminal-viewport-overflow" : ""}`}
           />
+
+          {connectionStatus !== "connected" &&
+            (connectionStatus === "connecting" ? (
+              <div className="disconnect-overlay">
+                <p className="disconnect-overlay-text disconnect-overlay-connecting">Connecting...</p>
+              </div>
+            ) : (
+              <div
+                className="disconnect-overlay"
+                role="button"
+                tabIndex={0}
+                onClick={() => reconnect()}
+                onKeyDown={(e) => {
+                  if (e.key === " " || e.key === "Enter") {
+                    e.preventDefault();
+                    reconnect();
+                  }
+                }}
+              >
+                <p className="disconnect-overlay-text">Click or press Space to reconnect</p>
+              </div>
+            ))}
 
           {mobileSelectionOverlay !== null && (
             <div className="mobile-selection-overlay">
@@ -1015,7 +1054,10 @@ export function App() {
                   </div>
                 )}
                 {screenRows.map((row, rowIndex) => (
-                  <div key={ROW_KEYS[rowIndex]} className="extra-keys-row">
+                  <div
+                    key={ROW_KEYS[rowIndex]}
+                    className={`extra-keys-row${rowIndex === 3 && keyboardScreen === "primary" ? " extra-keys-zrow" : ""}`}
+                  >
                     {rowIndex === 3 && (
                       <button
                         type="button"
@@ -1023,19 +1065,11 @@ export function App() {
                         onClick={() => toggleSoftModifier("shift")}
                         aria-pressed={softKeyModifiers.shift}
                       >
-                        Shift
+                        ⇧
                       </button>
                     )}
                     {rowIndex === 4 && (
                       <>
-                        <ExtraKeyButton
-                          softKey={FRAME_ESC}
-                          className="extra-key-wide-md"
-                          startKeyRepeat={startKeyRepeat}
-                          stopKeyRepeat={stopKeyRepeat}
-                        >
-                          Esc
-                        </ExtraKeyButton>
                         <button
                           type="button"
                           className="toolbar-button extra-key-button extra-key-meta extra-key-wide-md"
@@ -1050,7 +1084,7 @@ export function App() {
                         </button>
                         <button
                           type="button"
-                          className={`toolbar-button extra-key-button extra-key-wide-sm ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
+                          className={`toolbar-button extra-key-button extra-key-wide-md ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
                           onClick={() => toggleSoftModifier("ctrl")}
                           aria-pressed={softKeyModifiers.ctrl}
                         >
@@ -1058,7 +1092,7 @@ export function App() {
                         </button>
                         <button
                           type="button"
-                          className={`toolbar-button extra-key-button extra-key-wide-sm ${softKeyModifiers.alt ? "toolbar-button-active" : ""}`}
+                          className={`toolbar-button extra-key-button extra-key-wide-md ${softKeyModifiers.alt ? "toolbar-button-active" : ""}`}
                           onClick={() => toggleSoftModifier("alt")}
                           aria-pressed={softKeyModifiers.alt}
                         >
@@ -1083,7 +1117,6 @@ export function App() {
                           ((rowIndex === 2 && SECONDARY_ROW2_ARROW_LABELS.has(key.label)) ||
                             (rowIndex === 3 && SECONDARY_ROW3_ARROW_LABELS.has(key.label)));
                         const classes = [
-                          key.label === "Tab" ? "extra-key-wide-md" : "",
                           label.length === 1 ? "extra-key-single-char" : "",
                           isSecondaryArrow ? "extra-key-arrow" : "",
                         ]
@@ -1102,7 +1135,22 @@ export function App() {
                           </ExtraKeyButton>
                         );
                       });
-                      return rowIndex === 4 ? <div className="extra-key-data-group">{dataKeys}</div> : dataKeys;
+                      if (rowIndex === 4) {
+                        return <div className="extra-key-data-group">{dataKeys}</div>;
+                      }
+                      if (rowIndex === 2 && keyboardScreen === "primary") {
+                        return (
+                          <>
+                            <div className="extra-key-spacer extra-key-half-spacer" />
+                            {dataKeys}
+                            <div className="extra-key-spacer extra-key-half-spacer" />
+                          </>
+                        );
+                      }
+                      if (rowIndex === 3 && keyboardScreen === "primary") {
+                        return <div className="extra-key-data-group extra-key-zrow-group">{dataKeys}</div>;
+                      }
+                      return dataKeys;
                     })()}
                     {rowIndex === 3 && keyboardScreen === "primary" && (
                       <ExtraKeyButton
@@ -1111,7 +1159,7 @@ export function App() {
                         startKeyRepeat={startKeyRepeat}
                         stopKeyRepeat={stopKeyRepeat}
                       >
-                        Bksp
+                        ⌫
                       </ExtraKeyButton>
                     )}
                     {rowIndex === 4 && (
