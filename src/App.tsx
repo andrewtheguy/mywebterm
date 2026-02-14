@@ -786,7 +786,7 @@ export function App() {
                   : "Disable Pass Touch to paste."
               }
             >
-              Paste
+              Paste Text
             </button>
             {isMobile ? (
               <div className="overflow-menu" ref={overflowMenuRef}>
