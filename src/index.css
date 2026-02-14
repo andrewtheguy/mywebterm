@@ -167,7 +167,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .status-connecting {
+  .status-connecting,
+  .clipboard-pending-badge {
     animation: none;
   }
 }

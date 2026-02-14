@@ -428,13 +428,15 @@ export function useTerminal({
         try {
           const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
           const text = new TextDecoder().decode(bytes);
-          writeClipboardText(text).then((ok) => {
-            if (ok) {
-              toast.success("Copied to clipboard", { id: "osc52" });
-            } else {
-              onClipboardFallbackRef.current?.(text);
-            }
-          });
+          writeClipboardText(text)
+            .then((ok) => {
+              if (ok) {
+                toast.success("Copied to clipboard", { id: "osc52" });
+              } else {
+                onClipboardFallbackRef.current?.(text);
+              }
+            })
+            .catch(() => {});
         } catch {
           // Ignore malformed base64
         }
