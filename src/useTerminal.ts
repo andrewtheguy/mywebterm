@@ -484,6 +484,23 @@ export function useTerminal({
     const resizeObserver = new ResizeObserver(throttledFit);
     resizeObserver.observe(container);
 
+    // On orientation change the viewport dimensions may settle over
+    // multiple frames.  Schedule an extra re-fit after a short delay so
+    // the terminal adapts to the final layout and doesn't keep a stale
+    // scrollbar.
+    let orientationFitTimeout: number | undefined;
+    const onOrientationChange = () => {
+      if (orientationFitTimeout !== undefined) {
+        window.clearTimeout(orientationFitTimeout);
+      }
+      orientationFitTimeout = window.setTimeout(() => {
+        orientationFitTimeout = undefined;
+        customFit();
+      }, 300);
+    };
+    const orientation = screen.orientation;
+    orientation?.addEventListener("change", onOrientationChange);
+
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
     terminalDisposablesRef.current = terminalDisposables;
@@ -516,6 +533,10 @@ export function useTerminal({
       terminalMountedRef.current = false;
       closeSocket();
       resizeObserver.disconnect();
+      orientation?.removeEventListener("change", onOrientationChange);
+      if (orientationFitTimeout !== undefined) {
+        window.clearTimeout(orientationFitTimeout);
+      }
       if (throttledFitTimeout !== undefined) {
         window.clearTimeout(throttledFitTimeout);
       }
