@@ -298,6 +298,7 @@ body {
 }
 
 .extra-key-button {
+  position: relative;
   min-width: 2.45rem;
   min-height: 2rem;
   border-radius: 6px;
@@ -313,6 +314,16 @@ body {
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
+}
+
+.extra-key-shift-hint {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--muted-ink);
+  pointer-events: none;
 }
 
 @media (hover: hover) {

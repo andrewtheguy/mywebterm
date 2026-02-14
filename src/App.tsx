@@ -35,6 +35,15 @@ function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
   return key.label;
 }
 
+function softKeyShiftHint(key: SoftKeyDefinition, shiftActive: boolean): string | null {
+  if (shiftActive) return null;
+  if (key.kind !== "printable") return null;
+  if (/^[a-z]$/.test(key.value)) return null;
+  const shifted = applyShiftToPrintable(key.value, true);
+  if (shifted === key.value) return null;
+  return shifted;
+}
+
 const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
 
 const SECONDARY_ROW2_ARROW_LABELS = new Set([",", "▲", "Ins"]);
@@ -1062,6 +1071,7 @@ export function App() {
                     {(() => {
                       const dataKeys = row.map((key) => {
                         const label = softKeyLabel(key, softKeyModifiers.shift);
+                        const hint = softKeyShiftHint(key, softKeyModifiers.shift);
                         const isSecondaryArrow =
                           keyboardScreen === "secondary" &&
                           ((rowIndex === 2 && SECONDARY_ROW2_ARROW_LABELS.has(key.label)) ||
@@ -1082,6 +1092,7 @@ export function App() {
                             stopKeyRepeat={stopKeyRepeat}
                           >
                             {label}
+                            {hint && <span className="extra-key-shift-hint">{hint}</span>}
                           </ExtraKeyButton>
                         );
                       });
