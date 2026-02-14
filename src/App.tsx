@@ -10,18 +10,12 @@ import { Toaster, toast } from "sonner";
 import { loadTtydConfig, type TtydConfig } from "./config";
 import type { SoftKeyModifiers } from "./softKeyboard";
 import {
-  ARROW_SOFT_KEYS,
   buildSoftKeySequence,
   DEFAULT_SOFT_KEY_MODIFIERS,
-  DELETE_SOFT_KEY,
-  END_SOFT_KEY,
-  FUNCTION_SOFT_KEY_ROWS,
-  flattenSoftKeyRows,
-  HOME_SOFT_KEY,
-  INSERT_SOFT_KEY,
-  MAIN_SOFT_KEY_ROWS,
-  PAGE_DOWN_SOFT_KEY,
-  PAGE_UP_SOFT_KEY,
+  FUNCTION_SCREEN_ROWS,
+  PRIMARY_SCREEN_ROWS,
+  SECONDARY_SCREEN_ROWS,
+  type SoftKeyboardScreen,
   type SoftKeyDefinition,
   type SoftModifierName,
 } from "./softKeyboard";
@@ -33,6 +27,40 @@ function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
   }
   return key.label;
 }
+
+const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
+
+const FRAME_ESC: SoftKeyDefinition = {
+  id: "special-escape",
+  label: "Esc",
+  kind: "special",
+  special: "escape",
+  group: "main",
+};
+
+const FRAME_BKSP: SoftKeyDefinition = {
+  id: "special-backspace",
+  label: "Bksp",
+  kind: "special",
+  special: "backspace",
+  group: "main",
+};
+
+const FRAME_ENTER: SoftKeyDefinition = {
+  id: "special-enter",
+  label: "Enter",
+  kind: "special",
+  special: "enter",
+  group: "main",
+};
+
+const FRAME_SPACE: SoftKeyDefinition = {
+  id: "printable-%20",
+  label: "Space",
+  kind: "printable",
+  value: " ",
+  group: "main",
+};
 
 function ExtraKeyButton({
   softKey,
@@ -71,6 +99,7 @@ export function App() {
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
   const [sessionsText, setSessionsText] = useState<string | null>(null);
   const [extraKeysOpen, setExtraKeysOpen] = useState(false);
+  const [keyboardScreen, setKeyboardScreen] = useState<SoftKeyboardScreen>("primary");
   const [softKeyModifiers, setSoftKeyModifiers] = useState(() => ({
     ...DEFAULT_SOFT_KEY_MODIFIERS,
   }));
@@ -255,6 +284,7 @@ export function App() {
     setSoftKeyModifiers({
       ...DEFAULT_SOFT_KEY_MODIFIERS,
     });
+    setKeyboardScreen("primary");
 
     if (repeatTimerRef.current !== null) {
       window.clearTimeout(repeatTimerRef.current);
@@ -927,26 +957,19 @@ export function App() {
         </div>
       )}
 
-      {extraKeysOpen && (
-        <section className="extra-keys-panel" aria-label="Extra key controls">
-          <div className="keyboard-layout">
-            <div className="keyboard-rows-area">
+      {extraKeysOpen &&
+        (() => {
+          const screenRows =
+            keyboardScreen === "primary"
+              ? PRIMARY_SCREEN_ROWS
+              : keyboardScreen === "secondary"
+                ? SECONDARY_SCREEN_ROWS
+                : FUNCTION_SCREEN_ROWS;
+          return (
+            <section className="extra-keys-panel" aria-label="Extra key controls">
               <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
-                <div className="extra-keys-row extra-keys-function-row">
-                  {flattenSoftKeyRows(FUNCTION_SOFT_KEY_ROWS).map((key) => (
-                    <ExtraKeyButton
-                      key={key.id}
-                      softKey={key}
-                      startKeyRepeat={startKeyRepeat}
-                      stopKeyRepeat={stopKeyRepeat}
-                    >
-                      {key.label}
-                    </ExtraKeyButton>
-                  ))}
-                </div>
-                {MAIN_SOFT_KEY_ROWS.map((row, rowIndex) => (
-                  <div key={`main-soft-key-row-${rowIndex + 1}`} className="extra-keys-row">
-                    {rowIndex === 2 && <div className="extra-key-spacer extra-key-wide-lg" />}
+                {screenRows.map((row, rowIndex) => (
+                  <div key={ROW_KEYS[rowIndex]} className="extra-keys-row">
                     {rowIndex === 3 && (
                       <button
                         type="button"
@@ -959,6 +982,13 @@ export function App() {
                     )}
                     {rowIndex === 4 && (
                       <>
+                        <ExtraKeyButton
+                          softKey={FRAME_ESC}
+                          startKeyRepeat={startKeyRepeat}
+                          stopKeyRepeat={stopKeyRepeat}
+                        >
+                          Esc
+                        </ExtraKeyButton>
                         <button
                           type="button"
                           className={`toolbar-button extra-key-button extra-key-wide-sm ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
@@ -975,20 +1005,40 @@ export function App() {
                         >
                           Alt
                         </button>
-                        <div className="extra-key-spacer extra-key-wide-sm" />
+                        <button
+                          type="button"
+                          className="toolbar-button extra-key-button extra-key-meta"
+                          onClick={() => {
+                            if (keyboardScreen === "primary") {
+                              setKeyboardScreen("secondary");
+                            } else {
+                              setKeyboardScreen("primary");
+                            }
+                          }}
+                        >
+                          {keyboardScreen === "primary" ? "#+" : "abc"}
+                        </button>
+                        <button
+                          type="button"
+                          className={`toolbar-button extra-key-button extra-key-meta ${keyboardScreen === "function" ? "toolbar-button-active" : ""}`}
+                          onClick={() => {
+                            setKeyboardScreen(keyboardScreen === "function" ? "primary" : "function");
+                          }}
+                        >
+                          Fn
+                        </button>
+                        <ExtraKeyButton
+                          softKey={FRAME_SPACE}
+                          className="extra-key-button-space"
+                          startKeyRepeat={startKeyRepeat}
+                          stopKeyRepeat={stopKeyRepeat}
+                        >
+                          Space
+                        </ExtraKeyButton>
                       </>
                     )}
                     {row.map((key) => {
-                      const wideClass =
-                        key.label === "Tab"
-                          ? "extra-key-wide-md"
-                          : key.label === "Bksp"
-                            ? "extra-key-wide-lg"
-                            : key.label === "Enter"
-                              ? "extra-key-wide-xl"
-                              : key.label === "Space"
-                                ? "extra-key-button-space"
-                                : "";
+                      const wideClass = key.label === "Tab" ? "extra-key-wide-md" : "";
                       return (
                         <ExtraKeyButton
                           key={key.id}
@@ -1002,72 +1052,31 @@ export function App() {
                       );
                     })}
                     {rowIndex === 3 && (
-                      <>
-                        <div className="extra-key-spacer" style={{ flex: 1 }} />
-                        <ExtraKeyButton
-                          softKey={ARROW_SOFT_KEYS[0]}
-                          className="extra-key-arrow"
-                          startKeyRepeat={startKeyRepeat}
-                          stopKeyRepeat={stopKeyRepeat}
-                        >
-                          {ARROW_SOFT_KEYS[0].label}
-                        </ExtraKeyButton>
-                        <div className="extra-key-spacer extra-key-arrow" />
-                      </>
+                      <ExtraKeyButton
+                        softKey={FRAME_BKSP}
+                        className="extra-key-wide-lg"
+                        startKeyRepeat={startKeyRepeat}
+                        stopKeyRepeat={stopKeyRepeat}
+                      >
+                        Bksp
+                      </ExtraKeyButton>
                     )}
                     {rowIndex === 4 && (
-                      <>
-                        <ExtraKeyButton
-                          softKey={ARROW_SOFT_KEYS[2]}
-                          className="extra-key-arrow"
-                          startKeyRepeat={startKeyRepeat}
-                          stopKeyRepeat={stopKeyRepeat}
-                        >
-                          {ARROW_SOFT_KEYS[2].label}
-                        </ExtraKeyButton>
-                        <ExtraKeyButton
-                          softKey={ARROW_SOFT_KEYS[1]}
-                          className="extra-key-arrow"
-                          startKeyRepeat={startKeyRepeat}
-                          stopKeyRepeat={stopKeyRepeat}
-                        >
-                          {ARROW_SOFT_KEYS[1].label}
-                        </ExtraKeyButton>
-                        <ExtraKeyButton
-                          softKey={ARROW_SOFT_KEYS[3]}
-                          className="extra-key-arrow"
-                          startKeyRepeat={startKeyRepeat}
-                          stopKeyRepeat={stopKeyRepeat}
-                        >
-                          {ARROW_SOFT_KEYS[3].label}
-                        </ExtraKeyButton>
-                      </>
+                      <ExtraKeyButton
+                        softKey={FRAME_ENTER}
+                        className="extra-key-wide-xl"
+                        startKeyRepeat={startKeyRepeat}
+                        stopKeyRepeat={stopKeyRepeat}
+                      >
+                        Enter
+                      </ExtraKeyButton>
                     )}
                   </div>
                 ))}
               </div>
-            </div>
-            <div className="keyboard-right-area">
-              <div className="extra-keys-grid" role="group" aria-label="Navigation keys">
-                {[
-                  INSERT_SOFT_KEY,
-                  DELETE_SOFT_KEY,
-                  HOME_SOFT_KEY,
-                  END_SOFT_KEY,
-                  PAGE_UP_SOFT_KEY,
-                  PAGE_DOWN_SOFT_KEY,
-                ].map((navKey) => (
-                  <div key={navKey.id} className="extra-keys-row">
-                    <ExtraKeyButton softKey={navKey} startKeyRepeat={startKeyRepeat} stopKeyRepeat={stopKeyRepeat}>
-                      {navKey.label}
-                    </ExtraKeyButton>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
+            </section>
+          );
+        })()}
 
       {selectableText !== null &&
         (() => {
