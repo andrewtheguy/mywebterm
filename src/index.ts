@@ -18,7 +18,7 @@ import {
   startStaleSweep,
   type WsData,
 } from "./sessionManager";
-import { ClientCommand, decodeFrame, parseClientControl } from "./ttydProtocol";
+import { ClientCommand, decodeFrame, parseClientControl } from "./ttyProtocol";
 
 declare const BUILD_VERSION: string;
 const VERSION = typeof BUILD_VERSION !== "undefined" ? BUILD_VERSION : "dev";
@@ -117,7 +117,7 @@ function handleWsMessage(ws: ServerWebSocket<WsData>, message: string | Buffer):
     return;
   }
 
-  // Binary messages are ttyd frames — require an attached session
+  // Binary messages are tty frames — require an attached session
   const sessionId = ws.data.sessionId;
   if (!sessionId) return;
 
@@ -169,7 +169,7 @@ function handleWsMessage(ws: ServerWebSocket<WsData>, message: string | Buffer):
 
 const server = serve<WsData>({
   routes: {
-    "/ttyd/ws": (req: Request, server: Server<WsData>) => {
+    "/tty/ws": (req: Request, server: Server<WsData>) => {
       if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") {
         return new Response("WebSocket upgrade required", { status: 426 });
       }

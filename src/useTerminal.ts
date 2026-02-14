@@ -6,19 +6,19 @@ import { toast } from "sonner";
 import "@xterm/xterm/css/xterm.css";
 
 import { isLikelyIOS, type Point } from "./mobileTouchSelection";
-import type { ServerControlMessage } from "./ttydProtocol";
-import { decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttydProtocol";
+import type { ServerControlMessage } from "./ttyProtocol";
+import { decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttyProtocol";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 export type PasteResult = "pasted" | "empty" | "fallback-required" | "terminal-unavailable";
 
-interface UseTtydTerminalOptions {
+interface UseTerminalOptions {
   wsUrl?: string;
   onTitleChange?: (title: string) => void;
   hscroll?: boolean;
 }
 
-interface UseTtydTerminalResult {
+interface UseTerminalResult {
   containerRef: (node: HTMLDivElement | null) => void;
   connectionStatus: ConnectionStatus;
   sysKeyActive: boolean;
@@ -151,7 +151,7 @@ function computeReconnectDelay(attempt: number): number {
   return exponentialDelay * jitter;
 }
 
-export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTerminalOptions): UseTtydTerminalResult {
+export function useTerminal({ wsUrl, onTitleChange, hscroll }: UseTerminalOptions): UseTerminalResult {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [reconnectToken, setReconnectToken] = useState(0);

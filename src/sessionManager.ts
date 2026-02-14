@@ -1,5 +1,5 @@
 import type { ServerWebSocket } from "bun";
-import { encodeServerControl } from "./ttydProtocol";
+import { encodeServerControl } from "./ttyProtocol";
 
 // --- Types ---
 

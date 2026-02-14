@@ -87,7 +87,7 @@ function normalizeHandshakeDimension(name: "columns" | "rows", value: number): n
 }
 
 export function buildHandshake(columns: number, rows: number): string {
-  // Contract: ttyd handshake dimensions must be finite, positive integers.
+  // Contract: handshake dimensions must be finite, positive integers.
   const normalizedColumns = normalizeHandshakeDimension("columns", columns);
   const normalizedRows = normalizeHandshakeDimension("rows", rows);
   return JSON.stringify({ columns: normalizedColumns, rows: normalizedRows });
@@ -106,7 +106,7 @@ export function encodeResize(columns: number, rows: number): Uint8Array {
 export function decodeFrame(arrayBuffer: ArrayBuffer): DecodedFrame {
   const payload = new Uint8Array(arrayBuffer);
   if (payload.length === 0) {
-    throw new Error("Cannot decode an empty ttyd frame.");
+    throw new Error("Cannot decode an empty tty frame.");
   }
 
   return {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { buildHandshake, decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttydProtocol";
+import { buildHandshake, decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttyProtocol";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -13,7 +13,7 @@ function createFrame(command: string, payload: string): ArrayBuffer {
   return frame.buffer;
 }
 
-describe("ttydProtocol", () => {
+describe("ttyProtocol", () => {
   test("encodes input frame prefix correctly", () => {
     const input = "ls -la";
     const encoded = encodeInput(input);
