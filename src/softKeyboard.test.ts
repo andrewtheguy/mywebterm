@@ -133,13 +133,6 @@ describe("softKeyboard", () => {
     }
   });
 
-  test("secondary row 2 contains @ as data key", () => {
-    const row2 = SECONDARY_SCREEN_ROWS[2] as readonly SoftKeyDefinition[];
-    const at = row2.find((k) => k.label === "@");
-    expect(at).toBeDefined();
-    expect(at?.kind).toBe("printable");
-  });
-
   test("secondary row 4 contains Bksp as data key", () => {
     const row4 = SECONDARY_SCREEN_ROWS[4] as readonly SoftKeyDefinition[];
     const bksp = row4.find((k) => k.label === "Bksp");
@@ -150,14 +143,22 @@ describe("softKeyboard", () => {
     }
   });
 
-  test("secondary row 3 has ~ between PgDn and ◀", () => {
+  test("secondary rows have at most 8 keys per row after redundancy removal", () => {
+    for (const row of SECONDARY_SCREEN_ROWS) {
+      expect(row.length).toBeLessThanOrEqual(8);
+    }
+  });
+
+  test("secondary row 2 ends with arrow-alignable keys", () => {
+    const row2 = SECONDARY_SCREEN_ROWS[2] as readonly SoftKeyDefinition[];
+    const labels = row2.map((k) => k.label);
+    expect(labels.slice(-3)).toEqual([",", "▲", "Ins"]);
+  });
+
+  test("secondary row 3 contains PgUp, PgDn and arrow keys", () => {
     const row3 = SECONDARY_SCREEN_ROWS[3] as readonly SoftKeyDefinition[];
     const labels = row3.map((k) => k.label);
-    const pgDnIndex = labels.indexOf("PgDn");
-    const leftIndex = labels.indexOf("◀");
-    const tildeIndex = labels.indexOf("~");
-    expect(tildeIndex).toBeGreaterThan(pgDnIndex);
-    expect(tildeIndex).toBeLessThan(leftIndex);
+    expect(labels).toEqual(["PgUp", "PgDn", "◀", "▼", "▶"]);
   });
 
   test("encodes printable and navigation keys with ctrl/alt/shift modifiers", () => {

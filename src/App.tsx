@@ -966,7 +966,7 @@ export function App() {
       {softKeysOpen &&
         (() => {
           const screenRows = keyboardScreen === "primary" ? PRIMARY_SCREEN_ROWS : SECONDARY_SCREEN_ROWS;
-          const secondaryRow2ArrowLabels = new Set(["@", "▲", "Ins"]);
+          const secondaryRow2ArrowLabels = new Set([",", "▲", "Ins"]);
           const secondaryRow3ArrowLabels = new Set(["◀", "▼", "▶"]);
           return (
             <section className="extra-keys-panel" aria-label="Extra key controls">
