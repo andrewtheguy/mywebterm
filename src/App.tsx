@@ -757,11 +757,11 @@ export function App() {
               aria-pressed={mobileMouseMode === "passToTerminal"}
               title={
                 mobileMouseMode === "passToTerminal"
-                  ? "Current mode: App. Tap to switch touch scrolling back to Native."
-                  : "Current mode: Native. Tap to pass touch scrolling to the App."
+                  ? "Touch input is forwarded to the terminal app. Tap to switch back to native scrolling."
+                  : "Touch input uses native scrolling. Tap to forward touch input to the terminal app."
               }
             >
-              {mobileMouseMode === "passToTerminal" ? "Mode: App" : "Mode: Native"}
+              Pass Touch
             </button>
             <button
               type="button"
@@ -771,7 +771,7 @@ export function App() {
               title={
                 mobileMouseMode === "nativeScroll"
                   ? "Paste from clipboard. If blocked, a helper panel opens for iOS paste."
-                  : "Switch to Mode: Native to paste."
+                  : "Disable Pass Touch to paste."
               }
             >
               Paste
