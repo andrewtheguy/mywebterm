@@ -507,6 +507,48 @@ body {
   background: rgba(106, 232, 206, 0.58);
 }
 
+.disconnect-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 20, 37, 0.75);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.disconnect-overlay:focus {
+  outline: none;
+}
+
+.disconnect-overlay:focus-visible {
+  outline: 2px solid #8fffcb;
+  outline-offset: -2px;
+}
+
+.disconnect-overlay-text {
+  margin: 0;
+  padding: 0.8rem 1.4rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--status-disconnected);
+  border: 1px solid rgba(255, 142, 132, 0.4);
+  border-radius: 12px;
+  background: rgba(4, 20, 37, 0.85);
+}
+
+.disconnect-overlay-connecting {
+  color: var(--status-connecting);
+  border-color: rgba(255, 211, 111, 0.4);
+  animation: pulse-badge 1.2s ease-in-out infinite;
+}
+
+.disconnect-overlay:has(.disconnect-overlay-connecting) {
+  cursor: default;
+}
+
 .mobile-selection-overlay {
   position: absolute;
   inset: 0;

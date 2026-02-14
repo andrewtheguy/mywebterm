@@ -888,6 +888,28 @@ export function App() {
             className={`terminal-viewport ${mobileMouseMode === "passToTerminal" ? "terminal-viewport-pass-through" : ""} ${horizontalOverflow ? "terminal-viewport-overflow" : ""}`}
           />
 
+          {connectionStatus !== "connected" &&
+            (connectionStatus === "connecting" ? (
+              <div className="disconnect-overlay">
+                <p className="disconnect-overlay-text disconnect-overlay-connecting">Connecting...</p>
+              </div>
+            ) : (
+              <div
+                className="disconnect-overlay"
+                role="button"
+                tabIndex={0}
+                onClick={() => reconnect()}
+                onKeyDown={(e) => {
+                  if (e.key === " " || e.key === "Enter") {
+                    e.preventDefault();
+                    reconnect();
+                  }
+                }}
+              >
+                <p className="disconnect-overlay-text">Click or press Space to reconnect</p>
+              </div>
+            ))}
+
           {mobileSelectionOverlay !== null && (
             <div className="mobile-selection-overlay">
               <button
