@@ -2,6 +2,7 @@ import { spawn as cpSpawn } from "node:child_process";
 import { parseArgs } from "node:util";
 import { type Server, type ServerWebSocket, serve } from "bun";
 import index from "./index.html";
+import logoPath from "./logo.svg" with { type: "file" };
 import { ClientCommand, decodeFrame } from "./ttydProtocol";
 
 declare const BUILD_VERSION: string;
@@ -239,6 +240,7 @@ function handleWsMessage(ws: ServerWebSocket<PtySessionData>, message: string | 
 
 const server = serve<PtySessionData>({
   routes: {
+    "/favicon.svg": () => new Response(Bun.file(logoPath)),
     "/ttyd/ws": (req: Request, server: Server<PtySessionData>) => {
       if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") {
         return new Response("WebSocket upgrade required", { status: 426 });
@@ -313,6 +315,10 @@ const server = serve<PtySessionData>({
 
   hostname,
   port,
+
+  fetch() {
+    return new Response("Not Found", { status: 404 });
+  },
 
   development: process.env.NODE_ENV !== "production" && {
     hmr: true,
