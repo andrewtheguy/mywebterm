@@ -348,6 +348,16 @@ body {
   min-width: 8rem;
 }
 
+.extra-key-data-group {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.extra-key-data-group > .extra-key-button {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .extra-key-wide-xl {
   min-width: 5rem;
 }
@@ -714,8 +724,9 @@ body {
     flex: 3 1 0;
   }
 
-  .extra-key-button-space-wide {
-    flex: 4 1 0;
+  .extra-key-data-group {
+    flex: 3 1 0;
+    gap: 0;
   }
 
   .extra-key-wide-sm {

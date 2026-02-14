@@ -146,7 +146,7 @@ export const PRIMARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
     createPrintableKey("m", "M"),
     createPrintableKey("."),
   ],
-  [createPrintableKey("-"), createPrintableKey("/"), createPrintableKey("_")],
+  [createPrintableKey("-"), createPrintableKey("/")],
 ];
 
 export const SECONDARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
@@ -325,7 +325,7 @@ function unexpectedSoftKeyFailure(key: never, modifiers: SoftKeyModifiers): Buil
   };
 }
 
-function applyShiftToPrintable(baseValue: string, shift: boolean): string {
+export function applyShiftToPrintable(baseValue: string, shift: boolean): string {
   if (!shift) {
     return baseValue;
   }

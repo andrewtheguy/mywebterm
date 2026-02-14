@@ -10,6 +10,7 @@ import { Toaster, toast } from "sonner";
 import { loadTtydConfig, type TtydConfig } from "./config";
 import type { SoftKeyModifiers } from "./softKeyboard";
 import {
+  applyShiftToPrintable,
   buildSoftKeySequence,
   DEFAULT_SOFT_KEY_MODIFIERS,
   FUNCTION_KEY_ROW,
@@ -22,8 +23,13 @@ import {
 import { useTtydTerminal } from "./useTtydTerminal";
 
 function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
-  if (key.kind === "printable" && /^[a-z]$/.test(key.value)) {
-    return shiftActive ? key.value.toUpperCase() : key.value;
+  if (key.kind === "printable") {
+    if (shiftActive) {
+      return applyShiftToPrintable(key.value, true);
+    }
+    if (/^[a-z]$/.test(key.value)) {
+      return key.value;
+    }
   }
   return key.label;
 }
@@ -1019,20 +1025,16 @@ export function App() {
                         </button>
                         <button
                           type="button"
-                          className="toolbar-button extra-key-button extra-key-meta extra-key-wide-xl"
+                          className="toolbar-button extra-key-button extra-key-meta"
                           onClick={() => {
                             setKeyboardScreen(keyboardScreen === "primary" ? "secondary" : "primary");
                           }}
                         >
-                          {keyboardScreen === "primary" ? "#+" : "abc"}
+                          {keyboardScreen === "primary" ? "sym" : "abc"}
                         </button>
                         <ExtraKeyButton
                           softKey={FRAME_SPACE}
-                          className={
-                            keyboardScreen === "secondary"
-                              ? "extra-key-button-space extra-key-button-space-wide"
-                              : "extra-key-button-space"
-                          }
+                          className="extra-key-button-space"
                           startKeyRepeat={startKeyRepeat}
                           stopKeyRepeat={stopKeyRepeat}
                         >
@@ -1040,34 +1042,34 @@ export function App() {
                         </ExtraKeyButton>
                       </>
                     )}
-                    {row.map((key) => {
-                      const label = softKeyLabel(key, softKeyModifiers.shift);
-                      const isSecondaryArrow =
-                        keyboardScreen === "secondary" &&
-                        ((rowIndex === 2 && secondaryRow2ArrowLabels.has(key.label)) ||
-                          (rowIndex === 3 && secondaryRow3ArrowLabels.has(key.label)));
-                      const classes = [
-                        key.label === "Tab" ? "extra-key-wide-md" : "",
-                        label.length === 1 ? "extra-key-single-char" : "",
-                        isSecondaryArrow ? "extra-key-arrow" : "",
-                        keyboardScreen === "secondary" && rowIndex === 4 && key.label === "Bksp"
-                          ? "extra-key-wide-xl"
-                          : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ");
-                      return (
-                        <ExtraKeyButton
-                          key={key.id}
-                          softKey={key}
-                          className={classes}
-                          startKeyRepeat={startKeyRepeat}
-                          stopKeyRepeat={stopKeyRepeat}
-                        >
-                          {label}
-                        </ExtraKeyButton>
-                      );
-                    })}
+                    {(() => {
+                      const dataKeys = row.map((key) => {
+                        const label = softKeyLabel(key, softKeyModifiers.shift);
+                        const isSecondaryArrow =
+                          keyboardScreen === "secondary" &&
+                          ((rowIndex === 2 && secondaryRow2ArrowLabels.has(key.label)) ||
+                            (rowIndex === 3 && secondaryRow3ArrowLabels.has(key.label)));
+                        const classes = [
+                          key.label === "Tab" ? "extra-key-wide-md" : "",
+                          label.length === 1 ? "extra-key-single-char" : "",
+                          isSecondaryArrow ? "extra-key-arrow" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ");
+                        return (
+                          <ExtraKeyButton
+                            key={key.id}
+                            softKey={key}
+                            className={classes}
+                            startKeyRepeat={startKeyRepeat}
+                            stopKeyRepeat={stopKeyRepeat}
+                          >
+                            {label}
+                          </ExtraKeyButton>
+                        );
+                      });
+                      return rowIndex === 4 ? <div className="extra-key-data-group">{dataKeys}</div> : dataKeys;
+                    })()}
                     {rowIndex === 3 && keyboardScreen === "primary" && (
                       <ExtraKeyButton
                         softKey={FRAME_BKSP}
