@@ -15,6 +15,7 @@ export type PasteResult = "pasted" | "empty" | "fallback-required" | "terminal-u
 interface UseTerminalOptions {
   wsUrl?: string;
   onTitleChange?: (title: string) => void;
+  onClipboardFallback?: (text: string) => void;
   hscroll?: boolean;
 }
 
@@ -153,7 +154,12 @@ function computeReconnectDelay(attempt: number): number {
   return exponentialDelay * jitter;
 }
 
-export function useTerminal({ wsUrl, onTitleChange, hscroll }: UseTerminalOptions): UseTerminalResult {
+export function useTerminal({
+  wsUrl,
+  onTitleChange,
+  onClipboardFallback,
+  hscroll,
+}: UseTerminalOptions): UseTerminalResult {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [reconnectToken, setReconnectToken] = useState(0);
@@ -181,6 +187,7 @@ export function useTerminal({ wsUrl, onTitleChange, hscroll }: UseTerminalOption
   const decoderRef = useRef(new TextDecoder());
   const terminalDisposablesRef = useRef<IDisposable[]>([]);
   const onTitleChangeRef = useRef(onTitleChange);
+  const onClipboardFallbackRef = useRef(onClipboardFallback);
   const connectionEpochRef = useRef(0);
 
   const sessionIdRef = useRef<string | null>(null);
@@ -280,6 +287,10 @@ export function useTerminal({ wsUrl, onTitleChange, hscroll }: UseTerminalOption
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
   }, [onTitleChange]);
+
+  useEffect(() => {
+    onClipboardFallbackRef.current = onClipboardFallback;
+  }, [onClipboardFallback]);
 
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     setContainer(node);
@@ -408,6 +419,26 @@ export function useTerminal({ wsUrl, onTitleChange, hscroll }: UseTerminalOption
         if (cursorLayer) {
           cursorLayer.style.visibility = isAtBottom ? "" : "hidden";
         }
+      }),
+      terminal.parser.registerOscHandler(52, (data) => {
+        const semicolonIndex = data.indexOf(";");
+        if (semicolonIndex === -1) return true;
+        const base64 = data.slice(semicolonIndex + 1);
+        if (!base64 || base64 === "?") return true;
+        try {
+          const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+          const text = new TextDecoder().decode(bytes);
+          writeClipboardText(text).then((ok) => {
+            if (ok) {
+              toast.success("Copied to clipboard", { id: "osc52" });
+            } else {
+              onClipboardFallbackRef.current?.(text);
+            }
+          });
+        } catch {
+          // Ignore malformed base64
+        }
+        return true;
       }),
     ];
 

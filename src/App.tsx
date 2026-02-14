@@ -101,6 +101,8 @@ export function App() {
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
+  const [pendingClipboardText, setPendingClipboardText] = useState<string | null>(null);
+  const [clipboardSeq, setClipboardSeq] = useState(0);
   const [processesText, setProcessesText] = useState<string | null>(null);
   const [softKeysOpen, setSoftKeysOpen] = useState(false);
   const [keyboardScreen, setKeyboardScreen] = useState<SoftKeyboardScreen>("primary");
@@ -169,6 +171,11 @@ export function App() {
     setRemoteTitle(title);
   }, []);
 
+  const handleClipboardFallback = useCallback((text: string) => {
+    setPendingClipboardText(text);
+    setClipboardSeq((s) => s + 1);
+  }, []);
+
   const {
     containerRef,
     connectionStatus,
@@ -190,6 +197,7 @@ export function App() {
   } = useTerminal({
     wsUrl: config?.wsUrl,
     onTitleChange: handleTitleChange,
+    onClipboardFallback: handleClipboardFallback,
     hscroll: config?.hscroll,
   });
 
@@ -309,7 +317,15 @@ export function App() {
 
   const closeSelectableText = useCallback(() => {
     setSelectableText(null);
+    setPendingClipboardText(null);
   }, []);
+
+  const openPendingClipboard = useCallback(() => {
+    if (!pendingClipboardText) return;
+    setPasteHelperText(null);
+    setSelectableText(pendingClipboardText);
+    setPendingClipboardText(null);
+  }, [pendingClipboardText]);
 
   const openPasteHelper = useCallback(() => {
     setSelectableText(null);
@@ -596,6 +612,16 @@ export function App() {
             >
               {connectionStatus === "connecting" ? "..." : connectionStatus}
             </span>
+            {pendingClipboardText !== null && (
+              <button
+                key={clipboardSeq}
+                type="button"
+                className="status-badge clipboard-pending-badge"
+                onClick={openPendingClipboard}
+              >
+                Clipboard data available
+              </button>
+            )}
           </h1>
           <p className="brand-tagline">Web terminal powered by Bun PTY</p>
         </div>
