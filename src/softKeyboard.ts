@@ -214,8 +214,8 @@ export const FUNCTION_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
   ],
   [createFunctionKey(11), createFunctionKey(12)],
   [createSpecialKey("tab", "Tab")],
-  [],
-  [],
+  [], // row 3: empty content; App.tsx adds Shift + Bksp frame keys
+  [], // row 4: empty content; App.tsx adds Esc, Ctrl, Alt, Switch, Fn, Space, Enter
 ];
 
 const SHIFTED_PRINTABLE_MAP: Record<string, string> = {

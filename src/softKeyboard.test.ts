@@ -33,14 +33,10 @@ function withModifiers(overrides: Partial<SoftKeyModifiers>): SoftKeyModifiers {
 
 describe("softKeyboard", () => {
   test("all screens have max 10 keys per content row", () => {
-    for (const row of PRIMARY_SCREEN_ROWS) {
-      expect(row.length).toBeLessThanOrEqual(10);
-    }
-    for (const row of SECONDARY_SCREEN_ROWS) {
-      expect(row.length).toBeLessThanOrEqual(10);
-    }
-    for (const row of FUNCTION_SCREEN_ROWS) {
-      expect(row.length).toBeLessThanOrEqual(10);
+    for (const screen of [PRIMARY_SCREEN_ROWS, SECONDARY_SCREEN_ROWS, FUNCTION_SCREEN_ROWS]) {
+      for (const row of screen) {
+        expect(row.length).toBeLessThanOrEqual(10);
+      }
     }
   });
 
