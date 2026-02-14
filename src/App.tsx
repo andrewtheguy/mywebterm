@@ -191,13 +191,9 @@ export function App() {
     getTerminalSelection,
     copyTextToClipboard,
     mobileSelectionState,
-    mobileMouseMode,
     clearMobileSelection,
     setActiveHandle,
     updateActiveHandleFromClientPoint,
-    toggleMobileMouseMode,
-    forceSelectionMode,
-    toggleForceSelectionMode,
     horizontalOverflow,
     containerElement,
     verticalScrollSyncRef,
@@ -345,8 +341,6 @@ export function App() {
       openPasteHelper();
     } else if (result === "empty") {
       toast.error("Clipboard is empty.", { id: "paste" });
-    } else if (result === "wrong-mode") {
-      toast.error("Switch to Mode: Native to paste.", { id: "paste" });
     } else if (result === "terminal-unavailable") {
       toast.error("Terminal not ready.", { id: "paste" });
     }
@@ -764,46 +758,14 @@ export function App() {
             >
               Soft Keys
             </button>
-            {isMobile ? (
-              <button
-                type="button"
-                className={`toolbar-button ${mobileMouseMode === "passToTerminal" ? "toolbar-button-active" : ""}`}
-                onClick={toggleMobileMouseMode}
-                disabled={!mobileSelectionState.enabled}
-                aria-pressed={mobileMouseMode === "passToTerminal"}
-                title={
-                  mobileMouseMode === "passToTerminal"
-                    ? "Touch input is forwarded to the terminal app. Tap to switch back to native scrolling."
-                    : "Touch input uses native scrolling. Tap to forward touch input to the terminal app."
-                }
-              >
-                Pass Touch
-              </button>
-            ) : (
-              <button
-                type="button"
-                className={`toolbar-button ${forceSelectionMode ? "toolbar-button-active" : ""}`}
-                onClick={toggleForceSelectionMode}
-                aria-pressed={forceSelectionMode}
-                title={
-                  forceSelectionMode
-                    ? "Selection mode active. Click/drag selects text even when tmux/vim captures the mouse. Click to disable."
-                    : "Force selection mode so you can select text even when an app captures the mouse."
-                }
-              >
-                Select
-              </button>
-            )}
+            <button type="button" className="toolbar-button" onClick={() => void openSelectableText()}>
+              Copy Text
+            </button>
             <button
               type="button"
               className="toolbar-button"
               onClick={() => void handleToolbarPaste()}
-              disabled={isMobile && mobileMouseMode !== "nativeScroll"}
-              title={
-                !isMobile || mobileMouseMode === "nativeScroll"
-                  ? "Paste from clipboard. If blocked, a helper panel opens for iOS paste."
-                  : "Disable Pass Touch to paste."
-              }
+              title="Paste from clipboard. If blocked, a helper panel opens for iOS paste."
             >
               Paste Text
             </button>
@@ -820,13 +782,6 @@ export function App() {
                 </button>
                 {overflowMenuOpen && (
                   <div className="overflow-menu-panel">
-                    <button
-                      type="button"
-                      className="toolbar-button overflow-menu-item"
-                      onClick={() => overflowAction(openSelectableText)}
-                    >
-                      Copy Text
-                    </button>
                     {connectionStatus === "connected" ? (
                       <button
                         type="button"
@@ -864,9 +819,6 @@ export function App() {
               </div>
             ) : (
               <>
-                <button type="button" className="toolbar-button" onClick={() => void openSelectableText()}>
-                  Copy Text
-                </button>
                 {connectionStatus === "connected" ? (
                   <button
                     type="button"
@@ -903,7 +855,7 @@ export function App() {
         <div className="terminal-stage">
           <div
             ref={containerRef}
-            className={`terminal-viewport ${mobileMouseMode === "passToTerminal" ? "terminal-viewport-pass-through" : ""} ${horizontalOverflow ? "terminal-viewport-overflow" : ""}`}
+            className={`terminal-viewport ${isMobile ? "terminal-viewport-pass-through" : ""} ${horizontalOverflow ? "terminal-viewport-overflow" : ""}`}
           />
 
           {connectionStatus !== "connected" &&

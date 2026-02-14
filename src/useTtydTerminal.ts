@@ -27,7 +27,7 @@ export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "er
 export type MobileSelectionHandle = "start" | "end";
 export type MobileSelectionMode = "idle" | "pendingLongPress" | "selecting" | "draggingStart" | "draggingEnd";
 export type MobileMouseMode = "nativeScroll" | "passToTerminal";
-export type PasteResult = "pasted" | "empty" | "fallback-required" | "terminal-unavailable" | "wrong-mode";
+export type PasteResult = "pasted" | "empty" | "fallback-required" | "terminal-unavailable";
 
 export interface MobileOverlayAnchor {
   left: number;
@@ -65,13 +65,9 @@ interface UseTtydTerminalResult {
   getTerminalSelection: () => string;
   copyTextToClipboard: (text: string) => Promise<boolean>;
   mobileSelectionState: MobileSelectionState;
-  mobileMouseMode: MobileMouseMode;
   clearMobileSelection: () => void;
   setActiveHandle: (handle: MobileSelectionHandle | null) => void;
   updateActiveHandleFromClientPoint: (clientX: number, clientY: number) => void;
-  toggleMobileMouseMode: () => MobileMouseMode | null;
-  forceSelectionMode: boolean;
-  toggleForceSelectionMode: () => void;
   horizontalOverflow: boolean;
   containerElement: HTMLDivElement | null;
   verticalScrollSyncRef: React.MutableRefObject<(() => void) | null>;
@@ -219,10 +215,11 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
   const [mobileSelectionState, setMobileSelectionState] = useState<MobileSelectionState>(() =>
     createInitialMobileSelectionState(mobileTouchSupported),
   );
-  const [mobileMouseMode, setMobileMouseMode] = useState<MobileMouseMode>("nativeScroll");
+  const [mobileMouseMode, setMobileMouseMode] = useState<MobileMouseMode>(
+    mobileTouchSupported ? "passToTerminal" : "nativeScroll",
+  );
   const [sysKeyActive, setSysKeyActive] = useState(false);
-  const [forceSelectionMode, setForceSelectionMode] = useState(false);
-  const selectionEnabled = mobileTouchSupported || forceSelectionMode;
+  const selectionEnabled = mobileTouchSupported;
   const [horizontalOverflow, setHorizontalOverflow] = useState(false);
 
   const terminalRef = useRef<Terminal | null>(null);
@@ -1451,17 +1448,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     [focusTerminalInput, sendInputFrame],
   );
 
-  const toggleMobileMouseMode = useCallback((): MobileMouseMode | null => {
-    if (!mobileTouchSupported) {
-      return null;
-    }
-
-    const nextMode: MobileMouseMode = mobileMouseMode === "nativeScroll" ? "passToTerminal" : "nativeScroll";
-    clearScrollGesture();
-    setMobileMouseMode(nextMode);
-    return nextMode;
-  }, [clearScrollGesture, mobileMouseMode, mobileTouchSupported]);
-
   const pasteTextIntoTerminal = useCallback((text: string): boolean => {
     const terminal = terminalRef.current;
     if (!terminal) {
@@ -1482,10 +1468,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
       return "terminal-unavailable";
     }
 
-    if (mobileMouseMode !== "nativeScroll") {
-      return "wrong-mode";
-    }
-
     if (typeof navigator === "undefined" || !navigator.clipboard?.readText) {
       return "fallback-required";
     }
@@ -1501,7 +1483,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     } catch {
       return "fallback-required";
     }
-  }, [mobileMouseMode, pasteTextIntoTerminal]);
+  }, [pasteTextIntoTerminal]);
 
   const getSelectableText = useCallback((): Promise<string> => {
     const terminal = terminalRef.current;
@@ -1547,41 +1529,6 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     return writeClipboardText(text);
   }, []);
 
-  const toggleForceSelectionMode = useCallback(() => {
-    setForceSelectionMode((prev) => {
-      const next = !prev;
-      if (!next) {
-        clearMobileSelection();
-      }
-      return next;
-    });
-  }, [clearMobileSelection]);
-
-  useEffect(() => {
-    const el = container;
-    if (!el || !forceSelectionMode) {
-      return;
-    }
-
-    // In force-selection mode on desktop, intercept mousedown to start
-    // word selection (mirroring the mobile long-press flow) and prevent
-    // mouse events from reaching xterm.js's mouse reporting.
-    const onMouseDown = (e: MouseEvent) => {
-      // Only handle left-button clicks on the terminal area.
-      if (e.button !== 0) {
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      startWordSelectionFromPoint({ x: e.clientX, y: e.clientY });
-    };
-
-    el.addEventListener("mousedown", onMouseDown, true);
-    return () => {
-      el.removeEventListener("mousedown", onMouseDown, true);
-    };
-  }, [container, forceSelectionMode, startWordSelectionFromPoint]);
-
   return {
     containerRef,
     connectionStatus,
@@ -1597,13 +1544,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     getTerminalSelection,
     copyTextToClipboard,
     mobileSelectionState,
-    mobileMouseMode,
     clearMobileSelection,
     setActiveHandle,
     updateActiveHandleFromClientPoint,
-    toggleMobileMouseMode,
-    forceSelectionMode,
-    toggleForceSelectionMode,
     horizontalOverflow,
     containerElement: container,
     verticalScrollSyncRef,
