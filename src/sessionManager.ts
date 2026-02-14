@@ -107,6 +107,17 @@ let staleSweepTimer: ReturnType<typeof setInterval> | null = null;
 let shellCommand: string[] = [process.env.SHELL || "/bin/sh"];
 
 export function setShellCommand(cmd: string[]): void {
+  if (!Array.isArray(cmd) || cmd.length === 0) {
+    throw new Error("Shell command must be a non-empty array");
+  }
+  if (typeof cmd[0] !== "string" || cmd[0].length === 0) {
+    throw new Error("Shell command executable (first element) must be a non-empty string");
+  }
+  for (let i = 1; i < cmd.length; i++) {
+    if (typeof cmd[i] !== "string") {
+      throw new Error(`Shell command argument at index ${i} must be a string`);
+    }
+  }
   shellCommand = cmd;
 }
 
@@ -250,6 +261,7 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
 export function attachSession(sessionId: string, ws: ServerWebSocket<WsData>, cols: number, rows: number): void {
   const session = sessions.get(sessionId);
   if (!session || session.state === "dead") {
+    ws.data.sessionId = null;
     ws.send(encodeServerControl({ type: "error", message: "Session not found or already dead" }));
     return;
   }
@@ -405,7 +417,11 @@ function gracefulShutdown(): void {
   process.exit(0);
 }
 
+let shutdownHandlersRegistered = false;
+
 export function registerShutdownHandlers(): void {
+  if (shutdownHandlersRegistered) return;
+  shutdownHandlersRegistered = true;
   process.on("SIGTERM", gracefulShutdown);
   process.on("SIGINT", gracefulShutdown);
 }
