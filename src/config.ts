@@ -1,6 +1,7 @@
 export interface TtydConfig {
   wsUrl: string;
   hscroll: boolean;
+  appTitle: string;
 }
 
 function toWebSocketProtocol(protocol: string): "ws:" | "wss:" {
@@ -16,6 +17,7 @@ export async function loadTtydConfig(locationLike: Pick<Location, "origin"> = wi
   proxyWsUrl.protocol = toWebSocketProtocol(proxyWsUrl.protocol);
 
   let hscroll = true;
+  let appTitle = "MyWebTerm";
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 4000);
   try {
@@ -24,6 +26,7 @@ export async function loadTtydConfig(locationLike: Pick<Location, "origin"> = wi
     if (res.ok) {
       const json = await res.json();
       hscroll = json.hscroll ?? true;
+      appTitle = json.appTitle ?? "MyWebTerm";
     }
   } catch {
     // Endpoint unavailable or timed out — keep default.
@@ -34,5 +37,6 @@ export async function loadTtydConfig(locationLike: Pick<Location, "origin"> = wi
   return {
     wsUrl: proxyWsUrl.toString(),
     hscroll,
+    appTitle,
   };
 }

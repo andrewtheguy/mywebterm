@@ -254,9 +254,11 @@ export function App() {
     };
   }, []);
 
+  const appTitle = config?.appTitle ?? "MyWebTerm";
+
   useEffect(() => {
-    document.title = remoteTitle ? `${remoteTitle} | MyWebTerm` : "MyWebTerm";
-  }, [remoteTitle]);
+    document.title = remoteTitle ? `${remoteTitle} | ${appTitle}` : appTitle;
+  }, [appTitle, remoteTitle]);
 
   useEffect(() => {
     if (!selectableTextRef.current || selectableText === null) {
@@ -706,7 +708,7 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <h1>
-            MyWebTerm
+            {appTitle}
             <span
               className={`status-badge status-${connectionStatus}`}
               role="status"
@@ -838,7 +840,7 @@ export function App() {
                       className="toolbar-button overflow-menu-item"
                       onClick={() => overflowAction(() => void inspectSessions())}
                     >
-                      Sessions
+                      Processes
                     </button>
                   </div>
                 )}
@@ -872,7 +874,7 @@ export function App() {
                   </button>
                 )}
                 <button type="button" className="toolbar-button" onClick={() => void inspectSessions()}>
-                  Sessions
+                  Processes
                 </button>
               </>
             )}
@@ -1196,7 +1198,7 @@ export function App() {
       {sessionsText !== null && (
         <section className="copy-sheet" aria-label="Server sessions">
           <div className="copy-sheet-header">
-            <h2>Sessions</h2>
+            <h2>Processes</h2>
             <div style={{ display: "flex", gap: "6px" }}>
               <button type="button" className="toolbar-button" onClick={() => void refreshSessions()}>
                 Refresh
