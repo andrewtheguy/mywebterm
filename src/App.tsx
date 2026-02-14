@@ -957,7 +957,7 @@ export function App() {
             <section className="copy-sheet" aria-label="Selectable terminal text">
               <div className="copy-sheet-header">
                 <h2>
-                  Copy Text ({lineCount} line{lineCount === 1 ? "" : "s"})
+                  Select Text To Copy ({lineCount} line{lineCount === 1 ? "" : "s"})
                 </h2>
                 <div style={{ display: "flex", gap: "6px" }}>
                   <button

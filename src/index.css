@@ -875,4 +875,8 @@ body {
   .copy-sheet-textarea {
     min-height: 260px;
   }
+
+  .copy-sheet-header h2 {
+    font-size: 0.8rem;
+  }
 }
