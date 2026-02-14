@@ -16,7 +16,7 @@ export const SOFT_MODIFIER_ORDER: readonly SoftModifierName[] = ["ctrl", "alt", 
 
 export type SoftKeyGroup = "main" | "function";
 
-export type SoftKeyboardScreen = "primary" | "secondary" | "function";
+export type SoftKeyboardScreen = "primary" | "secondary";
 
 export type SpecialSoftKeyId =
   | "tab"
@@ -55,7 +55,17 @@ export interface FunctionSoftKeyDefinition extends SoftKeyBase {
   number: number;
 }
 
-export type SoftKeyDefinition = PrintableSoftKeyDefinition | SpecialSoftKeyDefinition | FunctionSoftKeyDefinition;
+export interface ComboSoftKeyDefinition extends SoftKeyBase {
+  kind: "combo";
+  baseKey: PrintableSoftKeyDefinition;
+  modifiers: SoftKeyModifiers;
+}
+
+export type SoftKeyDefinition =
+  | PrintableSoftKeyDefinition
+  | SpecialSoftKeyDefinition
+  | FunctionSoftKeyDefinition
+  | ComboSoftKeyDefinition;
 
 export type BuildSoftKeySequenceResult =
   | {
@@ -85,6 +95,17 @@ function createSpecialKey(special: SpecialSoftKeyId, label: string): SpecialSoft
     label,
     kind: "special",
     special,
+    group: "main",
+  };
+}
+
+function createComboKey(label: string, value: string, modifiers: Partial<SoftKeyModifiers>): ComboSoftKeyDefinition {
+  return {
+    id: `combo-${encodeURIComponent(label)}`,
+    label,
+    kind: "combo",
+    baseKey: createPrintableKey(value),
+    modifiers: { ...DEFAULT_SOFT_KEY_MODIFIERS, ...modifiers },
     group: "main",
   };
 }
@@ -146,7 +167,7 @@ export const PRIMARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
     createPrintableKey("m", "M"),
     createPrintableKey("."),
   ],
-  [createPrintableKey("-"), createPrintableKey("/"), createPrintableKey("_")],
+  [createPrintableKey("-"), createPrintableKey("/")],
 ];
 
 export const SECONDARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
@@ -155,67 +176,75 @@ export const SECONDARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = 
     createPrintableKey("!", "!"),
     createPrintableKey("+"),
     createPrintableKey("#"),
-    createPrintableKey("$"),
-    createPrintableKey("%"),
-    createPrintableKey("^"),
-    createPrintableKey("&"),
     createPrintableKey("*"),
     createPrintableKey("="),
+    createSpecialKey("delete", "Del"),
   ],
   [
-    createPrintableKey("("),
-    createPrintableKey(")"),
     createPrintableKey("["),
     createPrintableKey("]"),
-    createPrintableKey("{"),
-    createPrintableKey("}"),
     createPrintableKey("<"),
     createPrintableKey(">"),
     createPrintableKey("\\"),
     createPrintableKey("|"),
+    createSpecialKey("home", "Home"),
+    createSpecialKey("end", "End"),
   ],
   [
     createSpecialKey("tab", "Tab"),
-    createPrintableKey('"'),
     createPrintableKey("'"),
-    createPrintableKey(":"),
     createPrintableKey(";"),
     createPrintableKey(","),
-    createPrintableKey("?"),
     createSpecialKey("arrowUp", "▲"),
-    createPrintableKey("~"),
     createSpecialKey("insert", "Ins"),
   ],
   [
-    createSpecialKey("delete", "Del"),
-    createSpecialKey("home", "Home"),
-    createSpecialKey("end", "End"),
     createSpecialKey("pageUp", "PgUp"),
     createSpecialKey("pageDown", "PgDn"),
     createSpecialKey("arrowLeft", "◀"),
     createSpecialKey("arrowDown", "▼"),
     createSpecialKey("arrowRight", "▶"),
   ],
-  [createPrintableKey("@")],
+  [createSpecialKey("backspace", "Bksp")],
+];
+
+export const FUNCTION_KEY_ROW: readonly FunctionSoftKeyDefinition[] = [
+  createFunctionKey(1),
+  createFunctionKey(2),
+  createFunctionKey(3),
+  createFunctionKey(4),
+  createFunctionKey(5),
+  createFunctionKey(6),
+  createFunctionKey(7),
+  createFunctionKey(8),
+  createFunctionKey(9),
+  createFunctionKey(10),
+  createFunctionKey(11),
+  createFunctionKey(12),
+];
+
+export const COMBO_KEY_ROW: readonly ComboSoftKeyDefinition[] = [
+  createComboKey("^C", "c", { ctrl: true }),
+  createComboKey("^D", "d", { ctrl: true }),
+  createComboKey("^Z", "z", { ctrl: true }),
+  createComboKey("^A", "a", { ctrl: true }),
+  createComboKey("^E", "e", { ctrl: true }),
+  createComboKey("^R", "r", { ctrl: true }),
+  createComboKey("^B", "b", { ctrl: true }),
+  createComboKey("^W", "w", { ctrl: true }),
+  createComboKey("^N", "n", { ctrl: true }),
+  createComboKey("^T", "t", { ctrl: true }),
+  createComboKey("^L", "l", { ctrl: true }),
+  createComboKey("^K", "k", { ctrl: true }),
+  createComboKey("^Q", "q", { ctrl: true }),
 ];
 
 export const FUNCTION_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
-  [
-    createFunctionKey(1),
-    createFunctionKey(2),
-    createFunctionKey(3),
-    createFunctionKey(4),
-    createFunctionKey(5),
-    createFunctionKey(6),
-    createFunctionKey(7),
-    createFunctionKey(8),
-    createFunctionKey(9),
-    createFunctionKey(10),
-  ],
-  [createFunctionKey(11), createFunctionKey(12)],
+  FUNCTION_KEY_ROW.slice(0, 10),
+  FUNCTION_KEY_ROW.slice(10),
   [createSpecialKey("tab", "Tab")],
   [], // row 3: empty content; App.tsx adds Shift + Bksp frame keys
-  [], // row 4: empty content; App.tsx adds Esc, Ctrl, Alt, Switch, Fn, Space, Enter
+  [], // row 4: empty content; App.tsx adds Esc, Ctrl, Alt, Switch, Space, Enter
 ];
 
 const SHIFTED_PRINTABLE_MAP: Record<string, string> = {
@@ -320,7 +349,7 @@ function unexpectedSoftKeyFailure(key: never, modifiers: SoftKeyModifiers): Buil
   };
 }
 
-function applyShiftToPrintable(baseValue: string, shift: boolean): string {
+export function applyShiftToPrintable(baseValue: string, shift: boolean): string {
   if (!shift) {
     return baseValue;
   }
@@ -485,6 +514,10 @@ export function buildSoftKeySequence(key: SoftKeyDefinition, modifiers: SoftKeyM
       return encodeSpecialKey(key, modifiers);
     case "function":
       return encodeFunctionKey(key, modifiers);
+    case "combo":
+      // Combo keys carry their own hardcoded modifiers; ignore the passed-in
+      // modifiers so e.g. ^C always produces \x03 even if Shift is toggled.
+      return buildSoftKeySequence(key.baseKey, key.modifiers);
   }
 
   return unexpectedSoftKeyFailure(key, modifiers);

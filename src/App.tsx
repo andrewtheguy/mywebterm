@@ -10,9 +10,11 @@ import { Toaster, toast } from "sonner";
 import { loadTtydConfig, type TtydConfig } from "./config";
 import type { SoftKeyModifiers } from "./softKeyboard";
 import {
+  applyShiftToPrintable,
   buildSoftKeySequence,
+  COMBO_KEY_ROW,
   DEFAULT_SOFT_KEY_MODIFIERS,
-  FUNCTION_SCREEN_ROWS,
+  FUNCTION_KEY_ROW,
   PRIMARY_SCREEN_ROWS,
   SECONDARY_SCREEN_ROWS,
   type SoftKeyboardScreen,
@@ -22,13 +24,21 @@ import {
 import { useTtydTerminal } from "./useTtydTerminal";
 
 function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
-  if (key.kind === "printable" && /^[a-z]$/.test(key.value)) {
-    return shiftActive ? key.value.toUpperCase() : key.value;
+  if (key.kind === "printable") {
+    if (shiftActive) {
+      return applyShiftToPrintable(key.value, true);
+    }
+    if (/^[a-z]$/.test(key.value)) {
+      return key.value;
+    }
   }
   return key.label;
 }
 
 const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
+
+const SECONDARY_ROW2_ARROW_LABELS = new Set([",", "▲", "Ins"]);
+const SECONDARY_ROW3_ARROW_LABELS = new Set(["◀", "▼", "▶"]);
 
 const FRAME_ESC: SoftKeyDefinition = {
   id: "special-escape",
@@ -750,11 +760,11 @@ export function App() {
               aria-pressed={mobileMouseMode === "passToTerminal"}
               title={
                 mobileMouseMode === "passToTerminal"
-                  ? "Current mode: App. Tap to switch touch scrolling back to Native."
-                  : "Current mode: Native. Tap to pass touch scrolling to the App."
+                  ? "Touch input is forwarded to the terminal app. Tap to switch back to native scrolling."
+                  : "Touch input uses native scrolling. Tap to forward touch input to the terminal app."
               }
             >
-              {mobileMouseMode === "passToTerminal" ? "Mode: App" : "Mode: Native"}
+              Pass Touch
             </button>
             <button
               type="button"
@@ -764,7 +774,7 @@ export function App() {
               title={
                 mobileMouseMode === "nativeScroll"
                   ? "Paste from clipboard. If blocked, a helper panel opens for iOS paste."
-                  : "Switch to Mode: Native to paste."
+                  : "Disable Pass Touch to paste."
               }
             >
               Paste
@@ -959,15 +969,40 @@ export function App() {
 
       {softKeysOpen &&
         (() => {
-          const screenRows =
-            keyboardScreen === "primary"
-              ? PRIMARY_SCREEN_ROWS
-              : keyboardScreen === "secondary"
-                ? SECONDARY_SCREEN_ROWS
-                : FUNCTION_SCREEN_ROWS;
+          const screenRows = keyboardScreen === "primary" ? PRIMARY_SCREEN_ROWS : SECONDARY_SCREEN_ROWS;
           return (
             <section className="extra-keys-panel" aria-label="Extra key controls">
               <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
+                {keyboardScreen === "primary" && (
+                  <div className="extra-keys-fkey-row extra-keys-combo-row">
+                    {COMBO_KEY_ROW.map((combo) => (
+                      <ExtraKeyButton
+                        key={combo.id}
+                        softKey={combo}
+                        className="extra-key-combo"
+                        startKeyRepeat={startKeyRepeat}
+                        stopKeyRepeat={stopKeyRepeat}
+                      >
+                        {combo.label}
+                      </ExtraKeyButton>
+                    ))}
+                  </div>
+                )}
+                {keyboardScreen === "secondary" && (
+                  <div className="extra-keys-fkey-row">
+                    {FUNCTION_KEY_ROW.map((fkey) => (
+                      <ExtraKeyButton
+                        key={fkey.id}
+                        softKey={fkey}
+                        className="extra-key-fkey"
+                        startKeyRepeat={startKeyRepeat}
+                        stopKeyRepeat={stopKeyRepeat}
+                      >
+                        {fkey.label}
+                      </ExtraKeyButton>
+                    ))}
+                  </div>
+                )}
                 {screenRows.map((row, rowIndex) => (
                   <div key={ROW_KEYS[rowIndex]} className="extra-keys-row">
                     {rowIndex === 3 && (
@@ -1007,25 +1042,12 @@ export function App() {
                         </button>
                         <button
                           type="button"
-                          className="toolbar-button extra-key-button extra-key-meta"
+                          className="toolbar-button extra-key-button extra-key-meta extra-key-wide-md"
                           onClick={() => {
-                            if (keyboardScreen === "primary") {
-                              setKeyboardScreen("secondary");
-                            } else {
-                              setKeyboardScreen("primary");
-                            }
+                            setKeyboardScreen(keyboardScreen === "primary" ? "secondary" : "primary");
                           }}
                         >
-                          {keyboardScreen === "primary" ? "#+" : "abc"}
-                        </button>
-                        <button
-                          type="button"
-                          className={`toolbar-button extra-key-button extra-key-meta ${keyboardScreen === "function" ? "toolbar-button-active" : ""}`}
-                          onClick={() => {
-                            setKeyboardScreen(keyboardScreen === "function" ? "primary" : "function");
-                          }}
-                        >
-                          Fn
+                          {keyboardScreen === "primary" ? "sym" : "abc"}
                         </button>
                         <ExtraKeyButton
                           softKey={FRAME_SPACE}
@@ -1037,27 +1059,35 @@ export function App() {
                         </ExtraKeyButton>
                       </>
                     )}
-                    {row.map((key) => {
-                      const label = softKeyLabel(key, softKeyModifiers.shift);
-                      const classes = [
-                        key.label === "Tab" ? "extra-key-wide-md" : "",
-                        label.length === 1 ? "extra-key-single-char" : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ");
-                      return (
-                        <ExtraKeyButton
-                          key={key.id}
-                          softKey={key}
-                          className={classes}
-                          startKeyRepeat={startKeyRepeat}
-                          stopKeyRepeat={stopKeyRepeat}
-                        >
-                          {label}
-                        </ExtraKeyButton>
-                      );
-                    })}
-                    {rowIndex === 3 && (
+                    {(() => {
+                      const dataKeys = row.map((key) => {
+                        const label = softKeyLabel(key, softKeyModifiers.shift);
+                        const isSecondaryArrow =
+                          keyboardScreen === "secondary" &&
+                          ((rowIndex === 2 && SECONDARY_ROW2_ARROW_LABELS.has(key.label)) ||
+                            (rowIndex === 3 && SECONDARY_ROW3_ARROW_LABELS.has(key.label)));
+                        const classes = [
+                          key.label === "Tab" ? "extra-key-wide-md" : "",
+                          label.length === 1 ? "extra-key-single-char" : "",
+                          isSecondaryArrow ? "extra-key-arrow" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ");
+                        return (
+                          <ExtraKeyButton
+                            key={key.id}
+                            softKey={key}
+                            className={classes}
+                            startKeyRepeat={startKeyRepeat}
+                            stopKeyRepeat={stopKeyRepeat}
+                          >
+                            {label}
+                          </ExtraKeyButton>
+                        );
+                      });
+                      return rowIndex === 4 ? <div className="extra-key-data-group">{dataKeys}</div> : dataKeys;
+                    })()}
+                    {rowIndex === 3 && keyboardScreen === "primary" && (
                       <ExtraKeyButton
                         softKey={FRAME_BKSP}
                         className="extra-key-wide-lg"

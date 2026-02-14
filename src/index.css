@@ -270,13 +270,31 @@ body {
   gap: 0.4rem;
 }
 
-.extra-key-spacer {
-  min-height: 2rem;
+.extra-keys-fkey-row {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding: 0.35rem 0.4rem;
+  background: rgba(40, 30, 65, 0.5);
+  border-radius: 8px 8px 0 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 100, 180, 0.4) transparent;
+  box-shadow:
+    inset -16px 0 12px -10px rgba(0, 0, 0, 0.6),
+    inset 16px 0 12px -10px rgba(0, 0, 0, 0.6);
 }
 
-.extra-key-meta {
-  background: linear-gradient(to bottom, rgba(55, 48, 90, 0.8), rgba(30, 25, 60, 0.9));
-  border-color: rgba(120, 100, 180, 0.5);
+.extra-keys-fkey-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.extra-keys-fkey-row::-webkit-scrollbar-thumb {
+  background: rgba(120, 100, 180, 0.4);
+  border-radius: 2px;
+}
+
+.extra-key-spacer {
+  min-height: 2rem;
 }
 
 .extra-key-button {
@@ -313,9 +331,72 @@ body {
     0 0 8px rgba(106, 232, 206, 0.3);
 }
 
+.extra-key-meta {
+  background: linear-gradient(to bottom, rgba(75, 50, 62, 0.85), rgba(45, 28, 38, 0.95));
+  border-color: rgba(140, 100, 120, 0.45);
+  color: #d8c0cc;
+}
+
+.extra-key-fkey {
+  flex: 0 0 auto;
+  min-height: 2.3rem;
+  padding: 0.38rem 0.75rem;
+  font-size: 0.85rem;
+  background: linear-gradient(to bottom, rgba(55, 65, 45, 0.85), rgba(30, 38, 22, 0.95));
+  border-color: rgba(120, 140, 100, 0.45);
+  color: #c8d4b8;
+}
+
+.extra-keys-combo-row {
+  background: rgba(20, 35, 50, 0.4);
+  scrollbar-color: rgba(80, 120, 150, 0.4) transparent;
+}
+
+.extra-keys-combo-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.extra-keys-combo-row::-webkit-scrollbar-thumb {
+  background: rgba(80, 120, 150, 0.4);
+  border-radius: 2px;
+}
+
+.extra-key-combo {
+  flex: 0 0 auto;
+  min-height: 2.3rem;
+  min-width: 3.5rem;
+  padding: 0.38rem 1rem;
+  font-size: 0.85rem;
+  font-family: "Iosevka Term", "JetBrains Mono", "Consolas", monospace;
+  background: rgba(20, 40, 60, 0.6);
+  border: 1px solid rgba(80, 130, 170, 0.4);
+  box-shadow: none;
+  color: var(--muted-ink);
+}
+
+@media (hover: hover) {
+  .extra-key-combo:hover:enabled {
+    background: rgba(40, 70, 100, 0.6);
+  }
+}
+
+.extra-key-combo:active {
+  background: rgba(50, 85, 120, 0.6);
+}
+
 .extra-key-button-space {
   flex: 1;
   min-width: 8rem;
+}
+
+.extra-key-data-group {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.extra-key-data-group > .extra-key-button {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .extra-key-wide-xl {
@@ -684,6 +765,11 @@ body {
     flex: 3 1 0;
   }
 
+  .extra-key-data-group {
+    flex: 3 1 0;
+    gap: 0;
+  }
+
   .extra-key-wide-sm {
     flex: 1.3 1 0;
   }
@@ -703,8 +789,32 @@ body {
   .extra-key-button.extra-key-arrow {
     font-size: 0.65rem;
     font-family: "Iosevka Term", "JetBrains Mono", "Consolas", monospace;
-    flex: 0 0 2rem;
-    width: 2rem;
+    flex: 0 0 3.2rem;
+  }
+
+  .extra-keys-fkey-row {
+    gap: 0;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  .extra-key-fkey {
+    flex: 0 0 10%;
+    width: 10%;
+    min-height: 2.6rem;
+    font-size: 0.78rem;
+  }
+
+  .extra-keys-combo-row {
+    border-radius: 0;
+    padding: 0;
+    gap: 0;
+  }
+
+  .extra-key-combo {
+    min-height: 2.6rem;
+    min-width: 3.2rem;
+    font-size: 0.78rem;
   }
 
   .extra-key-spacer {
@@ -725,6 +835,10 @@ body {
 
   .terminal-stage {
     min-height: 0;
+  }
+
+  .vertical-scrollbar {
+    display: none;
   }
 
   .terminal-viewport {
