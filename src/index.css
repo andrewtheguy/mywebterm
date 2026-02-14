@@ -572,7 +572,7 @@ body {
   width: 100%;
   height: 6px;
   border-radius: 3px;
-  background: rgba(106, 232, 206, 0.12);
+  background: transparent;
 }
 
 .custom-scrollbar-thumb {
@@ -589,7 +589,6 @@ body {
   padding: 8px 0;
   background-clip: content-box;
   box-sizing: content-box;
-  margin-top: -8px;
   -webkit-tap-highlight-color: transparent;
 }
 
