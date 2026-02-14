@@ -55,7 +55,17 @@ export interface FunctionSoftKeyDefinition extends SoftKeyBase {
   number: number;
 }
 
-export type SoftKeyDefinition = PrintableSoftKeyDefinition | SpecialSoftKeyDefinition | FunctionSoftKeyDefinition;
+export interface ComboSoftKeyDefinition extends SoftKeyBase {
+  kind: "combo";
+  baseKey: PrintableSoftKeyDefinition;
+  modifiers: SoftKeyModifiers;
+}
+
+export type SoftKeyDefinition =
+  | PrintableSoftKeyDefinition
+  | SpecialSoftKeyDefinition
+  | FunctionSoftKeyDefinition
+  | ComboSoftKeyDefinition;
 
 export type BuildSoftKeySequenceResult =
   | {
@@ -85,6 +95,17 @@ function createSpecialKey(special: SpecialSoftKeyId, label: string): SpecialSoft
     label,
     kind: "special",
     special,
+    group: "main",
+  };
+}
+
+function createComboKey(label: string, value: string, modifiers: Partial<SoftKeyModifiers>): ComboSoftKeyDefinition {
+  return {
+    id: `combo-${label}`,
+    label,
+    kind: "combo",
+    baseKey: createPrintableKey(value),
+    modifiers: { ...DEFAULT_SOFT_KEY_MODIFIERS, ...modifiers },
     group: "main",
   };
 }
@@ -200,6 +221,22 @@ export const FUNCTION_KEY_ROW: readonly FunctionSoftKeyDefinition[] = [
   createFunctionKey(10),
   createFunctionKey(11),
   createFunctionKey(12),
+];
+
+export const COMBO_KEY_ROW: readonly ComboSoftKeyDefinition[] = [
+  createComboKey("^C", "c", { ctrl: true }),
+  createComboKey("^D", "d", { ctrl: true }),
+  createComboKey("^Z", "z", { ctrl: true }),
+  createComboKey("^A", "a", { ctrl: true }),
+  createComboKey("^E", "e", { ctrl: true }),
+  createComboKey("^R", "r", { ctrl: true }),
+  createComboKey("^B", "b", { ctrl: true }),
+  createComboKey("^W", "w", { ctrl: true }),
+  createComboKey("^N", "n", { ctrl: true }),
+  createComboKey("^T", "t", { ctrl: true }),
+  createComboKey("^L", "l", { ctrl: true }),
+  createComboKey("^K", "k", { ctrl: true }),
+  createComboKey("^Q", "q", { ctrl: true }),
 ];
 
 export const FUNCTION_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
@@ -477,6 +514,8 @@ export function buildSoftKeySequence(key: SoftKeyDefinition, modifiers: SoftKeyM
       return encodeSpecialKey(key, modifiers);
     case "function":
       return encodeFunctionKey(key, modifiers);
+    case "combo":
+      return buildSoftKeySequence(key.baseKey, key.modifiers);
   }
 
   return unexpectedSoftKeyFailure(key, modifiers);

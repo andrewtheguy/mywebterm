@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   buildSoftKeySequence,
+  COMBO_KEY_ROW,
   DEFAULT_SOFT_KEY_MODIFIERS,
   FUNCTION_KEY_ROW,
   FUNCTION_SCREEN_ROWS,
@@ -159,6 +160,67 @@ describe("softKeyboard", () => {
     const row3 = SECONDARY_SCREEN_ROWS[3] as readonly SoftKeyDefinition[];
     const labels = row3.map((k) => k.label);
     expect(labels).toEqual(["PgUp", "PgDn", "◀", "▼", "▶"]);
+  });
+
+  test("COMBO_KEY_ROW contains expected combos", () => {
+    const labels = COMBO_KEY_ROW.map((k) => k.label);
+    expect(labels).toEqual(["^C", "^D", "^Z", "^A", "^E", "^R", "^B", "^W", "^N", "^T", "^L", "^K", "^Q"]);
+    for (const combo of COMBO_KEY_ROW) {
+      expect(combo.kind).toBe("combo");
+      expect(combo.modifiers.ctrl).toBe(true);
+    }
+  });
+
+  test("combo key encoding produces correct sequences", () => {
+    const expectations: Array<[string, string]> = [
+      ["^C", "\x03"],
+      ["^D", "\x04"],
+      ["^Z", "\x1a"],
+      ["^A", "\x01"],
+      ["^E", "\x05"],
+      ["^R", "\x12"],
+      ["^B", "\x02"],
+      ["^W", "\x17"],
+      ["^N", "\x0e"],
+      ["^T", "\x14"],
+      ["^L", "\x0c"],
+      ["^K", "\x0b"],
+      ["^Q", "\x11"],
+    ];
+
+    for (const [label, expectedSequence] of expectations) {
+      const combo = COMBO_KEY_ROW.find((k) => k.label === label);
+      expect(combo).toBeDefined();
+      if (!combo) continue;
+      const result = buildSoftKeySequence(combo, withModifiers({}));
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.sequence).toBe(expectedSequence);
+      }
+    }
+  });
+
+  test("combo key ignores passed-in modifiers", () => {
+    const ctrlC = COMBO_KEY_ROW.find((k) => k.label === "^C");
+    expect(ctrlC).toBeDefined();
+    if (!ctrlC) return;
+
+    const withShift = buildSoftKeySequence(ctrlC, withModifiers({ shift: true }));
+    const withAlt = buildSoftKeySequence(ctrlC, withModifiers({ alt: true }));
+    const withAll = buildSoftKeySequence(ctrlC, withModifiers({ ctrl: true, alt: true, shift: true }));
+    const plain = buildSoftKeySequence(ctrlC, withModifiers({}));
+
+    expect(withShift.ok).toBe(true);
+    expect(withAlt.ok).toBe(true);
+    expect(withAll.ok).toBe(true);
+    expect(plain.ok).toBe(true);
+
+    if (withShift.ok && withAlt.ok && withAll.ok && plain.ok) {
+      expect(withShift.sequence).toBe("\x03");
+      expect(withAlt.sequence).toBe("\x03");
+      expect(withAll.sequence).toBe("\x03");
+      expect(plain.sequence).toBe("\x03");
+    }
   });
 
   test("encodes printable and navigation keys with ctrl/alt/shift modifiers", () => {

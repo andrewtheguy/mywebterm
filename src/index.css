@@ -279,6 +279,9 @@ body {
   border-radius: 8px 8px 0 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(120, 100, 180, 0.4) transparent;
+  box-shadow:
+    inset -16px 0 12px -10px rgba(0, 0, 0, 0.6),
+    inset 16px 0 12px -10px rgba(0, 0, 0, 0.6);
 }
 
 .extra-keys-fkey-row::-webkit-scrollbar {
@@ -342,6 +345,38 @@ body {
   background: linear-gradient(to bottom, rgba(55, 65, 45, 0.85), rgba(30, 38, 22, 0.95));
   border-color: rgba(120, 140, 100, 0.45);
   color: #c8d4b8;
+}
+
+.extra-keys-combo-row {
+  background: rgba(20, 35, 50, 0.4);
+  scrollbar-color: rgba(80, 120, 150, 0.4) transparent;
+}
+
+.extra-keys-combo-row::-webkit-scrollbar-thumb {
+  background: rgba(80, 120, 150, 0.4);
+}
+
+.extra-key-combo {
+  flex: 0 0 auto;
+  min-height: 2.3rem;
+  min-width: 3.5rem;
+  padding: 0.38rem 1rem;
+  font-size: 0.85rem;
+  font-family: "Iosevka Term", "JetBrains Mono", "Consolas", monospace;
+  background: rgba(20, 40, 60, 0.6);
+  border: 1px solid rgba(80, 130, 170, 0.4);
+  box-shadow: none;
+  color: var(--muted-ink);
+}
+
+@media (hover: hover) {
+  .extra-key-combo:hover:enabled {
+    background: rgba(40, 70, 100, 0.6);
+  }
+}
+
+.extra-key-combo:active {
+  background: rgba(50, 85, 120, 0.6);
 }
 
 .extra-key-button-space {
@@ -763,6 +798,18 @@ body {
     flex: 0 0 10%;
     width: 10%;
     min-height: 2.6rem;
+    font-size: 0.78rem;
+  }
+
+  .extra-keys-combo-row {
+    border-radius: 0;
+    padding: 0;
+    gap: 0;
+  }
+
+  .extra-key-combo {
+    min-height: 2.6rem;
+    min-width: 3.2rem;
     font-size: 0.78rem;
   }
 

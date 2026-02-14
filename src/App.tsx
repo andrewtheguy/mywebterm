@@ -12,6 +12,7 @@ import type { SoftKeyModifiers } from "./softKeyboard";
 import {
   applyShiftToPrintable,
   buildSoftKeySequence,
+  COMBO_KEY_ROW,
   DEFAULT_SOFT_KEY_MODIFIERS,
   FUNCTION_KEY_ROW,
   PRIMARY_SCREEN_ROWS,
@@ -971,6 +972,21 @@ export function App() {
           return (
             <section className="extra-keys-panel" aria-label="Extra key controls">
               <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
+                {keyboardScreen === "primary" && (
+                  <div className="extra-keys-fkey-row extra-keys-combo-row">
+                    {COMBO_KEY_ROW.map((combo) => (
+                      <ExtraKeyButton
+                        key={combo.id}
+                        softKey={combo}
+                        className="extra-key-combo"
+                        startKeyRepeat={startKeyRepeat}
+                        stopKeyRepeat={stopKeyRepeat}
+                      >
+                        {combo.label}
+                      </ExtraKeyButton>
+                    ))}
+                  </div>
+                )}
                 {keyboardScreen === "secondary" && (
                   <div className="extra-keys-fkey-row">
                     {FUNCTION_KEY_ROW.map((fkey) => (
