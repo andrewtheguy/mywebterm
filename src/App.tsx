@@ -1025,7 +1025,7 @@ export function App() {
                         </button>
                         <button
                           type="button"
-                          className="toolbar-button extra-key-button extra-key-meta"
+                          className="toolbar-button extra-key-button extra-key-meta extra-key-wide-md"
                           onClick={() => {
                             setKeyboardScreen(keyboardScreen === "primary" ? "secondary" : "primary");
                           }}
