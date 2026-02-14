@@ -1,4 +1,5 @@
 import { spawn as cpSpawn } from "node:child_process";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { type Server, type ServerWebSocket, serve } from "bun";
 import index from "./index.html";
@@ -56,6 +57,16 @@ interface PtySession {
   proc: ReturnType<typeof Bun.spawn> | null;
   ws: ServerWebSocket<PtySessionData>;
   handshakeReceived: boolean;
+}
+
+// Pre-index font files so the production server can serve them.
+// Bun's HTML-import dev server handles this automatically, but in
+// production mode (`development: false`) only explicit routes and
+// the `fetch()` fallback are active.
+const fontDir = join(import.meta.dir, "fonts");
+const fontPaths = new Map<string, string>();
+for (const name of new Bun.Glob("*.woff2").scanSync(fontDir)) {
+  fontPaths.set(name, join(fontDir, name));
 }
 
 const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh"];
@@ -314,7 +325,23 @@ const server = serve<PtySessionData>({
   hostname,
   port,
 
-  fetch() {
+  fetch(req) {
+    // Serve font files in production (dev server handles this automatically via HMR).
+    const pathname = new URL(req.url).pathname;
+    if (pathname.endsWith(".woff2")) {
+      const requested = pathname.split("/").pop() ?? "";
+      // Bun's bundler adds a content hash: "Font-e5tw0acz.woff2" -> try "Font.woff2"
+      const unhashed = requested.replace(/-[a-z0-9]{8}\.woff2$/, ".woff2");
+      const fontPath = fontPaths.get(unhashed) ?? fontPaths.get(requested);
+      if (fontPath) {
+        return new Response(Bun.file(fontPath), {
+          headers: {
+            "Content-Type": "font/woff2",
+            "Cache-Control": "public, max-age=31536000, immutable",
+          },
+        });
+      }
+    }
     return new Response("Not Found", { status: 404 });
   },
 
