@@ -3,16 +3,18 @@ import { describe, expect, test } from "bun:test";
 import {
   buildSoftKeySequence,
   DEFAULT_SOFT_KEY_MODIFIERS,
-  FUNCTION_SOFT_KEY_ROWS,
+  FUNCTION_SCREEN_ROWS,
   flattenSoftKeyRows,
-  MAIN_SOFT_KEY_ROWS,
+  PRIMARY_SCREEN_ROWS,
+  SECONDARY_SCREEN_ROWS,
   type SoftKeyDefinition,
   type SoftKeyModifiers,
 } from "./softKeyboard";
 
-const mainKeys = flattenSoftKeyRows(MAIN_SOFT_KEY_ROWS);
-const functionKeys = flattenSoftKeyRows(FUNCTION_SOFT_KEY_ROWS);
-const allKeys = [...mainKeys, ...functionKeys];
+const primaryKeys = flattenSoftKeyRows(PRIMARY_SCREEN_ROWS);
+const secondaryKeys = flattenSoftKeyRows(SECONDARY_SCREEN_ROWS);
+const functionKeys = flattenSoftKeyRows(FUNCTION_SCREEN_ROWS);
+const allKeys = [...primaryKeys, ...secondaryKeys, ...functionKeys];
 
 function findKey(label: string): SoftKeyDefinition {
   const key = allKeys.find((candidate) => candidate.label === label);
@@ -30,16 +32,33 @@ function withModifiers(overrides: Partial<SoftKeyModifiers>): SoftKeyModifiers {
 }
 
 describe("softKeyboard", () => {
-  test("groups function keys under advanced rows", () => {
-    const functionLabels = functionKeys.map((key) => key.label);
-    expect(functionLabels).toEqual(["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]);
-
-    for (const key of functionKeys) {
-      expect(key.group).toBe("function");
+  test("all screens have max 10 keys per content row", () => {
+    for (const screen of [PRIMARY_SCREEN_ROWS, SECONDARY_SCREEN_ROWS, FUNCTION_SCREEN_ROWS]) {
+      for (const row of screen) {
+        expect(row.length).toBeLessThanOrEqual(10);
+      }
     }
+  });
 
-    for (const key of mainKeys) {
-      expect(key.group).toBe("main");
+  test("primary screen has all 26 letters and digits 0-9", () => {
+    const labels = primaryKeys.map((k) => k.label);
+    for (let i = 0; i <= 9; i++) {
+      expect(labels).toContain(String(i));
+    }
+    for (const ch of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+      expect(labels).toContain(ch);
+    }
+  });
+
+  test("function screen has F1-F12", () => {
+    const labels = functionKeys.map((k) => k.label);
+    for (let i = 1; i <= 12; i++) {
+      expect(labels).toContain(`F${i}`);
+    }
+    for (const key of functionKeys) {
+      if (key.kind === "function") {
+        expect(key.group).toBe("function");
+      }
     }
   });
 
@@ -120,7 +139,7 @@ describe("softKeyboard", () => {
       expect(ctrlShiftTwo.sequence).toBe("\x00");
     }
 
-    const ctrlAltUp = buildSoftKeySequence(findKey("Up"), withModifiers({ ctrl: true, alt: true }));
+    const ctrlAltUp = buildSoftKeySequence(findKey("▲"), withModifiers({ ctrl: true, alt: true }));
     expect(ctrlAltUp.ok).toBe(true);
     if (ctrlAltUp.ok) {
       expect(ctrlAltUp.sequence).toBe("\x1b[1;7A");

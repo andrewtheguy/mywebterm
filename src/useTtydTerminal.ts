@@ -53,9 +53,9 @@ interface UseTtydTerminalOptions {
 interface UseTtydTerminalResult {
   containerRef: (node: HTMLDivElement | null) => void;
   connectionStatus: ConnectionStatus;
-  softKeyboardActive: boolean;
+  sysKeyActive: boolean;
   reconnect: () => void;
-  focusSoftKeyboard: () => void;
+  focusSysKeyboard: () => void;
   sendSoftKeySequence: (sequence: string, label: string, skipFocus?: boolean) => boolean;
   blurTerminalInput: () => void;
   attemptPasteFromClipboard: () => Promise<PasteResult>;
@@ -218,7 +218,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     createInitialMobileSelectionState(mobileTouchSupported),
   );
   const [mobileMouseMode, setMobileMouseMode] = useState<MobileMouseMode>("nativeScroll");
-  const [softKeyboardActive, setSoftKeyboardActive] = useState(false);
+  const [sysKeyActive, setSysKeyActive] = useState(false);
   const [horizontalOverflow, setHorizontalOverflow] = useState(false);
 
   const terminalRef = useRef<Terminal | null>(null);
@@ -920,9 +920,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     if (mobileTouchSupported && textarea) {
       textarea.inputMode = "none";
     }
-    const onTextareaFocus = mobileTouchSupported ? null : () => setSoftKeyboardActive(true);
+    const onTextareaFocus = mobileTouchSupported ? null : () => setSysKeyActive(true);
     const onTextareaBlur = () => {
-      setSoftKeyboardActive(false);
+      setSysKeyActive(false);
       if (mobileTouchSupported && textarea) {
         textarea.inputMode = "none";
       }
@@ -941,7 +941,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
         }
         textarea.removeEventListener("blur", onTextareaBlur);
       }
-      setSoftKeyboardActive(false);
+      setSysKeyActive(false);
       terminalMountedRef.current = false;
       closeSocket();
       resizeObserver.disconnect();
@@ -1389,7 +1389,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     }
   }, []);
 
-  const focusSoftKeyboard = useCallback(() => {
+  const focusSysKeyboard = useCallback(() => {
     const terminal = terminalRef.current;
     if (!terminal) {
       toast.error("Terminal not ready for keyboard.", { id: "keyboard" });
@@ -1407,7 +1407,7 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
     }
     const focused = focusTerminalInput();
     if (focused) {
-      setSoftKeyboardActive(true);
+      setSysKeyActive(true);
     } else {
       toast.error("Tap terminal area to open keyboard.", { id: "keyboard" });
     }
@@ -1518,9 +1518,9 @@ export function useTtydTerminal({ wsUrl, onTitleChange, hscroll }: UseTtydTermin
   return {
     containerRef,
     connectionStatus,
-    softKeyboardActive,
+    sysKeyActive,
     reconnect,
-    focusSoftKeyboard,
+    focusSysKeyboard,
     sendSoftKeySequence,
     blurTerminalInput,
     attemptPasteFromClipboard,

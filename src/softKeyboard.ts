@@ -16,6 +16,8 @@ export const SOFT_MODIFIER_ORDER: readonly SoftModifierName[] = ["ctrl", "alt", 
 
 export type SoftKeyGroup = "main" | "function";
 
+export type SoftKeyboardScreen = "primary" | "secondary" | "function";
+
 export type SpecialSoftKeyId =
   | "tab"
   | "enter"
@@ -97,9 +99,8 @@ function createFunctionKey(number: number): FunctionSoftKeyDefinition {
   };
 }
 
-export const MAIN_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
+export const PRIMARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
   [
-    createSpecialKey("escape", "Esc"),
     createPrintableKey("1"),
     createPrintableKey("2"),
     createPrintableKey("3"),
@@ -110,12 +111,8 @@ export const MAIN_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
     createPrintableKey("8"),
     createPrintableKey("9"),
     createPrintableKey("0"),
-    createPrintableKey("-"),
-    createPrintableKey("="),
-    createSpecialKey("backspace", "Bksp"),
   ],
   [
-    createSpecialKey("tab", "Tab"),
     createPrintableKey("q", "Q"),
     createPrintableKey("w", "W"),
     createPrintableKey("e", "E"),
@@ -126,11 +123,9 @@ export const MAIN_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
     createPrintableKey("i", "I"),
     createPrintableKey("o", "O"),
     createPrintableKey("p", "P"),
-    createPrintableKey("["),
-    createPrintableKey("]"),
-    createPrintableKey("\\"),
   ],
   [
+    createSpecialKey("tab", "Tab"),
     createPrintableKey("a", "A"),
     createPrintableKey("s", "S"),
     createPrintableKey("d", "D"),
@@ -140,9 +135,6 @@ export const MAIN_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
     createPrintableKey("j", "J"),
     createPrintableKey("k", "K"),
     createPrintableKey("l", "L"),
-    createPrintableKey(";"),
-    createPrintableKey("'"),
-    createSpecialKey("enter", "Enter"),
   ],
   [
     createPrintableKey("z", "Z"),
@@ -152,40 +144,78 @@ export const MAIN_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
     createPrintableKey("b", "B"),
     createPrintableKey("n", "N"),
     createPrintableKey("m", "M"),
-    createPrintableKey(","),
     createPrintableKey("."),
-    createPrintableKey("/"),
   ],
-  [createPrintableKey("`"), createPrintableKey(" ", "Space")],
+  [createPrintableKey("-"), createPrintableKey("/"), createPrintableKey("_")],
 ];
 
-export const ARROW_SOFT_KEYS = [
-  createSpecialKey("arrowUp", "▲"),
-  createSpecialKey("arrowDown", "▼"),
-  createSpecialKey("arrowLeft", "◀"),
-  createSpecialKey("arrowRight", "▶"),
-] as const;
-
-export const DELETE_SOFT_KEY: SoftKeyDefinition = createSpecialKey("delete", "Del");
-export const HOME_SOFT_KEY: SoftKeyDefinition = createSpecialKey("home", "\u2302");
-export const END_SOFT_KEY: SoftKeyDefinition = createSpecialKey("end", "End");
-export const INSERT_SOFT_KEY: SoftKeyDefinition = createSpecialKey("insert", "Ins");
-export const PAGE_UP_SOFT_KEY: SoftKeyDefinition = createSpecialKey("pageUp", "\u21DE");
-export const PAGE_DOWN_SOFT_KEY: SoftKeyDefinition = createSpecialKey("pageDown", "\u21DF");
-
-export const NAV_SOFT_KEYS: readonly SoftKeyDefinition[] = [
-  DELETE_SOFT_KEY,
-  HOME_SOFT_KEY,
-  END_SOFT_KEY,
-  PAGE_UP_SOFT_KEY,
-  PAGE_DOWN_SOFT_KEY,
-  INSERT_SOFT_KEY,
+export const SECONDARY_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
+  [
+    createPrintableKey("`"),
+    createPrintableKey("!", "!"),
+    createPrintableKey("+"),
+    createPrintableKey("#"),
+    createPrintableKey("$"),
+    createPrintableKey("%"),
+    createPrintableKey("^"),
+    createPrintableKey("&"),
+    createPrintableKey("*"),
+    createPrintableKey("="),
+  ],
+  [
+    createPrintableKey("("),
+    createPrintableKey(")"),
+    createPrintableKey("["),
+    createPrintableKey("]"),
+    createPrintableKey("{"),
+    createPrintableKey("}"),
+    createPrintableKey("<"),
+    createPrintableKey(">"),
+    createPrintableKey("\\"),
+    createPrintableKey("|"),
+  ],
+  [
+    createSpecialKey("tab", "Tab"),
+    createPrintableKey('"'),
+    createPrintableKey("'"),
+    createPrintableKey(":"),
+    createPrintableKey(";"),
+    createPrintableKey(","),
+    createPrintableKey("?"),
+    createSpecialKey("arrowUp", "▲"),
+    createPrintableKey("~"),
+    createSpecialKey("insert", "Ins"),
+  ],
+  [
+    createSpecialKey("delete", "Del"),
+    createSpecialKey("home", "Home"),
+    createSpecialKey("end", "End"),
+    createSpecialKey("pageUp", "PgUp"),
+    createSpecialKey("pageDown", "PgDn"),
+    createSpecialKey("arrowLeft", "◀"),
+    createSpecialKey("arrowDown", "▼"),
+    createSpecialKey("arrowRight", "▶"),
+  ],
+  [createPrintableKey("@")],
 ];
 
-export const FUNCTION_SOFT_KEY_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
-  [createFunctionKey(1), createFunctionKey(2), createFunctionKey(3), createFunctionKey(4)],
-  [createFunctionKey(5), createFunctionKey(6), createFunctionKey(7), createFunctionKey(8)],
-  [createFunctionKey(9), createFunctionKey(10), createFunctionKey(11), createFunctionKey(12)],
+export const FUNCTION_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
+  [
+    createFunctionKey(1),
+    createFunctionKey(2),
+    createFunctionKey(3),
+    createFunctionKey(4),
+    createFunctionKey(5),
+    createFunctionKey(6),
+    createFunctionKey(7),
+    createFunctionKey(8),
+    createFunctionKey(9),
+    createFunctionKey(10),
+  ],
+  [createFunctionKey(11), createFunctionKey(12)],
+  [createSpecialKey("tab", "Tab")],
+  [], // row 3: empty content; App.tsx adds Shift + Bksp frame keys
+  [], // row 4: empty content; App.tsx adds Esc, Ctrl, Alt, Switch, Fn, Space, Enter
 ];
 
 const SHIFTED_PRINTABLE_MAP: Record<string, string> = {
