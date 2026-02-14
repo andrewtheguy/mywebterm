@@ -1038,16 +1038,22 @@ export function App() {
                       </>
                     )}
                     {row.map((key) => {
-                      const wideClass = key.label === "Tab" ? "extra-key-wide-md" : "";
+                      const label = softKeyLabel(key, softKeyModifiers.shift);
+                      const classes = [
+                        key.label === "Tab" ? "extra-key-wide-md" : "",
+                        label.length === 1 ? "extra-key-single-char" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ");
                       return (
                         <ExtraKeyButton
                           key={key.id}
                           softKey={key}
-                          className={wideClass}
+                          className={classes}
                           startKeyRepeat={startKeyRepeat}
                           stopKeyRepeat={stopKeyRepeat}
                         >
-                          {softKeyLabel(key, softKeyModifiers.shift)}
+                          {label}
                         </ExtraKeyButton>
                       );
                     })}
