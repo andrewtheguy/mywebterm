@@ -1,11 +1,4 @@
-import {
-  type PointerEvent as ReactPointerEvent,
-  type TouchEvent as ReactTouchEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
 import { DEFAULT_APP_TITLE, loadTtydConfig, type TtydConfig } from "./config";
 import type { SoftKeyModifiers } from "./softKeyboard";
@@ -188,12 +181,7 @@ export function App() {
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
     getSelectableText,
-    getTerminalSelection,
     copyTextToClipboard,
-    mobileSelectionState,
-    clearMobileSelection,
-    setActiveHandle,
-    updateActiveHandleFromClientPoint,
     horizontalOverflow,
     containerElement,
     verticalScrollSyncRef,
@@ -411,85 +399,6 @@ export function App() {
     [sendSoftKeySequence, softKeyModifiers, stopKeyRepeat],
   );
 
-  const beginSelectionHandleDrag = useCallback(
-    (handle: "start" | "end", event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (event.pointerType === "touch") {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      setActiveHandle(handle);
-      updateActiveHandleFromClientPoint(event.clientX, event.clientY);
-      if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      }
-    },
-    [setActiveHandle, updateActiveHandleFromClientPoint],
-  );
-
-  const handleSelectionHandleMove = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (event.pointerType === "touch" || mobileSelectionState.activeHandle === null) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      updateActiveHandleFromClientPoint(event.clientX, event.clientY);
-    },
-    [mobileSelectionState.activeHandle, updateActiveHandleFromClientPoint],
-  );
-
-  const finishSelectionHandleDrag = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (event.pointerType === "touch") {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      setActiveHandle(null);
-    },
-    [setActiveHandle],
-  );
-
-  const beginSelectionHandleTouch = useCallback(
-    (handle: "start" | "end", event: ReactTouchEvent<HTMLButtonElement>) => {
-      const touch = event.touches.item(0);
-      if (!touch) {
-        return;
-      }
-
-      event.stopPropagation();
-      setActiveHandle(handle);
-      updateActiveHandleFromClientPoint(touch.clientX, touch.clientY);
-    },
-    [setActiveHandle, updateActiveHandleFromClientPoint],
-  );
-
-  const handleSelectionHandleTouchMove = useCallback(
-    (event: ReactTouchEvent<HTMLButtonElement>) => {
-      if (mobileSelectionState.activeHandle === null) {
-        return;
-      }
-
-      const touch = event.touches.item(0);
-      if (!touch) {
-        return;
-      }
-
-      event.stopPropagation();
-      updateActiveHandleFromClientPoint(touch.clientX, touch.clientY);
-    },
-    [mobileSelectionState.activeHandle, updateActiveHandleFromClientPoint],
-  );
-
-  const finishSelectionHandleTouch = useCallback(
-    (event: ReactTouchEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      setActiveHandle(null);
-    },
-    [setActiveHandle],
-  );
-
   const fetchProcessesText = useCallback(async (): Promise<string> => {
     const res = await fetch("/api/sessions");
     if (!res.ok) {
@@ -525,21 +434,6 @@ export function App() {
       toast.error("Failed to refresh processes.");
     }
   }, [fetchProcessesText]);
-
-  const handleMobileCopySelection = useCallback(async () => {
-    const selectedText = getTerminalSelection();
-    if (selectedText.length === 0) {
-      return;
-    }
-    const copied = await copyTextToClipboard(selectedText);
-    if (copied) {
-      toast.success("Selection copied.", { id: "copy" });
-      clearMobileSelection();
-    } else {
-      toast.error("Clipboard copy failed.", { id: "copy" });
-      setActiveHandle(null);
-    }
-  }, [clearMobileSelection, copyTextToClipboard, getTerminalSelection, setActiveHandle]);
 
   const syncScrollbarThumb = useCallback(() => {
     const track = scrollbarTrackRef.current;
@@ -609,7 +503,7 @@ export function App() {
   }, [getVerticalScrollState]);
 
   useEffect(() => {
-    if (!mobileSelectionState.enabled) {
+    if (!isMobile) {
       return;
     }
 
@@ -623,7 +517,7 @@ export function App() {
         vScrollbarHideTimerRef.current = null;
       }
     };
-  }, [mobileSelectionState.enabled, syncVerticalScrollbarThumb, verticalScrollSyncRef]);
+  }, [isMobile, syncVerticalScrollbarThumb, verticalScrollSyncRef]);
 
   const handleScrollbarPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -679,19 +573,6 @@ export function App() {
     event.preventDefault();
     scrollbarDraggingRef.current = false;
   }, []);
-
-  const mobileSelectionOverlay =
-    mobileSelectionState.enabled &&
-    mobileSelectionState.range !== null &&
-    mobileSelectionState.startHandle !== null &&
-    mobileSelectionState.endHandle !== null &&
-    mobileSelectionState.toolbarAnchor !== null
-      ? {
-          startHandle: mobileSelectionState.startHandle,
-          endHandle: mobileSelectionState.endHandle,
-          toolbarAnchor: mobileSelectionState.toolbarAnchor,
-        }
-      : null;
 
   return (
     <div className="app-shell" ref={appShellRef}>
@@ -880,70 +761,7 @@ export function App() {
               </div>
             ))}
 
-          {mobileSelectionOverlay !== null && (
-            <div className="mobile-selection-overlay">
-              <button
-                type="button"
-                className="mobile-selection-handle mobile-selection-handle-start"
-                style={{
-                  left: `${mobileSelectionOverlay.startHandle.left}px`,
-                  top: `${mobileSelectionOverlay.startHandle.top}px`,
-                }}
-                onPointerDown={(event) => beginSelectionHandleDrag("start", event)}
-                onPointerMove={handleSelectionHandleMove}
-                onPointerUp={finishSelectionHandleDrag}
-                onPointerCancel={finishSelectionHandleDrag}
-                onLostPointerCapture={finishSelectionHandleDrag}
-                onTouchStart={(event) => beginSelectionHandleTouch("start", event)}
-                onTouchMove={handleSelectionHandleTouchMove}
-                onTouchEnd={finishSelectionHandleTouch}
-                onTouchCancel={finishSelectionHandleTouch}
-                aria-label="Adjust selection start"
-              >
-                <span className="mobile-selection-handle-knob" />
-              </button>
-
-              <button
-                type="button"
-                className="mobile-selection-handle mobile-selection-handle-end"
-                style={{
-                  left: `${mobileSelectionOverlay.endHandle.left}px`,
-                  top: `${mobileSelectionOverlay.endHandle.top}px`,
-                }}
-                onPointerDown={(event) => beginSelectionHandleDrag("end", event)}
-                onPointerMove={handleSelectionHandleMove}
-                onPointerUp={finishSelectionHandleDrag}
-                onPointerCancel={finishSelectionHandleDrag}
-                onLostPointerCapture={finishSelectionHandleDrag}
-                onTouchStart={(event) => beginSelectionHandleTouch("end", event)}
-                onTouchMove={handleSelectionHandleTouchMove}
-                onTouchEnd={finishSelectionHandleTouch}
-                onTouchCancel={finishSelectionHandleTouch}
-                aria-label="Adjust selection end"
-              >
-                <span className="mobile-selection-handle-knob" />
-              </button>
-
-              <div
-                className="mobile-selection-toolbar"
-                style={{
-                  left: `${mobileSelectionOverlay.toolbarAnchor.left}px`,
-                  top: `${mobileSelectionOverlay.toolbarAnchor.top}px`,
-                }}
-                role="group"
-                aria-label="Selection actions"
-              >
-                <button type="button" className="toolbar-button" onClick={() => void handleMobileCopySelection()}>
-                  Copy
-                </button>
-                <button type="button" className="toolbar-button" onClick={clearMobileSelection}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {mobileSelectionState.enabled && (
+          {isMobile && (
             <div className="vertical-scrollbar">
               <div className="vertical-scrollbar-track" ref={vScrollbarTrackRef}>
                 <div className="vertical-scrollbar-thumb" ref={vScrollbarThumbRef} />
