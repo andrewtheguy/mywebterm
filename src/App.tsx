@@ -110,6 +110,8 @@ export function App() {
     ...DEFAULT_SOFT_KEY_MODIFIERS,
   }));
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
+  const [fontSize, setFontSize] = useState<number | undefined>(undefined);
+  const [fontSizeMenuOpen, setFontSizeMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(pointer: coarse)").matches);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
@@ -199,6 +201,7 @@ export function App() {
     onTitleChange: handleTitleChange,
     onClipboardFallback: handleClipboardFallback,
     hscroll: config?.hscroll,
+    fontSize,
   });
 
   const appShellRef = useRef<HTMLDivElement>(null);
@@ -722,6 +725,13 @@ export function App() {
                     >
                       Processes
                     </button>
+                    <button
+                      type="button"
+                      className="toolbar-button overflow-menu-item"
+                      onClick={() => overflowAction(() => setFontSizeMenuOpen(true))}
+                    >
+                      Font Size: {fontSize ?? "Auto"}
+                    </button>
                   </div>
                 )}
               </div>
@@ -754,6 +764,15 @@ export function App() {
                   Processes
                 </button>
               </>
+            )}
+            {!isMobile && (
+              <button
+                type="button"
+                className={`toolbar-button ${fontSizeMenuOpen ? "toolbar-button-active" : ""}`}
+                onClick={() => setFontSizeMenuOpen((prev) => !prev)}
+              >
+                Font Size: {fontSize ?? "Auto"}
+              </button>
             )}
           </div>
         </div>
@@ -1060,6 +1079,47 @@ export function App() {
           <p className="copy-sheet-hint">Child processes of the server. Empty after restart = no leaks.</p>
           <textarea className="copy-sheet-textarea" value={processesText} readOnly />
         </section>
+      )}
+      {fontSizeMenuOpen && (
+        <dialog
+          className="font-size-dialog-backdrop"
+          open
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setFontSizeMenuOpen(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setFontSizeMenuOpen(false);
+          }}
+        >
+          <div className="font-size-dialog">
+            <p className="font-size-dialog-label">Font Size</p>
+            <div className="font-size-dialog-options">
+              <button
+                type="button"
+                className={`toolbar-button font-size-option ${fontSize === undefined ? "toolbar-button-active" : ""}`}
+                onClick={() => {
+                  setFontSize(undefined);
+                  setFontSizeMenuOpen(false);
+                }}
+              >
+                Auto
+              </button>
+              {[10, 12, 14, 16].map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  className={`toolbar-button font-size-option ${fontSize === size ? "toolbar-button-active" : ""}`}
+                  onClick={() => {
+                    setFontSize(size);
+                    setFontSizeMenuOpen(false);
+                  }}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          </div>
+        </dialog>
       )}
       <Toaster position="top-right" theme="dark" duration={3000} />
     </div>

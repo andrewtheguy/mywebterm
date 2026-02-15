@@ -23,31 +23,60 @@ import { ClientCommand, decodeFrame, parseClientControl } from "./ttyProtocol";
 declare const BUILD_VERSION: string;
 const VERSION = typeof BUILD_VERSION !== "undefined" ? BUILD_VERSION : "dev";
 
-const { values, positionals } = parseArgs({
+const USAGE = `Usage: bun src/index.ts [options] [-- shell command...]
+
+Options:
+  -h, --help          Show this help message
+  -v, --version       Show version
+  -p, --port <n>      Port to listen on (default: 8671)
+      --daemonize     Run as a background daemon
+      --no-hscroll    Disable horizontal scrolling
+      --title <s>     Set the terminal title (default: "MyWebTerm")`;
+
+const parseArgsOptions = {
   options: {
+    help: { type: "boolean", short: "h" },
     version: { type: "boolean", short: "v" },
+    port: { type: "string", short: "p" },
+    daemonize: { type: "boolean" },
+    "no-hscroll": { type: "boolean" },
+    title: { type: "string" },
   },
-  strict: false,
+  strict: true,
   allowPositionals: true,
-});
+} as const;
+
+let values: ReturnType<typeof parseArgs<typeof parseArgsOptions>>["values"];
+let positionals: string[];
+try {
+  ({ values, positionals } = parseArgs(parseArgsOptions));
+} catch (err) {
+  // If the user passed -h/--help alongside an unknown flag, still show help
+  if (process.argv.includes("-h") || process.argv.includes("--help")) {
+    console.log(USAGE);
+    process.exit(0);
+  }
+  console.error(err instanceof Error ? err.message : err);
+  console.error("Run with --help for usage information.");
+  process.exit(1);
+}
+
+if (values.help) {
+  console.log(USAGE);
+  process.exit(0);
+}
 
 if (values.version) {
   console.log(`mywebterm ${VERSION}`);
   process.exit(0);
 }
 
-if (process.env.DAEMONIZE === "1") {
-  const STRIPPED_ENV_PREFIXES = ["ZELLIJ", "TMUX", "DAEMONIZE"];
-  const cleanEnv = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => !STRIPPED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))),
-  );
-
+if (values.daemonize) {
   let child: ReturnType<typeof cpSpawn>;
   try {
     child = cpSpawn(process.execPath, process.argv.slice(1), {
       detached: true,
       stdio: "ignore",
-      env: cleanEnv,
     });
   } catch (error) {
     console.error("Failed to daemonize:", error);
@@ -74,7 +103,18 @@ const fontBuffers = new Map<string, ArrayBuffer>([
 
 const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh"];
 const hostname = "127.0.0.1";
-const port = parseInt(process.env.PORT || "8671", 10);
+const DEFAULT_PORT = 8671;
+const port = (() => {
+  if (!values.port) return DEFAULT_PORT;
+  const n = parseInt(values.port, 10);
+  if (!Number.isInteger(n) || n < 1 || n > 65535) {
+    console.error(`Invalid port: ${values.port} (must be an integer 1–65535)`);
+    process.exit(1);
+  }
+  return n;
+})();
+const hscroll = !values["no-hscroll"];
+const appTitle = values.title ?? "MyWebTerm";
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
 
@@ -223,8 +263,8 @@ const server = serve<WsData>({
     },
     "/api/config": () =>
       Response.json({
-        hscroll: process.env.DISABLE_HSCROLL !== "1",
-        appTitle: process.env.APP_TITLE || "MyWebTerm",
+        hscroll,
+        appTitle,
       }),
     "/": index,
   },

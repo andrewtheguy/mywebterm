@@ -12,7 +12,7 @@ When a browser connects, the server spawns `$SHELL` (falling back to `/bin/sh`) 
 ## Usage
 
 ```bash
-mywebterm [-- command [args...]]
+mywebterm [options] [-- command [args...]]
 ```
 
 By default each session runs `$SHELL`. Pass a command after `--` to override:
@@ -20,7 +20,7 @@ By default each session runs `$SHELL`. Pass a command after `--` to override:
 ```bash
 mywebterm -- fish
 mywebterm -- bash --norc
-mywebterm -- python3
+mywebterm --port 9090 --title Dev -- python3
 ```
 
 ## Features
@@ -33,14 +33,18 @@ mywebterm -- python3
 - Terminal resize — automatic reflow on browser window resize
 - Copy tools — copy selection, copy recent output, selectable text panel
 
-## Environment variables
+## Options
 
-| Variable | Default | Description |
+| Flag | Default | Description |
 |---|---|---|
-| `PORT` | `8671` | Port to listen on |
-| `DAEMONIZE` | `0` | Set to `1` to detach from the parent process (strips `ZELLIJ`/`TMUX` env vars from spawned shells) |
-| `DISABLE_HSCROLL` | `0` | Set to `1` to disable the minimum 80-column width with horizontal scrollbar on narrow viewports |
-| `APP_TITLE` | `MyWebTerm` | Customize the app heading and browser tab title |
+| `-h`, `--help` | | Show usage and exit |
+| `-v`, `--version` | | Show version and exit |
+| `-p`, `--port <n>` | `8671` | Port to listen on |
+| `--daemonize` | off | Detach from the parent process and run in the background |
+| `--no-hscroll` | off | Disable the minimum 80-column width with horizontal scrollbar on narrow viewports |
+| `--title <s>` | `MyWebTerm` | Customize the app heading and browser tab title |
+
+A shell command can be specified after `--` (e.g. `mywebterm -- /bin/bash`). When omitted, the `SHELL` environment variable is used (falling back to `/bin/sh`). `SHELL` is set by your OS/login shell — do not set it manually; use `-- command` to override instead.
 
 ### Exposing publicly
 
@@ -48,8 +52,6 @@ MyWebTerm gives full shell access to anyone who can reach it — it is a highly 
 
 > [!NOTE]
 > Avoid using HTTP basic auth with Safari — Safari does not reliably send cached credentials for WebSocket upgrade requests and XHR/fetch calls, which will break the terminal connection. Use cookie/session-based auth (e.g. OAuth2 Proxy) instead.
-
-`SHELL` is read from the system environment (set by your OS/login shell) and used as the default command when nothing is passed after `--`. Do not set it manually — use `-- command` to override instead.
 
 ## Install
 
