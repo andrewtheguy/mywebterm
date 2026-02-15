@@ -73,7 +73,7 @@ const fontBuffers = new Map<string, ArrayBuffer>([
 ]);
 
 const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh"];
-const hostname = process.env.HOST || "::";
+const hostname = "127.0.0.1";
 const port = parseInt(process.env.PORT || "8671", 10);
 const MAX_COLS = 500;
 const MAX_ROWS = 200;

@@ -37,11 +37,17 @@ mywebterm -- python3
 
 | Variable | Default | Description |
 |---|---|---|
-| `HOST` | `::` | Hostname/address to bind |
 | `PORT` | `8671` | Port to listen on |
 | `DAEMONIZE` | `0` | Set to `1` to detach from the parent process (strips `ZELLIJ`/`TMUX` env vars from spawned shells) |
 | `DISABLE_HSCROLL` | `0` | Set to `1` to disable the minimum 80-column width with horizontal scrollbar on narrow viewports |
 | `APP_TITLE` | `MyWebTerm` | Customize the app heading and browser tab title |
+
+### Exposing publicly
+
+MyWebTerm gives full shell access to anyone who can reach it — it is a highly privileged program. For this reason it only listens on the loopback interface (`127.0.0.1`) and cannot be configured to bind to other addresses. To make it accessible over a network, put it behind a reverse proxy that handles authentication, such as [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) or Caddy with basic auth.
+
+> [!NOTE]
+> Avoid using HTTP basic auth with Safari — Safari does not reliably send cached credentials for WebSocket upgrade requests and XHR/fetch calls, which will break the terminal connection. Use cookie/session-based auth (e.g. OAuth2 Proxy) instead.
 
 `SHELL` is read from the system environment (set by your OS/login shell) and used as the default command when nothing is passed after `--`. Do not set it manually — use `-- command` to override instead.
 
