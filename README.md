@@ -46,6 +46,9 @@ mywebterm -- python3
 
 MyWebTerm binds to localhost by default and has no built-in authentication. To make it accessible over a network, put it behind a reverse proxy that handles auth, such as [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) or Caddy with basic auth.
 
+> [!NOTE]
+> Avoid using HTTP basic auth with Safari — Safari does not reliably send cached credentials for WebSocket upgrade requests and XHR/fetch calls, which will break the terminal connection. Use cookie/session-based auth (e.g. OAuth2 Proxy) instead.
+
 `SHELL` is read from the system environment (set by your OS/login shell) and used as the default command when nothing is passed after `--`. Do not set it manually — use `-- command` to override instead.
 
 ## Install
