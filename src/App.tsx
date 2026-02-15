@@ -179,6 +179,11 @@ export function App() {
     setClipboardSeq((s) => s + 1);
   }, []);
 
+  const handleClipboardCopy = useCallback((text: string) => {
+    setPendingClipboardText(text);
+    setClipboardSeq((s) => s + 1);
+  }, []);
+
   const {
     containerRef,
     connectionStatus,
@@ -201,6 +206,7 @@ export function App() {
     wsUrl: config?.wsUrl,
     onTitleChange: handleTitleChange,
     onClipboardFallback: handleClipboardFallback,
+    onClipboardCopy: handleClipboardCopy,
     hscroll: config?.hscroll,
     fontSize,
   });
@@ -635,16 +641,14 @@ export function App() {
                 {connectionStatus === "connecting" ? "..." : connectionStatus}
               </span>
             )}
-            {pendingClipboardText !== null && (
-              <button
-                key={clipboardSeq}
-                type="button"
-                className="status-badge clipboard-pending-badge"
-                onClick={openPendingClipboard}
-              >
-                Clipboard
-              </button>
-            )}
+            <button
+              key={clipboardSeq}
+              type="button"
+              className={`status-badge clipboard-pending-badge${pendingClipboardText === null ? " clipboard-idle" : ""}`}
+              onClick={openPendingClipboard}
+            >
+              Clipboard
+            </button>
           </h1>
         </div>
         <div className="toolbar">
@@ -1074,6 +1078,8 @@ export function App() {
                         const ok = await copyTextToClipboard(selectableText);
                         if (ok) {
                           toast.success(`Copied ${lineCount} line${lineCount === 1 ? "" : "s"}.`, { id: "copy" });
+                          setPendingClipboardText(selectableText);
+                          setClipboardSeq((s) => s + 1);
                         } else {
                           toast.error("Clipboard copy failed.", { id: "copy" });
                         }

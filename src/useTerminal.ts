@@ -16,6 +16,7 @@ interface UseTerminalOptions {
   wsUrl?: string;
   onTitleChange?: (title: string) => void;
   onClipboardFallback?: (text: string) => void;
+  onClipboardCopy?: (text: string) => void;
   hscroll?: boolean;
   fontSize?: number;
 }
@@ -164,6 +165,7 @@ export function useTerminal({
   wsUrl,
   onTitleChange,
   onClipboardFallback,
+  onClipboardCopy,
   hscroll,
   fontSize,
 }: UseTerminalOptions): UseTerminalResult {
@@ -195,6 +197,7 @@ export function useTerminal({
   const terminalDisposablesRef = useRef<IDisposable[]>([]);
   const onTitleChangeRef = useRef(onTitleChange);
   const onClipboardFallbackRef = useRef(onClipboardFallback);
+  const onClipboardCopyRef = useRef(onClipboardCopy);
   const connectionEpochRef = useRef(0);
 
   const sessionIdRef = useRef<string | null>(null);
@@ -311,6 +314,10 @@ export function useTerminal({
   useEffect(() => {
     onClipboardFallbackRef.current = onClipboardFallback;
   }, [onClipboardFallback]);
+
+  useEffect(() => {
+    onClipboardCopyRef.current = onClipboardCopy;
+  }, [onClipboardCopy]);
 
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     setContainer(node);
@@ -453,6 +460,7 @@ export function useTerminal({
             .then((ok) => {
               if (ok) {
                 toast.success("Copied to clipboard", { id: "osc52" });
+                onClipboardCopyRef.current?.(text);
               } else {
                 onClipboardFallbackRef.current?.(text);
               }
