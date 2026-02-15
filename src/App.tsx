@@ -647,7 +647,7 @@ export function App() {
               className={`status-badge clipboard-pending-badge${pendingClipboardText === null ? " clipboard-idle" : ""}`}
               onClick={openPendingClipboard}
             >
-              Clipboard
+              {isMobile ? "📋" : "Clipboard"}
             </button>
           </h1>
         </div>
