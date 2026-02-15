@@ -157,6 +157,11 @@ body {
   animation: pulse-badge 0.5s ease 1;
 }
 
+.clipboard-pending-badge.clipboard-idle {
+  background: rgba(45, 60, 80, 0.6);
+  animation: none;
+}
+
 @keyframes pulse-badge {
   0%,
   100% {
