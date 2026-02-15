@@ -17,6 +17,7 @@ interface UseTerminalOptions {
   onTitleChange?: (title: string) => void;
   onClipboardFallback?: (text: string) => void;
   hscroll?: boolean;
+  fontSize?: number;
 }
 
 interface UseTerminalResult {
@@ -41,12 +42,12 @@ interface UseTerminalResult {
 
 const MOBILE_VIEWPORT_QUERY = "(max-width: 768px)";
 
-function buildTerminalOptions(isMobileViewport: boolean): ITerminalOptions {
+function buildTerminalOptions(isMobileViewport: boolean, fontSize?: number): ITerminalOptions {
   return {
     cursorBlink: true,
     convertEol: true,
     scrollback: 5000,
-    fontSize: isMobileViewport ? 10 : 12,
+    fontSize: fontSize ?? (isMobileViewport ? 10 : 12),
     fontFamily: "JetBrainsMono Nerd Font Mono, Symbols Nerd Font Mono, Menlo, monospace",
     theme: {
       background: "#041425",
@@ -160,6 +161,7 @@ export function useTerminal({
   onTitleChange,
   onClipboardFallback,
   hscroll,
+  fontSize,
 }: UseTerminalOptions): UseTerminalResult {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
@@ -345,13 +347,14 @@ export function useTerminal({
     return true;
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fontSize is handled by the dedicated effect below to avoid full terminal recreation
   useEffect(() => {
     if (!container) {
       terminalMountedRef.current = false;
       return;
     }
 
-    const terminal = new Terminal(buildTerminalOptions(isMobileViewport));
+    const terminal = new Terminal(buildTerminalOptions(isMobileViewport, fontSize));
     const fitAddon = new FitAddon();
 
     terminal.loadAddon(fitAddon);
@@ -554,6 +557,16 @@ export function useTerminal({
       clearScrollGesture();
     };
   }, [closeSocket, container, clearScrollGesture, hscroll, isMobileViewport, mobileTouchSupported, sendInputFrame]);
+
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (!terminal) return;
+    const resolved = fontSize ?? (isMobileViewport ? 10 : 12);
+    if (terminal.options.fontSize !== resolved) {
+      terminal.options.fontSize = resolved;
+      customFitRef.current?.();
+    }
+  }, [fontSize, isMobileViewport]);
 
   useEffect(() => {
     if (!container || !mobileTouchSupported) {
