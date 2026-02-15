@@ -42,12 +42,16 @@ interface UseTerminalResult {
 
 const MOBILE_VIEWPORT_QUERY = "(max-width: 768px)";
 
+function resolveFontSize(fontSize: number | undefined, isMobileViewport: boolean): number {
+  return fontSize ?? (isMobileViewport ? 10 : 12);
+}
+
 function buildTerminalOptions(isMobileViewport: boolean, fontSize?: number): ITerminalOptions {
   return {
     cursorBlink: true,
     convertEol: true,
     scrollback: 5000,
-    fontSize: fontSize ?? (isMobileViewport ? 10 : 12),
+    fontSize: resolveFontSize(fontSize, isMobileViewport),
     fontFamily: "JetBrainsMono Nerd Font Mono, Symbols Nerd Font Mono, Menlo, monospace",
     theme: {
       background: "#041425",
@@ -561,7 +565,7 @@ export function useTerminal({
   useEffect(() => {
     const terminal = terminalRef.current;
     if (!terminal) return;
-    const resolved = fontSize ?? (isMobileViewport ? 10 : 12);
+    const resolved = resolveFontSize(fontSize, isMobileViewport);
     if (terminal.options.fontSize !== resolved) {
       terminal.options.fontSize = resolved;
       customFitRef.current?.();
