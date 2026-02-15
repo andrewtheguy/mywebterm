@@ -112,6 +112,7 @@ export function App() {
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
   const [fontSize, setFontSize] = useState<number | undefined>(undefined);
   const [fontSizeMenuOpen, setFontSizeMenuOpen] = useState(false);
+  const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(pointer: coarse)").matches);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
@@ -599,22 +600,41 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <h1>
-            {appTitle}
-            <span
-              className={`status-badge status-${connectionStatus}`}
-              role="status"
-              aria-label={
-                connectionStatus === "connected"
-                  ? "Connected"
-                  : connectionStatus === "connecting"
-                    ? "Connecting"
-                    : connectionStatus === "error"
-                      ? "Error"
-                      : "Disconnected"
-              }
-            >
-              {connectionStatus === "connecting" ? "..." : connectionStatus}
-            </span>
+            <span className="brand-title">{appTitle}</span>
+            <button type="button" className="info-button" onClick={() => setInfoDialogOpen(true)} aria-label="Info">
+              i
+            </button>
+            {isMobile ? (
+              <span
+                className={`status-dot status-dot-${connectionStatus}`}
+                role="status"
+                aria-label={
+                  connectionStatus === "connected"
+                    ? "Connected"
+                    : connectionStatus === "connecting"
+                      ? "Connecting"
+                      : connectionStatus === "error"
+                        ? "Error"
+                        : "Disconnected"
+                }
+              />
+            ) : (
+              <span
+                className={`status-badge status-${connectionStatus}`}
+                role="status"
+                aria-label={
+                  connectionStatus === "connected"
+                    ? "Connected"
+                    : connectionStatus === "connecting"
+                      ? "Connecting"
+                      : connectionStatus === "error"
+                        ? "Error"
+                        : "Disconnected"
+                }
+              >
+                {connectionStatus === "connecting" ? "..." : connectionStatus}
+              </span>
+            )}
             {pendingClipboardText !== null && (
               <button
                 key={clipboardSeq}
@@ -622,11 +642,10 @@ export function App() {
                 className="status-badge clipboard-pending-badge"
                 onClick={openPendingClipboard}
               >
-                Clipboard data available
+                Clipboard
               </button>
             )}
           </h1>
-          <p className="brand-tagline">Web terminal powered by Bun PTY</p>
         </div>
         <div className="toolbar">
           <div
@@ -654,23 +673,33 @@ export function App() {
               }}
               aria-pressed={softKeysOpen}
             >
-              Soft Keys
+              {isMobile ? "⌨" : "Soft Keys"}
             </button>
-            {isMobile && (
-              <button
-                type="button"
-                className={`toolbar-button ${sysKeyActive ? "toolbar-button-active" : ""}`}
-                onClick={() => {
-                  setSoftKeysOpen(false);
-                  focusSysKeyboard();
-                }}
-                aria-pressed={sysKeyActive}
-              >
-                Sys Keys
-              </button>
-            )}
-            <button type="button" className="toolbar-button" onClick={() => void openSelectableText()}>
-              Copy Text
+            <button
+              type="button"
+              className="toolbar-button"
+              onClick={() => void openSelectableText()}
+              title="Copy Text"
+            >
+              {isMobile ? (
+                <svg
+                  role="img"
+                  aria-label="Copy"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              ) : (
+                "Copy Text"
+              )}
             </button>
             <button
               type="button"
@@ -678,7 +707,27 @@ export function App() {
               onClick={() => void handleToolbarPaste()}
               title="Paste from clipboard. If blocked, a helper panel opens for iOS paste."
             >
-              Paste Text
+              {isMobile ? (
+                <svg
+                  role="img"
+                  aria-label="Paste"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                  <rect x="8" y="2" width="8" height="4" rx="1" />
+                  <path d="M12 11v6" />
+                  <path d="M9 14l3-3 3 3" />
+                </svg>
+              ) : (
+                "Paste Text"
+              )}
             </button>
             {isMobile ? (
               <div className="overflow-menu" ref={overflowMenuRef}>
@@ -693,6 +742,18 @@ export function App() {
                 </button>
                 {overflowMenuOpen && (
                   <div className="overflow-menu-panel">
+                    <button
+                      type="button"
+                      className={`toolbar-button overflow-menu-item ${sysKeyActive ? "toolbar-button-active" : ""}`}
+                      onClick={() =>
+                        overflowAction(() => {
+                          setSoftKeysOpen(false);
+                          focusSysKeyboard();
+                        })
+                      }
+                    >
+                      Sys Keys
+                    </button>
                     {connectionStatus === "connected" ? (
                       <button
                         type="button"
@@ -1079,6 +1140,41 @@ export function App() {
           <p className="copy-sheet-hint">Child processes of the server. Empty after restart = no leaks.</p>
           <textarea className="copy-sheet-textarea" value={processesText} readOnly />
         </section>
+      )}
+      {infoDialogOpen && (
+        <dialog
+          className="font-size-dialog-backdrop"
+          open
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setInfoDialogOpen(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setInfoDialogOpen(false);
+          }}
+        >
+          <div className="info-dialog">
+            <p className="info-dialog-title">{appTitle}</p>
+            <p className="info-tagline">
+              Web terminal powered by {appTitle === DEFAULT_APP_TITLE ? "Bun PTY" : DEFAULT_APP_TITLE}
+            </p>
+            <div className="info-details">
+              <div className="info-detail-row">
+                <span className="info-detail-label">Status</span>
+                <span className="info-detail-value">
+                  <span className={`info-status-indicator status-${connectionStatus}`} />
+                  {connectionStatus}
+                </span>
+              </div>
+              <div className="info-detail-row">
+                <span className="info-detail-label">WebSocket</span>
+                <span className="info-detail-value info-detail-mono">{config?.wsUrl ?? "—"}</span>
+              </div>
+            </div>
+            <button type="button" className="toolbar-button" onClick={() => setInfoDialogOpen(false)}>
+              Close
+            </button>
+          </div>
+        </dialog>
       )}
       {fontSizeMenuOpen && (
         <dialog
