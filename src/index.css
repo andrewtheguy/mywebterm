@@ -885,6 +885,8 @@ body {
 
   .brand-title {
     max-width: 6rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .info-button {
@@ -946,9 +948,6 @@ dialog.font-size-dialog-backdrop {
 }
 
 .brand-title {
-  max-width: 10rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
