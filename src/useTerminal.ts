@@ -46,7 +46,7 @@ function buildTerminalOptions(isMobileViewport: boolean): ITerminalOptions {
     cursorBlink: true,
     convertEol: true,
     scrollback: 5000,
-    fontSize: isMobileViewport ? 10 : 14,
+    fontSize: isMobileViewport ? 10 : 12,
     fontFamily: "JetBrainsMono Nerd Font Mono, Symbols Nerd Font Mono, Menlo, monospace",
     theme: {
       background: "#041425",
