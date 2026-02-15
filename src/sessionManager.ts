@@ -104,7 +104,7 @@ export class ScrollbackBuffer {
 
 const sessions = new Map<string, PtySession>();
 let staleSweepTimer: ReturnType<typeof setInterval> | null = null;
-let shellCommand: string[] = [process.env.SHELL || "/bin/sh"];
+let shellCommand: string[] = ["/bin/sh"];
 
 export function setShellCommand(cmd: string[]): void {
   if (!Array.isArray(cmd) || cmd.length === 0) {

@@ -26,8 +26,12 @@ const VERSION = typeof BUILD_VERSION !== "undefined" ? BUILD_VERSION : "dev";
 const { values, positionals } = parseArgs({
   options: {
     version: { type: "boolean", short: "v" },
+    port: { type: "string", short: "p" },
+    daemonize: { type: "boolean" },
+    "no-hscroll": { type: "boolean" },
+    title: { type: "string" },
   },
-  strict: false,
+  strict: true,
   allowPositionals: true,
 });
 
@@ -36,18 +40,12 @@ if (values.version) {
   process.exit(0);
 }
 
-if (process.env.DAEMONIZE === "1") {
-  const STRIPPED_ENV_PREFIXES = ["ZELLIJ", "TMUX", "DAEMONIZE"];
-  const cleanEnv = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => !STRIPPED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))),
-  );
-
+if (values.daemonize) {
   let child: ReturnType<typeof cpSpawn>;
   try {
     child = cpSpawn(process.execPath, process.argv.slice(1), {
       detached: true,
       stdio: "ignore",
-      env: cleanEnv,
     });
   } catch (error) {
     console.error("Failed to daemonize:", error);
@@ -74,7 +72,9 @@ const fontBuffers = new Map<string, ArrayBuffer>([
 
 const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh"];
 const hostname = "127.0.0.1";
-const port = parseInt(process.env.PORT || "8671", 10);
+const port = values.port ? parseInt(values.port, 10) : 8671;
+const hscroll = !values["no-hscroll"];
+const appTitle = values.title ?? "MyWebTerm";
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
 
@@ -223,8 +223,8 @@ const server = serve<WsData>({
     },
     "/api/config": () =>
       Response.json({
-        hscroll: process.env.DISABLE_HSCROLL !== "1",
-        appTitle: process.env.APP_TITLE || "MyWebTerm",
+        hscroll,
+        appTitle,
       }),
     "/": index,
   },
