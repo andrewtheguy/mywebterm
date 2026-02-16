@@ -255,19 +255,19 @@ export function App() {
       return;
     }
 
-    const textarea = selectableTextRef.current;
-    // Double rAF + setTimeout to ensure the browser has fully laid out the content
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        textarea.scrollTop = textarea.scrollHeight;
-        textarea.focus();
-      });
-    });
-    const timerId = setTimeout(() => {
+    const syncScrollToBottom = () => {
       const current = selectableTextRef.current;
       if (current) {
         current.scrollTop = current.scrollHeight;
       }
+    };
+
+    // Double rAF + setTimeout to ensure the browser has fully laid out the content.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(syncScrollToBottom);
+    });
+    const timerId = setTimeout(() => {
+      syncScrollToBottom();
     }, 100);
     return () => clearTimeout(timerId);
   }, [selectableText]);
@@ -1095,7 +1095,16 @@ export function App() {
                   </button>
                 </div>
               </div>
-              <textarea ref={selectableTextRef} className="copy-sheet-textarea" value={selectableText} readOnly />
+              <textarea
+                ref={selectableTextRef}
+                className="copy-sheet-textarea"
+                value={selectableText}
+                onChange={(event) => event.preventDefault()}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                inputMode="none"
+              />
               <p className="copy-sheet-hint">Use native touch selection handles here, then copy.</p>
             </section>
           );
