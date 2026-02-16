@@ -128,6 +128,36 @@ function ExtraKeyButton({
   );
 }
 
+function ArrowKeyButton({
+  softKey,
+  ariaLabel,
+  startKeyRepeat,
+  stopKeyRepeat,
+}: {
+  softKey: SoftKeyDefinition;
+  ariaLabel: string;
+  startKeyRepeat: (key: SoftKeyDefinition) => void;
+  stopKeyRepeat: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="toolbar-button arrow-overlay-button"
+      aria-label={ariaLabel}
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        startKeyRepeat(softKey);
+      }}
+      onPointerUp={stopKeyRepeat}
+      onPointerLeave={stopKeyRepeat}
+      onPointerCancel={stopKeyRepeat}
+    >
+      {softKey.label}
+    </button>
+  );
+}
+
 export function App() {
   const [config, setConfig] = useState<TtyConfig | null>(null);
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
@@ -1019,67 +1049,31 @@ export function App() {
               </button>
               <div className="arrow-overlay-grid">
                 <div className="arrow-overlay-spacer" />
-                <button
-                  type="button"
-                  className="toolbar-button arrow-overlay-button"
-                  aria-label="Arrow Up"
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    startKeyRepeat(OVERLAY_ARROW_UP);
-                  }}
-                  onPointerUp={stopKeyRepeat}
-                  onPointerLeave={stopKeyRepeat}
-                  onPointerCancel={stopKeyRepeat}
-                >
-                  {"\u25B2\uFE0E"}
-                </button>
+                <ArrowKeyButton
+                  softKey={OVERLAY_ARROW_UP}
+                  ariaLabel="Arrow Up"
+                  startKeyRepeat={startKeyRepeat}
+                  stopKeyRepeat={stopKeyRepeat}
+                />
                 <div className="arrow-overlay-spacer" />
-                <button
-                  type="button"
-                  className="toolbar-button arrow-overlay-button"
-                  aria-label="Arrow Left"
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    startKeyRepeat(OVERLAY_ARROW_LEFT);
-                  }}
-                  onPointerUp={stopKeyRepeat}
-                  onPointerLeave={stopKeyRepeat}
-                  onPointerCancel={stopKeyRepeat}
-                >
-                  {"\u25C0\uFE0E"}
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-button arrow-overlay-button"
-                  aria-label="Arrow Down"
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    startKeyRepeat(OVERLAY_ARROW_DOWN);
-                  }}
-                  onPointerUp={stopKeyRepeat}
-                  onPointerLeave={stopKeyRepeat}
-                  onPointerCancel={stopKeyRepeat}
-                >
-                  {"\u25BC\uFE0E"}
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-button arrow-overlay-button"
-                  aria-label="Arrow Right"
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    startKeyRepeat(OVERLAY_ARROW_RIGHT);
-                  }}
-                  onPointerUp={stopKeyRepeat}
-                  onPointerLeave={stopKeyRepeat}
-                  onPointerCancel={stopKeyRepeat}
-                >
-                  {"\u25B6\uFE0E"}
-                </button>
+                <ArrowKeyButton
+                  softKey={OVERLAY_ARROW_LEFT}
+                  ariaLabel="Arrow Left"
+                  startKeyRepeat={startKeyRepeat}
+                  stopKeyRepeat={stopKeyRepeat}
+                />
+                <ArrowKeyButton
+                  softKey={OVERLAY_ARROW_DOWN}
+                  ariaLabel="Arrow Down"
+                  startKeyRepeat={startKeyRepeat}
+                  stopKeyRepeat={stopKeyRepeat}
+                />
+                <ArrowKeyButton
+                  softKey={OVERLAY_ARROW_RIGHT}
+                  ariaLabel="Arrow Right"
+                  startKeyRepeat={startKeyRepeat}
+                  stopKeyRepeat={stopKeyRepeat}
+                />
               </div>
             </div>
           )}
