@@ -27,6 +27,10 @@ export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = win
   try {
     const configUrl = new URL("/api/config", locationLike.origin);
     const res = await fetch(configUrl, { signal: controller.signal });
+    if (res.status === 401) {
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
+    }
     if (res.ok) {
       const json = await res.json();
       hscroll = json.hscroll ?? true;
