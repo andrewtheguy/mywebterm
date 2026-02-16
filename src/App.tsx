@@ -192,8 +192,6 @@ export function App() {
     copyTextToClipboard,
     horizontalOverflow,
     containerElement,
-    verticalScrollSyncRef,
-    getVerticalScrollState,
   } = useTerminal({
     wsUrl: config?.wsUrl,
     onTitleChange: handleTitleChange,
@@ -209,9 +207,6 @@ export function App() {
   const scrollbarDraggingRef = useRef(false);
   const scrollbarDragStartXRef = useRef(0);
   const scrollbarDragStartScrollLeftRef = useRef(0);
-  const vScrollbarTrackRef = useRef<HTMLDivElement>(null);
-  const vScrollbarThumbRef = useRef<HTMLDivElement>(null);
-  const vScrollbarHideTimerRef = useRef<number | null>(null);
   const repeatTimerRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
   const repeatModifiersRef = useRef<SoftKeyModifiers | null>(null);
@@ -498,81 +493,6 @@ export function App() {
     viewport.addEventListener("scroll", syncScrollbarThumb);
     return () => viewport.removeEventListener("scroll", syncScrollbarThumb);
   }, [containerElement, horizontalOverflow, syncScrollbarThumb]);
-
-  const syncVerticalScrollbarThumb = useCallback(() => {
-    const track = vScrollbarTrackRef.current;
-    const thumb = vScrollbarThumbRef.current;
-    if (!track || !thumb) {
-      return;
-    }
-
-    const state = getVerticalScrollState();
-    if (!state || state.baseY <= 0) {
-      thumb.style.opacity = "0";
-      return;
-    }
-
-    const trackHeight = track.clientHeight;
-    const totalLines = state.baseY + state.rows;
-    const thumbHeight = Math.max(20, (state.rows / totalLines) * trackHeight);
-    const maxThumbTop = trackHeight - thumbHeight;
-    const thumbTop = (state.viewportY / state.baseY) * maxThumbTop;
-
-    thumb.style.height = `${thumbHeight}px`;
-    thumb.style.top = `${thumbTop}px`;
-    thumb.style.opacity = "1";
-
-    if (vScrollbarHideTimerRef.current !== null) {
-      window.clearTimeout(vScrollbarHideTimerRef.current);
-    }
-    vScrollbarHideTimerRef.current = window.setTimeout(() => {
-      thumb.style.opacity = "0";
-      vScrollbarHideTimerRef.current = null;
-    }, 1000);
-  }, [getVerticalScrollState]);
-
-  useEffect(() => {
-    const pointerMediaQuery = window.matchMedia("(pointer: coarse)");
-    const legacyPointerMediaQuery = pointerMediaQuery as MediaQueryList & {
-      addListener?: (listener: (event: MediaQueryListEvent) => void) => void;
-      removeListener?: (listener: (event: MediaQueryListEvent) => void) => void;
-    };
-
-    const updateVerticalScrollSync = (_event?: MediaQueryListEvent) => {
-      if (pointerMediaQuery.matches) {
-        verticalScrollSyncRef.current = syncVerticalScrollbarThumb;
-        syncVerticalScrollbarThumb();
-        return;
-      }
-
-      verticalScrollSyncRef.current = null;
-      if (vScrollbarHideTimerRef.current !== null) {
-        window.clearTimeout(vScrollbarHideTimerRef.current);
-        vScrollbarHideTimerRef.current = null;
-      }
-    };
-
-    updateVerticalScrollSync();
-
-    if (typeof pointerMediaQuery.addEventListener === "function") {
-      pointerMediaQuery.addEventListener("change", updateVerticalScrollSync);
-    } else if (typeof legacyPointerMediaQuery.addListener === "function") {
-      legacyPointerMediaQuery.addListener(updateVerticalScrollSync);
-    }
-
-    return () => {
-      if (typeof pointerMediaQuery.removeEventListener === "function") {
-        pointerMediaQuery.removeEventListener("change", updateVerticalScrollSync);
-      } else if (typeof legacyPointerMediaQuery.removeListener === "function") {
-        legacyPointerMediaQuery.removeListener(updateVerticalScrollSync);
-      }
-      verticalScrollSyncRef.current = null;
-      if (vScrollbarHideTimerRef.current !== null) {
-        window.clearTimeout(vScrollbarHideTimerRef.current);
-        vScrollbarHideTimerRef.current = null;
-      }
-    };
-  }, [syncVerticalScrollbarThumb, verticalScrollSyncRef]);
 
   const handleScrollbarPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -902,12 +822,6 @@ export function App() {
                 <p className="disconnect-overlay-text">Click or press Space to reconnect</p>
               </div>
             ))}
-
-          <div className="vertical-scrollbar">
-            <div className="vertical-scrollbar-track" ref={vScrollbarTrackRef}>
-              <div className="vertical-scrollbar-thumb" ref={vScrollbarThumbRef} />
-            </div>
-          </div>
 
           {horizontalOverflow && (
             <div className="custom-scrollbar">

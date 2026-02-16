@@ -719,33 +719,6 @@ body {
   background-clip: content-box;
 }
 
-.vertical-scrollbar {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 10px;
-  z-index: 12;
-  pointer-events: none;
-}
-
-.vertical-scrollbar-track {
-  position: relative;
-  width: 6px;
-  height: 100%;
-  margin-left: auto;
-}
-
-.vertical-scrollbar-thumb {
-  position: absolute;
-  width: 6px;
-  min-height: 20px;
-  background: rgba(106, 232, 206, 0.45);
-  border-radius: 3px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
 .error-card {
   padding: 1.4rem;
   display: grid;
@@ -870,10 +843,6 @@ body {
   }
 
   .terminal-viewport .xterm .xterm-viewport::-webkit-scrollbar {
-    display: none;
-  }
-
-  .vertical-scrollbar {
     display: none;
   }
 
