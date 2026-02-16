@@ -536,10 +536,6 @@ body {
   touch-action: pan-y;
 }
 
-.terminal-viewport-pass-through {
-  touch-action: none;
-}
-
 .terminal-viewport-overflow {
   overflow-x: scroll;
   overflow-y: hidden;
@@ -1100,4 +1096,34 @@ dialog.font-size-dialog-backdrop {
 
 .info-status-indicator.status-error {
   background: var(--status-error);
+}
+
+/* Device-responsive utility classes */
+.btn-icon {
+  display: none;
+}
+.btn-label {
+  display: inline;
+}
+.touch-only {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+  }
+  .btn-label {
+    display: none;
+  }
+  .touch-only {
+    display: block;
+  }
+  .pointer-only {
+    display: none;
+  }
+  .terminal-viewport {
+    touch-action: none;
+  }
 }
