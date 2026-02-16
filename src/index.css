@@ -754,6 +754,10 @@ body {
   user-select: none;
 }
 
+.arrow-overlay:not(.arrow-overlay-collapsed) {
+  width: max-content;
+}
+
 @media (pointer: coarse) {
   .arrow-overlay {
     display: block;
