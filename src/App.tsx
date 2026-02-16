@@ -145,6 +145,7 @@ export function App() {
   const [fontSize, setFontSize] = useState<number | undefined>(undefined);
   const [fontSizeMenuOpen, setFontSizeMenuOpen] = useState(false);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
+  const [arrowOverlayEnabled, setArrowOverlayEnabled] = useState(true);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
@@ -907,6 +908,14 @@ export function App() {
                   >
                     Font Size: {fontSize ?? "Auto"}
                   </button>
+                  <button
+                    type="button"
+                    className={`toolbar-button overflow-menu-item ${arrowOverlayEnabled ? "toolbar-button-active" : ""}`}
+                    aria-pressed={arrowOverlayEnabled}
+                    onClick={() => overflowAction(() => setArrowOverlayEnabled((previous) => !previous))}
+                  >
+                    Arrow Buttons: {arrowOverlayEnabled ? "On" : "Off"}
+                  </button>
                 </div>
               )}
             </div>
@@ -992,86 +1001,88 @@ export function App() {
             </div>
           )}
 
-          <div
-            className="arrow-overlay"
-            role="group"
-            aria-label="Arrow controls"
-            ref={arrowOverlayRef}
-            style={arrowOverlayStyle}
-          >
-            <button
-              type="button"
-              className="arrow-overlay-drag-handle"
-              aria-label="Drag arrow controls"
-              onPointerDown={startArrowOverlayDrag}
+          {arrowOverlayEnabled && (
+            <div
+              className="arrow-overlay touch-only"
+              role="group"
+              aria-label="Arrow controls"
+              ref={arrowOverlayRef}
+              style={arrowOverlayStyle}
             >
-              ≡
-            </button>
-            <div className="arrow-overlay-grid">
-              <div className="arrow-overlay-spacer" />
               <button
                 type="button"
-                className="toolbar-button arrow-overlay-button"
-                aria-label="Arrow Up"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  startKeyRepeat(OVERLAY_ARROW_UP);
-                }}
-                onPointerUp={stopKeyRepeat}
-                onPointerLeave={stopKeyRepeat}
-                onPointerCancel={stopKeyRepeat}
+                className="arrow-overlay-drag-handle"
+                aria-label="Drag arrow controls"
+                onPointerDown={startArrowOverlayDrag}
               >
-                {"\u25B2\uFE0E"}
+                ≡
               </button>
-              <div className="arrow-overlay-spacer" />
-              <button
-                type="button"
-                className="toolbar-button arrow-overlay-button"
-                aria-label="Arrow Left"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  startKeyRepeat(OVERLAY_ARROW_LEFT);
-                }}
-                onPointerUp={stopKeyRepeat}
-                onPointerLeave={stopKeyRepeat}
-                onPointerCancel={stopKeyRepeat}
-              >
-                {"\u25C0\uFE0E"}
-              </button>
-              <button
-                type="button"
-                className="toolbar-button arrow-overlay-button"
-                aria-label="Arrow Down"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  startKeyRepeat(OVERLAY_ARROW_DOWN);
-                }}
-                onPointerUp={stopKeyRepeat}
-                onPointerLeave={stopKeyRepeat}
-                onPointerCancel={stopKeyRepeat}
-              >
-                {"\u25BC\uFE0E"}
-              </button>
-              <button
-                type="button"
-                className="toolbar-button arrow-overlay-button"
-                aria-label="Arrow Right"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  startKeyRepeat(OVERLAY_ARROW_RIGHT);
-                }}
-                onPointerUp={stopKeyRepeat}
-                onPointerLeave={stopKeyRepeat}
-                onPointerCancel={stopKeyRepeat}
-              >
-                {"\u25B6\uFE0E"}
-              </button>
+              <div className="arrow-overlay-grid">
+                <div className="arrow-overlay-spacer" />
+                <button
+                  type="button"
+                  className="toolbar-button arrow-overlay-button"
+                  aria-label="Arrow Up"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    startKeyRepeat(OVERLAY_ARROW_UP);
+                  }}
+                  onPointerUp={stopKeyRepeat}
+                  onPointerLeave={stopKeyRepeat}
+                  onPointerCancel={stopKeyRepeat}
+                >
+                  {"\u25B2\uFE0E"}
+                </button>
+                <div className="arrow-overlay-spacer" />
+                <button
+                  type="button"
+                  className="toolbar-button arrow-overlay-button"
+                  aria-label="Arrow Left"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    startKeyRepeat(OVERLAY_ARROW_LEFT);
+                  }}
+                  onPointerUp={stopKeyRepeat}
+                  onPointerLeave={stopKeyRepeat}
+                  onPointerCancel={stopKeyRepeat}
+                >
+                  {"\u25C0\uFE0E"}
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-button arrow-overlay-button"
+                  aria-label="Arrow Down"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    startKeyRepeat(OVERLAY_ARROW_DOWN);
+                  }}
+                  onPointerUp={stopKeyRepeat}
+                  onPointerLeave={stopKeyRepeat}
+                  onPointerCancel={stopKeyRepeat}
+                >
+                  {"\u25BC\uFE0E"}
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-button arrow-overlay-button"
+                  aria-label="Arrow Right"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    startKeyRepeat(OVERLAY_ARROW_RIGHT);
+                  }}
+                  onPointerUp={stopKeyRepeat}
+                  onPointerLeave={stopKeyRepeat}
+                  onPointerCancel={stopKeyRepeat}
+                >
+                  {"\u25B6\uFE0E"}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </main>
 
