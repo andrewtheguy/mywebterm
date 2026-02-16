@@ -265,7 +265,7 @@ const server = serve<WsData>({
       Response.json({
         hscroll,
         appTitle,
-        shellCommand: command.join(" "),
+        shellCommand: command,
       }),
     "/": index,
   },

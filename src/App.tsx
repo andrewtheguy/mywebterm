@@ -158,6 +158,11 @@ function ArrowKeyButton({
   );
 }
 
+function formatShellCommand(args: string[]): string {
+  if (args.length === 0) return "shell";
+  return args.map((a) => (/[^a-zA-Z0-9_\-./=:@]/.test(a) ? `'${a.replace(/'/g, "'\\''")}'` : a)).join(" ");
+}
+
 export function App() {
   const [config, setConfig] = useState<TtyConfig | null>(null);
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
@@ -177,6 +182,9 @@ export function App() {
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [arrowOverlayEnabled, setArrowOverlayEnabled] = useState(true);
   const [awaitingStart, setAwaitingStart] = useState(true);
+  const startOverlayRef = useCallback((el: HTMLDivElement | null) => {
+    if (el) el.focus();
+  }, []);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
@@ -999,7 +1007,7 @@ export function App() {
               className="disconnect-overlay"
               role="button"
               tabIndex={0}
-              ref={(el) => el?.focus()}
+              ref={startOverlayRef}
               onClick={() => setAwaitingStart(false)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -1009,7 +1017,7 @@ export function App() {
               }}
             >
               <div className="disconnect-overlay-text start-overlay-text">
-                <code className="start-overlay-command">{config?.shellCommand || "shell"}</code>
+                <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
                 <span>Click or press Enter to start</span>
               </div>
             </div>

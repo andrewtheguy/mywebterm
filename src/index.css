@@ -621,12 +621,12 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 0.6rem;
-  color: #8fffcb;
-  border-color: rgba(143, 255, 203, 0.4);
+  color: var(--status-connected);
+  border-color: color-mix(in srgb, var(--status-connected) 40%, transparent);
 }
 
 .start-overlay-command {
-  font-family: "JetBrainsMono Nerd Font Mono", monospace;
+  font-family: var(--mono-font);
   font-size: 1.1rem;
 }
 
