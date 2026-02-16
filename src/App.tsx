@@ -242,10 +242,21 @@ export function App() {
     setClipboardSeq((s) => s + 1);
   }, []);
 
-  const handleClipboardCopy = useCallback((text: string) => {
-    setPendingClipboardText(text);
-    setClipboardSeq((s) => s + 1);
+  const handleClipboardCopy = useCallback((_text: string) => {
+    // No-op: the browser clipboard API succeeded, so the pill is unnecessary.
   }, []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: clipboardSeq restarts the timer when the same text is re-copied
+  useEffect(() => {
+    if (pendingClipboardText === null) return;
+    const timer = setTimeout(
+      () => {
+        setPendingClipboardText(null);
+      },
+      15 * 60 * 1000,
+    );
+    return () => clearTimeout(timer);
+  }, [pendingClipboardText, clipboardSeq]);
 
   const {
     containerRef,
