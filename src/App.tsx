@@ -263,13 +263,23 @@ export function App() {
     };
 
     // Double rAF + setTimeout to ensure the browser has fully laid out the content.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(syncScrollToBottom);
+    let outerRafId: number | null = null;
+    let innerRafId: number | null = null;
+    outerRafId = requestAnimationFrame(() => {
+      innerRafId = requestAnimationFrame(syncScrollToBottom);
     });
     const timerId = setTimeout(() => {
       syncScrollToBottom();
     }, 100);
-    return () => clearTimeout(timerId);
+    return () => {
+      if (outerRafId !== null) {
+        cancelAnimationFrame(outerRafId);
+      }
+      if (innerRafId !== null) {
+        cancelAnimationFrame(innerRafId);
+      }
+      clearTimeout(timerId);
+    };
   }, [selectableText]);
 
   useEffect(() => {
@@ -522,14 +532,40 @@ export function App() {
   }, [getVerticalScrollState]);
 
   useEffect(() => {
-    if (!window.matchMedia("(pointer: coarse)").matches) {
-      return;
+    const pointerMediaQuery = window.matchMedia("(pointer: coarse)");
+    const legacyPointerMediaQuery = pointerMediaQuery as MediaQueryList & {
+      addListener?: (listener: (event: MediaQueryListEvent) => void) => void;
+      removeListener?: (listener: (event: MediaQueryListEvent) => void) => void;
+    };
+
+    const updateVerticalScrollSync = (_event?: MediaQueryListEvent) => {
+      if (pointerMediaQuery.matches) {
+        verticalScrollSyncRef.current = syncVerticalScrollbarThumb;
+        syncVerticalScrollbarThumb();
+        return;
+      }
+
+      verticalScrollSyncRef.current = null;
+      if (vScrollbarHideTimerRef.current !== null) {
+        window.clearTimeout(vScrollbarHideTimerRef.current);
+        vScrollbarHideTimerRef.current = null;
+      }
+    };
+
+    updateVerticalScrollSync();
+
+    if (typeof pointerMediaQuery.addEventListener === "function") {
+      pointerMediaQuery.addEventListener("change", updateVerticalScrollSync);
+    } else if (typeof legacyPointerMediaQuery.addListener === "function") {
+      legacyPointerMediaQuery.addListener(updateVerticalScrollSync);
     }
 
-    verticalScrollSyncRef.current = syncVerticalScrollbarThumb;
-    syncVerticalScrollbarThumb();
-
     return () => {
+      if (typeof pointerMediaQuery.removeEventListener === "function") {
+        pointerMediaQuery.removeEventListener("change", updateVerticalScrollSync);
+      } else if (typeof legacyPointerMediaQuery.removeListener === "function") {
+        legacyPointerMediaQuery.removeListener(updateVerticalScrollSync);
+      }
       verticalScrollSyncRef.current = null;
       if (vScrollbarHideTimerRef.current !== null) {
         window.clearTimeout(vScrollbarHideTimerRef.current);
@@ -613,11 +649,7 @@ export function App() {
                       : "Disconnected";
               return (
                 <>
-                  <span
-                    className={`status-dot status-dot-${connectionStatus} touch-only`}
-                    role="status"
-                    aria-label={statusLabel}
-                  />
+                  <span className={`status-dot status-dot-${connectionStatus} touch-only`} aria-hidden="true" />
                   <span
                     className={`status-badge status-${connectionStatus} pointer-only`}
                     role="status"
@@ -674,8 +706,7 @@ export function App() {
             >
               <svg
                 className="btn-icon"
-                role="img"
-                aria-label="Soft Keys"
+                aria-hidden="true"
                 width="18"
                 height="18"
                 viewBox="0 0 24 24"
@@ -700,8 +731,7 @@ export function App() {
             >
               <svg
                 className="btn-icon"
-                role="img"
-                aria-label="Copy"
+                aria-hidden="true"
                 width="18"
                 height="18"
                 viewBox="0 0 24 24"
@@ -724,8 +754,7 @@ export function App() {
             >
               <svg
                 className="btn-icon"
-                role="img"
-                aria-label="Paste"
+                aria-hidden="true"
                 width="18"
                 height="18"
                 viewBox="0 0 24 24"
@@ -1099,7 +1128,7 @@ export function App() {
                 ref={selectableTextRef}
                 className="copy-sheet-textarea"
                 value={selectableText}
-                onChange={(event) => event.preventDefault()}
+                readOnly
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"
