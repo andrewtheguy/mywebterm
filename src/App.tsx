@@ -66,6 +66,38 @@ const FRAME_SPACE: SoftKeyDefinition = {
   group: "main",
 };
 
+const OVERLAY_ARROW_UP: SoftKeyDefinition = {
+  id: "overlay-arrow-up",
+  label: "▲",
+  kind: "special",
+  special: "arrowUp",
+  group: "main",
+};
+
+const OVERLAY_ARROW_LEFT: SoftKeyDefinition = {
+  id: "overlay-arrow-left",
+  label: "◀",
+  kind: "special",
+  special: "arrowLeft",
+  group: "main",
+};
+
+const OVERLAY_ARROW_DOWN: SoftKeyDefinition = {
+  id: "overlay-arrow-down",
+  label: "▼",
+  kind: "special",
+  special: "arrowDown",
+  group: "main",
+};
+
+const OVERLAY_ARROW_RIGHT: SoftKeyDefinition = {
+  id: "overlay-arrow-right",
+  label: "▶",
+  kind: "special",
+  special: "arrowRight",
+  group: "main",
+};
+
 function ExtraKeyButton({
   softKey,
   className,
@@ -838,6 +870,73 @@ export function App() {
               </div>
             </div>
           )}
+
+          <div className="arrow-overlay" role="group" aria-label="Arrow controls">
+            <div className="arrow-overlay-grid">
+              <div className="arrow-overlay-spacer" />
+              <button
+                type="button"
+                className="toolbar-button arrow-overlay-button"
+                aria-label="Arrow Up"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startKeyRepeat(OVERLAY_ARROW_UP);
+                }}
+                onPointerUp={stopKeyRepeat}
+                onPointerLeave={stopKeyRepeat}
+                onPointerCancel={stopKeyRepeat}
+              >
+                ▲
+              </button>
+              <div className="arrow-overlay-spacer" />
+              <button
+                type="button"
+                className="toolbar-button arrow-overlay-button"
+                aria-label="Arrow Left"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startKeyRepeat(OVERLAY_ARROW_LEFT);
+                }}
+                onPointerUp={stopKeyRepeat}
+                onPointerLeave={stopKeyRepeat}
+                onPointerCancel={stopKeyRepeat}
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                className="toolbar-button arrow-overlay-button"
+                aria-label="Arrow Down"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startKeyRepeat(OVERLAY_ARROW_DOWN);
+                }}
+                onPointerUp={stopKeyRepeat}
+                onPointerLeave={stopKeyRepeat}
+                onPointerCancel={stopKeyRepeat}
+              >
+                ▼
+              </button>
+              <button
+                type="button"
+                className="toolbar-button arrow-overlay-button"
+                aria-label="Arrow Right"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startKeyRepeat(OVERLAY_ARROW_RIGHT);
+                }}
+                onPointerUp={stopKeyRepeat}
+                onPointerLeave={stopKeyRepeat}
+                onPointerCancel={stopKeyRepeat}
+              >
+                ▶
+              </button>
+            </div>
+          </div>
         </div>
       </main>
 

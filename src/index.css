@@ -719,6 +719,51 @@ body {
   background-clip: content-box;
 }
 
+.arrow-overlay {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 15;
+  border: 1px solid rgba(172, 255, 236, 0.42);
+  border-radius: 16px;
+  padding: 0.45rem;
+  background: rgba(4, 18, 31, 0.88);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.arrow-overlay-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.arrow-overlay-spacer {
+  width: 3.15rem;
+  height: 3.15rem;
+}
+
+.arrow-overlay-button {
+  width: 3.15rem;
+  height: 3.15rem;
+  min-width: 3.15rem;
+  min-height: 3.15rem;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 190, 170, 0.45);
+  background: rgba(33, 54, 71, 0.92);
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.arrow-overlay-button:active {
+  background: rgba(75, 125, 110, 0.92);
+}
+
 .error-card {
   padding: 1.4rem;
   display: grid;
