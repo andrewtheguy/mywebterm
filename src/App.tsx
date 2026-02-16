@@ -176,6 +176,7 @@ export function App() {
   const [fontSizeMenuOpen, setFontSizeMenuOpen] = useState(false);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [arrowOverlayEnabled, setArrowOverlayEnabled] = useState(true);
+  const [awaitingStart, setAwaitingStart] = useState(true);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
@@ -256,7 +257,7 @@ export function App() {
     horizontalOverflow,
     containerElement,
   } = useTerminal({
-    wsUrl: config?.wsUrl,
+    wsUrl: awaitingStart ? undefined : config?.wsUrl,
     onTitleChange: handleTitleChange,
     onClipboardFallback: handleClipboardFallback,
     onClipboardCopy: handleClipboardCopy,
@@ -993,7 +994,27 @@ export function App() {
             className={`terminal-viewport ${horizontalOverflow ? "terminal-viewport-overflow" : ""}`}
           />
 
-          {connectionStatus !== "connected" &&
+          {awaitingStart ? (
+            <div
+              className="disconnect-overlay"
+              role="button"
+              tabIndex={0}
+              ref={(el) => el?.focus()}
+              onClick={() => setAwaitingStart(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  setAwaitingStart(false);
+                }
+              }}
+            >
+              <div className="disconnect-overlay-text start-overlay-text">
+                <code className="start-overlay-command">{config?.shellCommand || "shell"}</code>
+                <span>Click or press Enter to start</span>
+              </div>
+            </div>
+          ) : (
+            connectionStatus !== "connected" &&
             (connectionStatus === "connecting" ? (
               <div className="disconnect-overlay">
                 <p className="disconnect-overlay-text disconnect-overlay-connecting">Connecting...</p>
@@ -1013,7 +1034,8 @@ export function App() {
               >
                 <p className="disconnect-overlay-text">Click or press Space to reconnect</p>
               </div>
-            ))}
+            ))
+          )}
 
           {horizontalOverflow && (
             <div className="custom-scrollbar">

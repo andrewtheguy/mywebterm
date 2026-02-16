@@ -616,6 +616,20 @@ body {
   cursor: default;
 }
 
+.start-overlay-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  color: #8fffcb;
+  border-color: rgba(143, 255, 203, 0.4);
+}
+
+.start-overlay-command {
+  font-family: "JetBrainsMono Nerd Font Mono", monospace;
+  font-size: 1.1rem;
+}
+
 .mobile-selection-overlay {
   position: absolute;
   inset: 0;

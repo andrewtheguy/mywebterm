@@ -4,6 +4,7 @@ export interface TtyConfig {
   wsUrl: string;
   hscroll: boolean;
   appTitle: string;
+  shellCommand: string;
 }
 
 function toWebSocketProtocol(protocol: string): "ws:" | "wss:" {
@@ -20,6 +21,7 @@ export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = win
 
   let hscroll = true;
   let appTitle = DEFAULT_APP_TITLE;
+  let shellCommand = "";
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 4000);
   try {
@@ -29,6 +31,7 @@ export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = win
       const json = await res.json();
       hscroll = json.hscroll ?? true;
       appTitle = json.appTitle ?? DEFAULT_APP_TITLE;
+      shellCommand = json.shellCommand ?? "";
     }
   } catch {
     // Endpoint unavailable or timed out — keep default.
@@ -40,5 +43,6 @@ export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = win
     wsUrl: proxyWsUrl.toString(),
     hscroll,
     appTitle,
+    shellCommand,
   };
 }
