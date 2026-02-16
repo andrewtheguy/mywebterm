@@ -68,7 +68,7 @@ const FRAME_SPACE: SoftKeyDefinition = {
 
 const OVERLAY_ARROW_UP: SoftKeyDefinition = {
   id: "overlay-arrow-up",
-  label: "▲",
+  label: "\u25B2\uFE0E",
   kind: "special",
   special: "arrowUp",
   group: "main",
@@ -76,7 +76,7 @@ const OVERLAY_ARROW_UP: SoftKeyDefinition = {
 
 const OVERLAY_ARROW_LEFT: SoftKeyDefinition = {
   id: "overlay-arrow-left",
-  label: "◀",
+  label: "\u25C0\uFE0E",
   kind: "special",
   special: "arrowLeft",
   group: "main",
@@ -84,7 +84,7 @@ const OVERLAY_ARROW_LEFT: SoftKeyDefinition = {
 
 const OVERLAY_ARROW_DOWN: SoftKeyDefinition = {
   id: "overlay-arrow-down",
-  label: "▼",
+  label: "\u25BC\uFE0E",
   kind: "special",
   special: "arrowDown",
   group: "main",
@@ -92,7 +92,7 @@ const OVERLAY_ARROW_DOWN: SoftKeyDefinition = {
 
 const OVERLAY_ARROW_RIGHT: SoftKeyDefinition = {
   id: "overlay-arrow-right",
-  label: "▶",
+  label: "\u25B6\uFE0E",
   kind: "special",
   special: "arrowRight",
   group: "main",
@@ -887,7 +887,7 @@ export function App() {
                 onPointerLeave={stopKeyRepeat}
                 onPointerCancel={stopKeyRepeat}
               >
-                ▲
+                {"\u25B2\uFE0E"}
               </button>
               <div className="arrow-overlay-spacer" />
               <button
@@ -903,7 +903,7 @@ export function App() {
                 onPointerLeave={stopKeyRepeat}
                 onPointerCancel={stopKeyRepeat}
               >
-                ◀
+                {"\u25C0\uFE0E"}
               </button>
               <button
                 type="button"
@@ -918,7 +918,7 @@ export function App() {
                 onPointerLeave={stopKeyRepeat}
                 onPointerCancel={stopKeyRepeat}
               >
-                ▼
+                {"\u25BC\uFE0E"}
               </button>
               <button
                 type="button"
@@ -933,7 +933,7 @@ export function App() {
                 onPointerLeave={stopKeyRepeat}
                 onPointerCancel={stopKeyRepeat}
               >
-                ▶
+                {"\u25B6\uFE0E"}
               </button>
             </div>
           </div>
