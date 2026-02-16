@@ -1245,7 +1245,7 @@ dialog.font-size-dialog-backdrop {
 }
 
 .logout-button {
-  color: #ff8e84;
+  color: var(--status-disconnected);
 }
 
 /* Device-responsive utility classes */

@@ -691,7 +691,7 @@ export function App() {
 
   useEffect(() => {
     if (!arrowOverlayEnabled) return;
-    requestAnimationFrame(() => {
+    const frameId = requestAnimationFrame(() => {
       setArrowOverlayPosition((previous) => {
         if (!previous) return previous;
         const stage = terminalStageRef.current;
@@ -702,6 +702,9 @@ export function App() {
         return clampArrowOverlayPosition(previous.left, previous.top, stageRect, overlayRect);
       });
     });
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
   }, [arrowOverlayEnabled, clampArrowOverlayPosition]);
 
   const handleScrollbarPointerDown = useCallback(
@@ -1125,7 +1128,7 @@ export function App() {
                   className="arrow-overlay-close"
                   aria-label="Close arrow controls"
                   onClick={() => {
-                    if (!arrowOverlayDragMovedRef.current) {
+                    if (!arrowOverlayDragRef.current) {
                       setArrowOverlayEnabled(false);
                     }
                   }}
