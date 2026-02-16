@@ -707,6 +707,24 @@ export function App() {
     };
   }, [arrowOverlayEnabled, clampArrowOverlayPosition]);
 
+  useEffect(() => {
+    if (!softKeysOpen) return;
+    const frameId = requestAnimationFrame(() => {
+      setArrowOverlayPosition((previous) => {
+        if (!previous) return previous;
+        const stage = terminalStageRef.current;
+        const overlay = arrowOverlayRef.current;
+        if (!stage || !overlay) return previous;
+        const stageRect = stage.getBoundingClientRect();
+        const overlayRect = overlay.getBoundingClientRect();
+        return clampArrowOverlayPosition(previous.left, previous.top, stageRect, overlayRect);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [softKeysOpen, clampArrowOverlayPosition]);
+
   const handleScrollbarPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       event.preventDefault();
