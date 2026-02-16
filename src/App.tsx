@@ -732,6 +732,12 @@ export function App() {
     scrollbarDraggingRef.current = false;
   }, []);
 
+  function handleLogout() {
+    fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+      window.location.href = "/login";
+    });
+  }
+
   const arrowOverlayStyle =
     arrowOverlayPosition === null
       ? undefined
@@ -908,6 +914,13 @@ export function App() {
                   >
                     Sys Keys
                   </button>
+                  <button
+                    type="button"
+                    className="toolbar-button overflow-menu-item"
+                    onClick={() => overflowAction(() => void inspectProcesses())}
+                  >
+                    Processes
+                  </button>
                   {connectionStatus === "connected" ? (
                     <button
                       type="button"
@@ -936,16 +949,16 @@ export function App() {
                   <button
                     type="button"
                     className="toolbar-button overflow-menu-item"
-                    onClick={() => overflowAction(() => void inspectProcesses())}
-                  >
-                    Processes
-                  </button>
-                  <button
-                    type="button"
-                    className="toolbar-button overflow-menu-item"
                     onClick={() => overflowAction(() => setFontSizeMenuOpen(true))}
                   >
                     Font Size: {fontSize ?? "Auto"}
+                  </button>
+                  <button
+                    type="button"
+                    className="toolbar-button overflow-menu-item logout-button"
+                    onClick={() => overflowAction(handleLogout)}
+                  >
+                    Log Out
                   </button>
                   <button
                     type="button"
@@ -958,6 +971,9 @@ export function App() {
                 </div>
               )}
             </div>
+            <button type="button" className="toolbar-button pointer-only" onClick={() => void inspectProcesses()}>
+              Processes
+            </button>
             {connectionStatus === "connected" ? (
               <button
                 type="button"
@@ -981,15 +997,15 @@ export function App() {
                 Reconnect
               </button>
             )}
-            <button type="button" className="toolbar-button pointer-only" onClick={() => void inspectProcesses()}>
-              Processes
-            </button>
             <button
               type="button"
               className={`toolbar-button pointer-only ${fontSizeMenuOpen ? "toolbar-button-active" : ""}`}
               onClick={() => setFontSizeMenuOpen((prev) => !prev)}
             >
               Font Size: {fontSize ?? "Auto"}
+            </button>
+            <button type="button" className="toolbar-button pointer-only logout-button" onClick={handleLogout}>
+              Log Out
             </button>
           </div>
         </div>

@@ -1167,6 +1167,10 @@ dialog.font-size-dialog-backdrop {
   background: var(--status-error);
 }
 
+.logout-button {
+  color: #ff8e84;
+}
+
 /* Device-responsive utility classes */
 .btn-icon {
   display: none;
