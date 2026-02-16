@@ -69,10 +69,9 @@ export function buildLoginPageHtml(appTitle: string): string {
     .login-button {
       width: 100%;
       padding: 0.6rem;
-      border: none;
+      border: 1px solid rgba(172, 255, 236, 0.6);
       border-radius: 10px;
       background: linear-gradient(to bottom, rgba(106, 232, 206, 0.35), rgba(60, 180, 160, 0.25));
-      border: 1px solid rgba(172, 255, 236, 0.6);
       color: #d6fff5;
       font-size: 0.95rem;
       font-weight: 700;

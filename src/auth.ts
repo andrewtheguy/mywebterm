@@ -10,8 +10,8 @@ function sha256(input: string): Buffer {
   return createHash("sha256").update(input).digest();
 }
 
-export function getAuthSecret(): string | undefined {
-  return AUTH_SECRET;
+export function hasAuthSecret(): boolean {
+  return AUTH_SECRET != null && AUTH_SECRET.length > 0;
 }
 
 export function validateSecret(candidate: string): boolean {

@@ -5,8 +5,8 @@ import {
   clearSessionCookie,
   createSession as createAuthSession,
   extractSessionToken,
-  getAuthSecret,
   getSessionCookie,
+  hasAuthSecret,
   invalidateSession,
   isRequestAuthenticated,
   validateSecret,
@@ -104,7 +104,7 @@ if (values.daemonize) {
   process.exit(0);
 }
 
-if (!getAuthSecret()) {
+if (!hasAuthSecret()) {
   console.error("AUTH_SECRET environment variable is required but not set.");
   process.exit(1);
 }
@@ -435,6 +435,9 @@ const server = serve<WsData>({
       return handleWebSocketUpgrade(req, srv);
     }
     if (pathname === "/api/config") {
+      if (req.method !== "GET") {
+        return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET" } });
+      }
       return handleConfig();
     }
     if (pathname === "/api/sessions" && req.method === "GET") {
