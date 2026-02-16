@@ -1,3 +1,10 @@
+export class AuthError extends Error {
+  constructor() {
+    super("Unauthorized");
+    this.name = "AuthError";
+  }
+}
+
 export const DEFAULT_APP_TITLE = "MyWebTerm";
 
 export interface TtyConfig {
@@ -29,7 +36,7 @@ export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = win
     const res = await fetch(configUrl, { signal: controller.signal });
     if (res.status === 401) {
       window.location.href = "/login";
-      throw new Error("Unauthorized");
+      throw new AuthError();
     }
     if (res.ok) {
       const json = await res.json();
@@ -37,7 +44,8 @@ export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = win
       appTitle = json.appTitle ?? DEFAULT_APP_TITLE;
       shellCommand = Array.isArray(json.shellCommand) ? json.shellCommand : [];
     }
-  } catch {
+  } catch (err) {
+    if (err instanceof AuthError) throw err;
     // Endpoint unavailable or timed out — keep default.
   } finally {
     clearTimeout(timeoutId);
