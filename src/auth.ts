@@ -2,7 +2,11 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 const AUTH_SECRET = process.env.AUTH_SECRET;
 
-const validTokens = new Set<string>();
+const SESSION_TTL_SECONDS = 60 * 60 * 24; // 1 day
+const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
+const PURGE_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+
+const validTokens = new Map<string, number>(); // token -> expiresAt
 
 const COOKIE_NAME = "mywebterm_session";
 
@@ -20,14 +24,37 @@ export function validateSecret(candidate: string): boolean {
   return timingSafeEqual(a, b) && AUTH_SECRET !== undefined;
 }
 
+function purgeExpiredTokens(): void {
+  const now = Date.now();
+  for (const [token, expiresAt] of validTokens) {
+    if (now >= expiresAt) {
+      validTokens.delete(token);
+    }
+  }
+}
+
+setInterval(purgeExpiredTokens, PURGE_INTERVAL_MS).unref();
+
 export function createSession(): string {
+  purgeExpiredTokens();
   const token = crypto.randomUUID();
-  validTokens.add(token);
+  validTokens.set(token, Date.now() + SESSION_TTL_MS);
   return token;
 }
 
 export function isValidSession(token: string): boolean {
-  return validTokens.has(token);
+  const expiresAt = validTokens.get(token);
+  if (expiresAt === undefined) return false;
+  if (Date.now() >= expiresAt) {
+    validTokens.delete(token);
+    return false;
+  }
+  // Refresh TTL on activity rather than rotating the token. Session fixation
+  // is not a practical concern here: the server binds to localhost only and is
+  // expected to sit behind an authenticating reverse proxy, so an attacker
+  // cannot inject or observe cookie values on the wire.
+  validTokens.set(token, Date.now() + SESSION_TTL_MS);
+  return true;
 }
 
 export function invalidateSession(token: string): void {
