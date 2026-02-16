@@ -750,32 +750,60 @@ body {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   display: none;
-  gap: 0.2rem;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 @media (pointer: coarse) {
   .arrow-overlay {
-    display: grid;
+    display: block;
   }
 }
 
-.arrow-overlay-drag-handle {
-  width: 100%;
+.arrow-overlay-toolbar {
   display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.2rem;
+}
+
+.arrow-overlay-toolbar-spacer {
+  width: 1.4rem;
+  flex-shrink: 0;
+}
+
+.arrow-overlay-drag-handle {
+  display: flex;
+  flex: 1;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(120, 190, 170, 0.35);
+  height: 1.4rem;
   border-radius: 999px;
-  background: rgba(33, 54, 71, 0.42);
-  color: #d8ecff;
-  font-family: var(--mono-font);
+  border: 1px solid rgba(120, 190, 170, 0.35);
+  background: rgba(33, 54, 71, 0.58);
+  color: var(--muted-ink);
   font-size: 0.68rem;
   line-height: 1;
   font-weight: 700;
-  min-height: 1.1rem;
-  padding: 0.1rem 0.35rem;
+  padding: 0 0.35rem;
   touch-action: none;
   cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.arrow-overlay-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 142, 132, 0.35);
+  background: rgba(80, 30, 28, 0.58);
+  color: rgba(255, 142, 132, 0.58);
+  font-size: 0.85rem;
+  line-height: 1;
+  font-weight: 700;
+  padding: 0;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -784,13 +812,47 @@ body {
   background: rgba(75, 125, 110, 0.52);
 }
 
-.arrow-overlay-drag-handle:focus {
+.arrow-overlay-close:active {
+  background: rgba(120, 40, 36, 0.8);
+}
+
+.arrow-overlay-drag-handle:focus,
+.arrow-overlay-close:focus {
   outline: none;
 }
 
-.arrow-overlay-drag-handle:focus-visible {
+.arrow-overlay-drag-handle:focus-visible,
+.arrow-overlay-close:focus-visible {
   outline: 2px solid #8fffcb;
   outline-offset: 1px;
+}
+
+.arrow-overlay-collapsed {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(120, 190, 170, 0.45);
+  border-radius: 12px;
+  background: rgba(33, 54, 71, 0.58);
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (pointer: coarse) {
+  .arrow-overlay-collapsed {
+    display: flex;
+  }
+}
+
+.arrow-overlay-collapsed:active {
+  background: rgba(75, 125, 110, 0.72);
+}
+
+.arrow-overlay-collapsed-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+  color: #d8ecff;
 }
 
 .arrow-overlay-grid {
