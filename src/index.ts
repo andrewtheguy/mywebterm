@@ -238,27 +238,51 @@ function handleLoginPage(): Response {
   });
 }
 
-function handleLoginPost(req: Request): Response | Promise<Response> {
-  return (async () => {
-    let body: { secret?: string };
-    try {
-      body = await req.json();
-    } catch {
-      return Response.json({ error: "Invalid JSON" }, { status: 400 });
-    }
-    if (typeof body.secret !== "string" || !validateSecret(body.secret)) {
-      const ip = req.headers.get("x-forwarded-for") ?? "unknown";
-      console.warn(`[auth] invalid login attempt from ${ip}`);
-      return Response.json({ error: "Invalid secret" }, { status: 401 });
-    }
-    const token = createAuthSession();
-    return Response.json(
-      { ok: true },
-      {
-        headers: { "Set-Cookie": getSessionCookie(token, isSecureRequest(req)) },
-      },
-    );
-  })();
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 60_000;
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function checkLoginRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = loginAttempts.get(ip);
+  if (!record || now >= record.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return true;
+  }
+  record.count += 1;
+  return record.count <= LOGIN_MAX_ATTEMPTS;
+}
+
+function clearLoginAttempts(ip: string): void {
+  loginAttempts.delete(ip);
+}
+
+async function handleLoginPost(req: Request): Promise<Response> {
+  const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+
+  if (!checkLoginRateLimit(ip)) {
+    console.warn(`[auth] rate-limited login from ${ip}`);
+    return Response.json({ error: "Too many attempts, try again later" }, { status: 429 });
+  }
+
+  let body: { secret?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  if (typeof body.secret !== "string" || !validateSecret(body.secret)) {
+    console.warn(`[auth] invalid login attempt from ${ip}`);
+    return Response.json({ error: "Invalid secret" }, { status: 401 });
+  }
+  clearLoginAttempts(ip);
+  const token = createAuthSession();
+  return Response.json(
+    { ok: true },
+    {
+      headers: { "Set-Cookie": getSessionCookie(token, isSecureRequest(req)) },
+    },
+  );
 }
 
 function handleLogout(req: Request): Response {
