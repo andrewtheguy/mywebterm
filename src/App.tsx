@@ -113,18 +113,10 @@ export function App() {
   const [fontSize, setFontSize] = useState<number | undefined>(undefined);
   const [fontSizeMenuOpen, setFontSizeMenuOpen] = useState(false);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(pointer: coarse)").matches);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperFocusedRef = useRef(false);
-
-  useEffect(() => {
-    const mql = window.matchMedia("(pointer: coarse)");
-    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
 
   useEffect(() => {
     if (!overflowMenuOpen) {
@@ -200,8 +192,6 @@ export function App() {
     copyTextToClipboard,
     horizontalOverflow,
     containerElement,
-    verticalScrollSyncRef,
-    getVerticalScrollState,
   } = useTerminal({
     wsUrl: config?.wsUrl,
     onTitleChange: handleTitleChange,
@@ -217,9 +207,6 @@ export function App() {
   const scrollbarDraggingRef = useRef(false);
   const scrollbarDragStartXRef = useRef(0);
   const scrollbarDragStartScrollLeftRef = useRef(0);
-  const vScrollbarTrackRef = useRef<HTMLDivElement>(null);
-  const vScrollbarThumbRef = useRef<HTMLDivElement>(null);
-  const vScrollbarHideTimerRef = useRef<number | null>(null);
   const repeatTimerRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
   const repeatModifiersRef = useRef<SoftKeyModifiers | null>(null);
@@ -263,21 +250,31 @@ export function App() {
       return;
     }
 
-    const textarea = selectableTextRef.current;
-    // Double rAF + setTimeout to ensure the browser has fully laid out the content
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        textarea.scrollTop = textarea.scrollHeight;
-        textarea.focus();
-      });
-    });
-    const timerId = setTimeout(() => {
+    const syncScrollToBottom = () => {
       const current = selectableTextRef.current;
       if (current) {
         current.scrollTop = current.scrollHeight;
       }
+    };
+
+    // Double rAF + setTimeout to ensure the browser has fully laid out the content.
+    let outerRafId: number | null = null;
+    let innerRafId: number | null = null;
+    outerRafId = requestAnimationFrame(() => {
+      innerRafId = requestAnimationFrame(syncScrollToBottom);
+    });
+    const timerId = setTimeout(() => {
+      syncScrollToBottom();
     }, 100);
-    return () => clearTimeout(timerId);
+    return () => {
+      if (outerRafId !== null) {
+        cancelAnimationFrame(outerRafId);
+      }
+      if (innerRafId !== null) {
+        cancelAnimationFrame(innerRafId);
+      }
+      clearTimeout(timerId);
+    };
   }, [selectableText]);
 
   useEffect(() => {
@@ -497,55 +494,6 @@ export function App() {
     return () => viewport.removeEventListener("scroll", syncScrollbarThumb);
   }, [containerElement, horizontalOverflow, syncScrollbarThumb]);
 
-  const syncVerticalScrollbarThumb = useCallback(() => {
-    const track = vScrollbarTrackRef.current;
-    const thumb = vScrollbarThumbRef.current;
-    if (!track || !thumb) {
-      return;
-    }
-
-    const state = getVerticalScrollState();
-    if (!state || state.baseY <= 0) {
-      thumb.style.opacity = "0";
-      return;
-    }
-
-    const trackHeight = track.clientHeight;
-    const totalLines = state.baseY + state.rows;
-    const thumbHeight = Math.max(20, (state.rows / totalLines) * trackHeight);
-    const maxThumbTop = trackHeight - thumbHeight;
-    const thumbTop = (state.viewportY / state.baseY) * maxThumbTop;
-
-    thumb.style.height = `${thumbHeight}px`;
-    thumb.style.top = `${thumbTop}px`;
-    thumb.style.opacity = "1";
-
-    if (vScrollbarHideTimerRef.current !== null) {
-      window.clearTimeout(vScrollbarHideTimerRef.current);
-    }
-    vScrollbarHideTimerRef.current = window.setTimeout(() => {
-      thumb.style.opacity = "0";
-      vScrollbarHideTimerRef.current = null;
-    }, 1000);
-  }, [getVerticalScrollState]);
-
-  useEffect(() => {
-    if (!isMobile) {
-      return;
-    }
-
-    verticalScrollSyncRef.current = syncVerticalScrollbarThumb;
-    syncVerticalScrollbarThumb();
-
-    return () => {
-      verticalScrollSyncRef.current = null;
-      if (vScrollbarHideTimerRef.current !== null) {
-        window.clearTimeout(vScrollbarHideTimerRef.current);
-        vScrollbarHideTimerRef.current = null;
-      }
-    };
-  }, [isMobile, syncVerticalScrollbarThumb, verticalScrollSyncRef]);
-
   const handleScrollbarPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       event.preventDefault();
@@ -610,49 +558,42 @@ export function App() {
             <button type="button" className="info-button" onClick={() => setInfoDialogOpen(true)} aria-label="Info">
               i
             </button>
-            {isMobile ? (
-              <span
-                className={`status-dot status-dot-${connectionStatus}`}
-                role="status"
-                aria-label={
-                  connectionStatus === "connected"
-                    ? "Connected"
-                    : connectionStatus === "connecting"
-                      ? "Connecting"
-                      : connectionStatus === "error"
-                        ? "Error"
-                        : "Disconnected"
-                }
-              />
-            ) : (
-              <span
-                className={`status-badge status-${connectionStatus}`}
-                role="status"
-                aria-label={
-                  connectionStatus === "connected"
-                    ? "Connected"
-                    : connectionStatus === "connecting"
-                      ? "Connecting"
-                      : connectionStatus === "error"
-                        ? "Error"
-                        : "Disconnected"
-                }
-              >
-                {connectionStatus === "connecting" ? "..." : connectionStatus}
-              </span>
-            )}
-            {isMobile && pendingClipboardText === null ? (
+            {(() => {
+              const statusLabel =
+                connectionStatus === "connected"
+                  ? "Connected"
+                  : connectionStatus === "connecting"
+                    ? "Connecting"
+                    : connectionStatus === "error"
+                      ? "Error"
+                      : "Disconnected";
+              return (
+                <>
+                  <span className={`status-dot status-dot-${connectionStatus} touch-only`} aria-hidden="true" />
+                  <span
+                    className={`status-badge status-${connectionStatus} pointer-only`}
+                    role="status"
+                    aria-label={statusLabel}
+                  >
+                    {connectionStatus === "connecting" ? "..." : connectionStatus}
+                  </span>
+                </>
+              );
+            })()}
+            {pendingClipboardText === null ? (
               <span className="status-badge clipboard-pending-badge clipboard-idle" style={{ visibility: "hidden" }}>
-                📋
+                <span className="btn-icon">📋</span>
+                <span className="btn-label">Clipboard</span>
               </span>
             ) : (
               <button
                 key={clipboardSeq}
                 type="button"
-                className={`status-badge clipboard-pending-badge${pendingClipboardText === null ? " clipboard-idle" : ""}`}
+                className="status-badge clipboard-pending-badge"
                 onClick={openPendingClipboard}
               >
-                {isMobile ? "📋" : "Clipboard"}
+                <span className="btn-icon">📋</span>
+                <span className="btn-label">Clipboard</span>
               </button>
             )}
           </h1>
@@ -683,27 +624,24 @@ export function App() {
               }}
               aria-pressed={softKeysOpen}
             >
-              {isMobile ? (
-                <svg
-                  role="img"
-                  aria-label="Soft Keys"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="2" y="4" width="20" height="16" rx="2" />
-                  <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01" />
-                  <path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01" />
-                  <path d="M8 16h8" />
-                </svg>
-              ) : (
-                "Soft Keys"
-              )}
+              <svg
+                className="btn-icon"
+                aria-hidden="true"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01" />
+                <path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01" />
+                <path d="M8 16h8" />
+              </svg>
+              <span className="btn-label">Soft Keys</span>
             </button>
             <button
               type="button"
@@ -711,25 +649,22 @@ export function App() {
               onClick={() => void openSelectableText()}
               title="Copy Text"
             >
-              {isMobile ? (
-                <svg
-                  role="img"
-                  aria-label="Copy"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="9" y="9" width="13" height="13" rx="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-              ) : (
-                "Copy Text"
-              )}
+              <svg
+                className="btn-icon"
+                aria-hidden="true"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span className="btn-label">Copy Text</span>
             </button>
             <button
               type="button"
@@ -737,134 +672,124 @@ export function App() {
               onClick={() => void handleToolbarPaste()}
               title="Paste from clipboard. If blocked, a helper panel opens for iOS paste."
             >
-              {isMobile ? (
-                <svg
-                  role="img"
-                  aria-label="Paste"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                  <rect x="8" y="2" width="8" height="4" rx="1" />
-                  <path d="M12 11v6" />
-                  <path d="M9 14l3-3 3 3" />
-                </svg>
-              ) : (
-                "Paste Text"
-              )}
+              <svg
+                className="btn-icon"
+                aria-hidden="true"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                <rect x="8" y="2" width="8" height="4" rx="1" />
+                <path d="M12 11v6" />
+                <path d="M9 14l3-3 3 3" />
+              </svg>
+              <span className="btn-label">Paste Text</span>
             </button>
-            {isMobile ? (
-              <div className="overflow-menu" ref={overflowMenuRef}>
-                <button
-                  type="button"
-                  className="toolbar-button overflow-menu-trigger"
-                  onClick={() => setOverflowMenuOpen((prev) => !prev)}
-                  aria-expanded={overflowMenuOpen}
-                  aria-label="More actions"
-                >
-                  &#8942;
-                </button>
-                {overflowMenuOpen && (
-                  <div className="overflow-menu-panel">
+            <div className="overflow-menu touch-only" ref={overflowMenuRef}>
+              <button
+                type="button"
+                className="toolbar-button overflow-menu-trigger"
+                onClick={() => setOverflowMenuOpen((prev) => !prev)}
+                aria-expanded={overflowMenuOpen}
+                aria-label="More actions"
+              >
+                &#8942;
+              </button>
+              {overflowMenuOpen && (
+                <div className="overflow-menu-panel">
+                  <button
+                    type="button"
+                    className={`toolbar-button overflow-menu-item ${sysKeyActive ? "toolbar-button-active" : ""}`}
+                    onClick={() =>
+                      overflowAction(() => {
+                        setSoftKeysOpen(false);
+                        focusSysKeyboard();
+                      })
+                    }
+                  >
+                    Sys Keys
+                  </button>
+                  {connectionStatus === "connected" ? (
                     <button
                       type="button"
-                      className={`toolbar-button overflow-menu-item ${sysKeyActive ? "toolbar-button-active" : ""}`}
+                      className="toolbar-button overflow-menu-item"
                       onClick={() =>
                         overflowAction(() => {
-                          setSoftKeysOpen(false);
-                          focusSysKeyboard();
+                          if (window.confirm("Restart terminal session?")) {
+                            setProcessesText(null);
+                            restart();
+                          }
                         })
                       }
                     >
-                      Sys Keys
+                      Restart
                     </button>
-                    {connectionStatus === "connected" ? (
-                      <button
-                        type="button"
-                        className="toolbar-button overflow-menu-item"
-                        onClick={() =>
-                          overflowAction(() => {
-                            if (window.confirm("Restart terminal session?")) {
-                              setProcessesText(null);
-                              restart();
-                            }
-                          })
-                        }
-                      >
-                        Restart
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="toolbar-button overflow-menu-item reconnect-button"
-                        onClick={() => overflowAction(reconnect)}
-                        disabled={connectionStatus === "connecting"}
-                      >
-                        Reconnect
-                      </button>
-                    )}
+                  ) : (
                     <button
                       type="button"
-                      className="toolbar-button overflow-menu-item"
-                      onClick={() => overflowAction(() => void inspectProcesses())}
+                      className="toolbar-button overflow-menu-item reconnect-button"
+                      onClick={() => overflowAction(reconnect)}
+                      disabled={connectionStatus === "connecting"}
                     >
-                      Processes
+                      Reconnect
                     </button>
-                    <button
-                      type="button"
-                      className="toolbar-button overflow-menu-item"
-                      onClick={() => overflowAction(() => setFontSizeMenuOpen(true))}
-                    >
-                      Font Size: {fontSize ?? "Auto"}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <>
-                {connectionStatus === "connected" ? (
+                  )}
                   <button
                     type="button"
-                    className="toolbar-button"
-                    onClick={() => {
-                      if (window.confirm("Restart terminal session?")) {
-                        setProcessesText(null);
-                        restart();
-                      }
-                    }}
+                    className="toolbar-button overflow-menu-item"
+                    onClick={() => overflowAction(() => void inspectProcesses())}
                   >
-                    Restart
+                    Processes
                   </button>
-                ) : (
                   <button
                     type="button"
-                    className="toolbar-button reconnect-button"
-                    onClick={reconnect}
-                    disabled={connectionStatus === "connecting"}
+                    className="toolbar-button overflow-menu-item"
+                    onClick={() => overflowAction(() => setFontSizeMenuOpen(true))}
                   >
-                    Reconnect
+                    Font Size: {fontSize ?? "Auto"}
                   </button>
-                )}
-                <button type="button" className="toolbar-button" onClick={() => void inspectProcesses()}>
-                  Processes
-                </button>
-              </>
-            )}
-            {!isMobile && (
+                </div>
+              )}
+            </div>
+            {connectionStatus === "connected" ? (
               <button
                 type="button"
-                className={`toolbar-button ${fontSizeMenuOpen ? "toolbar-button-active" : ""}`}
-                onClick={() => setFontSizeMenuOpen((prev) => !prev)}
+                className="toolbar-button pointer-only"
+                onClick={() => {
+                  if (window.confirm("Restart terminal session?")) {
+                    setProcessesText(null);
+                    restart();
+                  }
+                }}
               >
-                Font Size: {fontSize ?? "Auto"}
+                Restart
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="toolbar-button reconnect-button pointer-only"
+                onClick={reconnect}
+                disabled={connectionStatus === "connecting"}
+              >
+                Reconnect
               </button>
             )}
+            <button type="button" className="toolbar-button pointer-only" onClick={() => void inspectProcesses()}>
+              Processes
+            </button>
+            <button
+              type="button"
+              className={`toolbar-button pointer-only ${fontSizeMenuOpen ? "toolbar-button-active" : ""}`}
+              onClick={() => setFontSizeMenuOpen((prev) => !prev)}
+            >
+              Font Size: {fontSize ?? "Auto"}
+            </button>
           </div>
         </div>
       </header>
@@ -873,7 +798,7 @@ export function App() {
         <div className="terminal-stage">
           <div
             ref={containerRef}
-            className={`terminal-viewport ${isMobile ? "terminal-viewport-pass-through" : ""} ${horizontalOverflow ? "terminal-viewport-overflow" : ""}`}
+            className={`terminal-viewport ${horizontalOverflow ? "terminal-viewport-overflow" : ""}`}
           />
 
           {connectionStatus !== "connected" &&
@@ -897,14 +822,6 @@ export function App() {
                 <p className="disconnect-overlay-text">Click or press Space to reconnect</p>
               </div>
             ))}
-
-          {isMobile && (
-            <div className="vertical-scrollbar">
-              <div className="vertical-scrollbar-track" ref={vScrollbarTrackRef}>
-                <div className="vertical-scrollbar-thumb" ref={vScrollbarThumbRef} />
-              </div>
-            </div>
-          )}
 
           {horizontalOverflow && (
             <div className="custom-scrollbar">
@@ -1121,7 +1038,16 @@ export function App() {
                   </button>
                 </div>
               </div>
-              <textarea ref={selectableTextRef} className="copy-sheet-textarea" value={selectableText} readOnly />
+              <textarea
+                ref={selectableTextRef}
+                className="copy-sheet-textarea"
+                value={selectableText}
+                readOnly
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                inputMode="none"
+              />
               <p className="copy-sheet-hint">Use native touch selection handles here, then copy.</p>
             </section>
           );

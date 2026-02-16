@@ -37,8 +37,6 @@ interface UseTerminalResult {
   copyTextToClipboard: (text: string) => Promise<boolean>;
   horizontalOverflow: boolean;
   containerElement: HTMLDivElement | null;
-  verticalScrollSyncRef: React.MutableRefObject<(() => void) | null>;
-  getVerticalScrollState(): { viewportY: number; baseY: number; rows: number } | null;
 }
 
 const MOBILE_VIEWPORT_QUERY = "(max-width: 768px)";
@@ -215,19 +213,6 @@ export function useTerminal({
   const terminalMountedRef = useRef(false);
   const customFitRef = useRef<(() => void) | null>(null);
   const fitSuppressedRef = useRef(false);
-  const verticalScrollSyncRef = useRef<(() => void) | null>(null);
-
-  const getVerticalScrollState = useCallback((): { viewportY: number; baseY: number; rows: number } | null => {
-    const terminal = terminalRef.current;
-    if (!terminal) {
-      return null;
-    }
-    return {
-      viewportY: terminal.buffer.active.viewportY,
-      baseY: terminal.buffer.active.baseY,
-      rows: terminal.rows,
-    };
-  }, []);
 
   const getTerminalLayout = useCallback((): TerminalLayout | null => {
     const terminal = terminalRef.current;
@@ -440,8 +425,6 @@ export function useTerminal({
         }
       }),
       terminal.onScroll(() => {
-        verticalScrollSyncRef.current?.();
-
         const isAtBottom = terminal.buffer.active.viewportY >= terminal.buffer.active.baseY;
         const cursorLayer = terminal.element?.querySelector(".xterm-cursor-layer") as HTMLElement | null;
         if (cursorLayer) {
@@ -796,7 +779,6 @@ export function useTerminal({
       switch (frame.command) {
         case ServerCommand.OUTPUT:
           terminal.write(frame.payload);
-          verticalScrollSyncRef.current?.();
           break;
         case ServerCommand.SET_WINDOW_TITLE:
           onTitleChangeRef.current?.(decoderRef.current.decode(frame.payload));
@@ -1154,7 +1136,5 @@ export function useTerminal({
     copyTextToClipboard,
     horizontalOverflow,
     containerElement: container,
-    verticalScrollSyncRef,
-    getVerticalScrollState,
   };
 }
