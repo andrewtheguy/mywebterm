@@ -1109,7 +1109,6 @@ export function App() {
               aria-label="Arrow controls"
               ref={arrowOverlayRef as React.RefObject<HTMLDivElement>}
               style={arrowOverlayStyle}
-              onPointerDown={startArrowOverlayDrag}
             >
               <div className="arrow-overlay-toolbar">
                 <div className="arrow-overlay-toolbar-spacer" />
