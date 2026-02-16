@@ -625,6 +625,11 @@ body {
   border-color: color-mix(in srgb, var(--status-connected) 40%, transparent);
 }
 
+.start-overlay-resume {
+  color: var(--status-connecting);
+  border-color: color-mix(in srgb, var(--status-connecting) 40%, transparent);
+}
+
 .start-overlay-command {
   font-family: var(--mono-font);
   font-size: 1.1rem;

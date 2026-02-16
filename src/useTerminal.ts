@@ -68,7 +68,7 @@ const RECENT_OUTPUT_LINES = 2000;
 const MOBILE_LONG_PRESS_CANCEL_DISTANCE_PX = 8;
 const FALLBACK_PIXELS_PER_LINE = 12;
 
-const SESSION_STORAGE_KEY = "mywebterm-session-id";
+export const SESSION_STORAGE_KEY = "mywebterm-session-id";
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const BASE_RECONNECT_DELAY_MS = 1_000;
 
@@ -343,7 +343,7 @@ export function useTerminal({
     return true;
   }, []);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: fontSize is handled by the dedicated effect below to avoid full terminal recreation
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fontSize and isMobileViewport are handled by the dedicated effect below to avoid full terminal recreation
   useEffect(() => {
     if (!container) {
       terminalMountedRef.current = false;
@@ -551,7 +551,7 @@ export function useTerminal({
       pendingTouchRef.current = null;
       clearScrollGesture();
     };
-  }, [closeSocket, container, clearScrollGesture, hscroll, isMobileViewport, mobileTouchSupported, sendInputFrame]);
+  }, [closeSocket, container, clearScrollGesture, hscroll, mobileTouchSupported, sendInputFrame]);
 
   useEffect(() => {
     const terminal = terminalRef.current;

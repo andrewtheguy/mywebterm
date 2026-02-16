@@ -14,7 +14,7 @@ import {
   type SoftKeyDefinition,
   type SoftModifierName,
 } from "./softKeyboard";
-import { useTerminal } from "./useTerminal";
+import { SESSION_STORAGE_KEY, useTerminal } from "./useTerminal";
 
 function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
   if (key.kind === "printable") {
@@ -1032,10 +1032,16 @@ export function App() {
                 }
               }}
             >
-              <div className="disconnect-overlay-text start-overlay-text">
-                <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
-                <span>Click or press Enter to start</span>
-              </div>
+              {sessionStorage.getItem(SESSION_STORAGE_KEY) !== null ? (
+                <div className="disconnect-overlay-text start-overlay-text start-overlay-resume">
+                  <span>Click or press Enter to resume</span>
+                </div>
+              ) : (
+                <div className="disconnect-overlay-text start-overlay-text">
+                  <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
+                  <span>Click or press Enter to start</span>
+                </div>
+              )}
             </div>
           ) : (
             connectionStatus !== "connected" &&
