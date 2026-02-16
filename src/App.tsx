@@ -37,6 +37,13 @@ function softKeyShiftHint(key: SoftKeyDefinition, shiftActive: boolean): string 
   return shifted;
 }
 
+const AES_GCM_IV_SIZE = 12;
+
+interface EncryptedClipboardPayload {
+  encryptedContent: Uint8Array;
+  iv: Uint8Array;
+}
+
 const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
 
 const SECONDARY_ROW2_ARROW_LABELS = new Set([",", "▲", "Ins"]);
@@ -167,7 +174,7 @@ export function App() {
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
-  const [pendingClipboardText, setPendingClipboardText] = useState<string | null>(null);
+  const [pendingClipboardPayload, setPendingClipboardPayload] = useState<EncryptedClipboardPayload | null>(null);
   const [clipboardSeq, setClipboardSeq] = useState(0);
   const [processesText, setProcessesText] = useState<string | null>(null);
   const [softKeysOpen, setSoftKeysOpen] = useState(false);
@@ -188,6 +195,39 @@ export function App() {
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperFocusedRef = useRef(false);
+
+  const clipboardCryptoKeyRef = useRef<CryptoKey | null>(null);
+
+  const getClipboardCryptoKey = useCallback(async (): Promise<CryptoKey> => {
+    const existing = clipboardCryptoKeyRef.current;
+    if (existing) return existing;
+    const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    clipboardCryptoKeyRef.current = key;
+    return key;
+  }, []);
+
+  const encryptClipboardText = useCallback(
+    async (text: string): Promise<EncryptedClipboardPayload> => {
+      const key = await getClipboardCryptoKey();
+      const iv = crypto.getRandomValues(new Uint8Array(AES_GCM_IV_SIZE));
+      const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(text));
+      return { encryptedContent: new Uint8Array(encrypted), iv };
+    },
+    [getClipboardCryptoKey],
+  );
+
+  const decryptClipboardPayload = useCallback(
+    async (payload: EncryptedClipboardPayload): Promise<string> => {
+      const key = await getClipboardCryptoKey();
+      const buf = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: payload.iv.buffer as ArrayBuffer },
+        key,
+        payload.encryptedContent.buffer as ArrayBuffer,
+      );
+      return new TextDecoder().decode(new Uint8Array(buf));
+    },
+    [getClipboardCryptoKey],
+  );
 
   useEffect(() => {
     if (!overflowMenuOpen) {
@@ -237,10 +277,15 @@ export function App() {
     setRemoteTitle(title);
   }, []);
 
-  const handleClipboardFallback = useCallback((text: string) => {
-    setPendingClipboardText(text);
-    setClipboardSeq((s) => s + 1);
-  }, []);
+  const handleClipboardFallback = useCallback(
+    (text: string) => {
+      void encryptClipboardText(text).then((payload) => {
+        setPendingClipboardPayload(payload);
+        setClipboardSeq((s) => s + 1);
+      });
+    },
+    [encryptClipboardText],
+  );
 
   const handleClipboardCopy = useCallback((_text: string) => {
     // No-op: the browser clipboard API succeeded, so the pill is unnecessary.
@@ -248,15 +293,15 @@ export function App() {
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: clipboardSeq restarts the timer when the same text is re-copied
   useEffect(() => {
-    if (pendingClipboardText === null) return;
+    if (pendingClipboardPayload === null) return;
     const timer = setTimeout(
       () => {
-        setPendingClipboardText(null);
+        setPendingClipboardPayload(null);
       },
       15 * 60 * 1000,
     );
     return () => clearTimeout(timer);
-  }, [pendingClipboardText, clipboardSeq]);
+  }, [pendingClipboardPayload, clipboardSeq]);
 
   const {
     containerRef,
@@ -411,15 +456,17 @@ export function App() {
 
   const closeSelectableText = useCallback(() => {
     setSelectableText(null);
-    setPendingClipboardText(null);
+    setPendingClipboardPayload(null);
   }, []);
 
   const openPendingClipboard = useCallback(() => {
-    if (!pendingClipboardText) return;
-    setPasteHelperText(null);
-    setSelectableText(pendingClipboardText);
-    setPendingClipboardText(null);
-  }, [pendingClipboardText]);
+    if (!pendingClipboardPayload) return;
+    void decryptClipboardPayload(pendingClipboardPayload).then((text) => {
+      setPasteHelperText(null);
+      setSelectableText(text);
+      setPendingClipboardPayload(null);
+    });
+  }, [pendingClipboardPayload, decryptClipboardPayload]);
 
   const openPasteHelper = useCallback(() => {
     setSelectableText(null);
@@ -838,7 +885,7 @@ export function App() {
                 </>
               );
             })()}
-            {pendingClipboardText === null ? (
+            {pendingClipboardPayload === null ? (
               <span className="status-badge clipboard-pending-badge clipboard-idle" style={{ visibility: "hidden" }}>
                 <span className="btn-icon">📋</span>
                 <span className="btn-label">Clipboard</span>
@@ -1396,8 +1443,6 @@ export function App() {
                         const ok = await copyTextToClipboard(selectableText);
                         if (ok) {
                           toast.success(`Copied ${lineCount} line${lineCount === 1 ? "" : "s"}.`, { id: "copy" });
-                          setPendingClipboardText(selectableText);
-                          setClipboardSeq((s) => s + 1);
                         } else {
                           toast.error("Clipboard copy failed.", { id: "copy" });
                         }
