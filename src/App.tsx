@@ -14,7 +14,7 @@ import {
   type SoftKeyDefinition,
   type SoftModifierName,
 } from "./softKeyboard";
-import { useTerminal } from "./useTerminal";
+import { SESSION_STORAGE_KEY, useTerminal } from "./useTerminal";
 
 function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
   if (key.kind === "printable") {
@@ -146,7 +146,6 @@ function ArrowKeyButton({
       aria-label={ariaLabel}
       onPointerDown={(event) => {
         event.preventDefault();
-        event.stopPropagation();
         startKeyRepeat(softKey);
       }}
       onPointerUp={stopKeyRepeat}
@@ -280,8 +279,9 @@ export function App() {
   const scrollbarDraggingRef = useRef(false);
   const scrollbarDragStartXRef = useRef(0);
   const scrollbarDragStartScrollLeftRef = useRef(0);
-  const arrowOverlayRef = useRef<HTMLDivElement>(null);
+  const arrowOverlayRef = useRef<HTMLElement>(null);
   const arrowOverlayDragRef = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
+  const arrowOverlayDragMovedRef = useRef(false);
   const [arrowOverlayPosition, setArrowOverlayPosition] = useState<{ left: number; top: number } | null>(null);
   const repeatTimerRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
@@ -601,7 +601,7 @@ export function App() {
   );
 
   const startArrowOverlayDrag = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
+    (event: ReactPointerEvent<HTMLElement>) => {
       event.preventDefault();
       event.stopPropagation();
       const stage = terminalStageRef.current;
@@ -619,6 +619,7 @@ export function App() {
         overlayRect,
       );
       setArrowOverlayPosition(nextPosition);
+      arrowOverlayDragMovedRef.current = false;
       arrowOverlayDragRef.current = {
         pointerId: event.pointerId,
         offsetX: event.clientX - overlayRect.left,
@@ -635,6 +636,17 @@ export function App() {
         return;
       }
       event.preventDefault();
+      if (!arrowOverlayDragMovedRef.current) {
+        if (repeatTimerRef.current !== null) {
+          window.clearTimeout(repeatTimerRef.current);
+          repeatTimerRef.current = null;
+        }
+        if (repeatIntervalRef.current !== null) {
+          window.clearInterval(repeatIntervalRef.current);
+          repeatIntervalRef.current = null;
+        }
+      }
+      arrowOverlayDragMovedRef.current = true;
       updateArrowOverlayPosition(event.clientX, event.clientY);
     };
 
@@ -676,6 +688,24 @@ export function App() {
     window.addEventListener("resize", clampPosition);
     return () => window.removeEventListener("resize", clampPosition);
   }, [clampArrowOverlayPosition]);
+
+  useEffect(() => {
+    if (!arrowOverlayEnabled) return;
+    const frameId = requestAnimationFrame(() => {
+      setArrowOverlayPosition((previous) => {
+        if (!previous) return previous;
+        const stage = terminalStageRef.current;
+        const overlay = arrowOverlayRef.current;
+        if (!stage || !overlay) return previous;
+        const stageRect = stage.getBoundingClientRect();
+        const overlayRect = overlay.getBoundingClientRect();
+        return clampArrowOverlayPosition(previous.left, previous.top, stageRect, overlayRect);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [arrowOverlayEnabled, clampArrowOverlayPosition]);
 
   const handleScrollbarPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -731,6 +761,12 @@ export function App() {
     event.preventDefault();
     scrollbarDraggingRef.current = false;
   }, []);
+
+  function handleLogout() {
+    fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+      window.location.href = "/login";
+    });
+  }
 
   const arrowOverlayStyle =
     arrowOverlayPosition === null
@@ -908,6 +944,13 @@ export function App() {
                   >
                     Sys Keys
                   </button>
+                  <button
+                    type="button"
+                    className="toolbar-button overflow-menu-item"
+                    onClick={() => overflowAction(() => void inspectProcesses())}
+                  >
+                    Processes
+                  </button>
                   {connectionStatus === "connected" ? (
                     <button
                       type="button"
@@ -936,28 +979,23 @@ export function App() {
                   <button
                     type="button"
                     className="toolbar-button overflow-menu-item"
-                    onClick={() => overflowAction(() => void inspectProcesses())}
-                  >
-                    Processes
-                  </button>
-                  <button
-                    type="button"
-                    className="toolbar-button overflow-menu-item"
                     onClick={() => overflowAction(() => setFontSizeMenuOpen(true))}
                   >
                     Font Size: {fontSize ?? "Auto"}
                   </button>
                   <button
                     type="button"
-                    className={`toolbar-button overflow-menu-item ${arrowOverlayEnabled ? "toolbar-button-active" : ""}`}
-                    aria-pressed={arrowOverlayEnabled}
-                    onClick={() => overflowAction(() => setArrowOverlayEnabled((previous) => !previous))}
+                    className="toolbar-button overflow-menu-item logout-button"
+                    onClick={() => overflowAction(handleLogout)}
                   >
-                    Arrow Buttons: {arrowOverlayEnabled ? "On" : "Off"}
+                    Log Out
                   </button>
                 </div>
               )}
             </div>
+            <button type="button" className="toolbar-button pointer-only" onClick={() => void inspectProcesses()}>
+              Processes
+            </button>
             {connectionStatus === "connected" ? (
               <button
                 type="button"
@@ -981,15 +1019,15 @@ export function App() {
                 Reconnect
               </button>
             )}
-            <button type="button" className="toolbar-button pointer-only" onClick={() => void inspectProcesses()}>
-              Processes
-            </button>
             <button
               type="button"
               className={`toolbar-button pointer-only ${fontSizeMenuOpen ? "toolbar-button-active" : ""}`}
               onClick={() => setFontSizeMenuOpen((prev) => !prev)}
             >
               Font Size: {fontSize ?? "Auto"}
+            </button>
+            <button type="button" className="toolbar-button pointer-only logout-button" onClick={handleLogout}>
+              Log Out
             </button>
           </div>
         </div>
@@ -1016,10 +1054,16 @@ export function App() {
                 }
               }}
             >
-              <div className="disconnect-overlay-text start-overlay-text">
-                <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
-                <span>Click or press Enter to start</span>
-              </div>
+              {sessionStorage.getItem(SESSION_STORAGE_KEY) !== null ? (
+                <div className="disconnect-overlay-text start-overlay-text start-overlay-resume">
+                  <span>Click or press Enter to resume</span>
+                </div>
+              ) : (
+                <div className="disconnect-overlay-text start-overlay-text">
+                  <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
+                  <span>Click or press Enter to start</span>
+                </div>
+              )}
             </div>
           ) : (
             connectionStatus !== "connected" &&
@@ -1061,22 +1105,37 @@ export function App() {
             </div>
           )}
 
-          {arrowOverlayEnabled && (
+          {arrowOverlayEnabled ? (
             <div
-              className="arrow-overlay touch-only"
+              className="arrow-overlay"
               role="group"
               aria-label="Arrow controls"
-              ref={arrowOverlayRef}
+              ref={arrowOverlayRef as React.RefObject<HTMLDivElement>}
               style={arrowOverlayStyle}
             >
-              <button
-                type="button"
-                className="arrow-overlay-drag-handle"
-                aria-label="Drag arrow controls"
-                onPointerDown={startArrowOverlayDrag}
-              >
-                ≡
-              </button>
+              <div className="arrow-overlay-toolbar">
+                <div className="arrow-overlay-toolbar-spacer" />
+                <button
+                  type="button"
+                  className="arrow-overlay-drag-handle"
+                  aria-label="Drag arrow controls"
+                  onPointerDown={startArrowOverlayDrag}
+                >
+                  ⠿
+                </button>
+                <button
+                  type="button"
+                  className="arrow-overlay-close"
+                  aria-label="Close arrow controls"
+                  onClick={() => {
+                    if (!arrowOverlayDragRef.current) {
+                      setArrowOverlayEnabled(false);
+                    }
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
               <div className="arrow-overlay-grid">
                 <div className="arrow-overlay-spacer" />
                 <ArrowKeyButton
@@ -1106,6 +1165,24 @@ export function App() {
                 />
               </div>
             </div>
+          ) : (
+            <button
+              type="button"
+              className="arrow-overlay arrow-overlay-collapsed"
+              aria-label="Show arrow controls"
+              ref={arrowOverlayRef as React.RefObject<HTMLButtonElement>}
+              style={arrowOverlayStyle}
+              onPointerDown={startArrowOverlayDrag}
+              onClick={() => {
+                if (!arrowOverlayDragMovedRef.current) {
+                  setArrowOverlayEnabled(true);
+                }
+              }}
+            >
+              <span className="arrow-overlay-collapsed-icon" aria-hidden="true">
+                ✥
+              </span>
+            </button>
           )}
         </div>
       </main>
