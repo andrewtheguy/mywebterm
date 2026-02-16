@@ -220,9 +220,9 @@ export function App() {
     async (payload: EncryptedClipboardPayload): Promise<string> => {
       const key = await getClipboardCryptoKey();
       const buf = await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: payload.iv.buffer as ArrayBuffer },
+        { name: "AES-GCM", iv: payload.iv as BufferSource },
         key,
-        payload.encryptedContent.buffer as ArrayBuffer,
+        payload.encryptedContent as BufferSource,
       );
       return new TextDecoder().decode(new Uint8Array(buf));
     },
@@ -279,10 +279,15 @@ export function App() {
 
   const handleClipboardFallback = useCallback(
     (text: string) => {
-      void encryptClipboardText(text).then((payload) => {
-        setPendingClipboardPayload(payload);
-        setClipboardSeq((s) => s + 1);
-      });
+      void encryptClipboardText(text)
+        .then((payload) => {
+          setPendingClipboardPayload(payload);
+          setClipboardSeq((s) => s + 1);
+        })
+        .catch((err: unknown) => {
+          console.error("Failed to encrypt clipboard text:", err);
+          toast.error("Clipboard encryption failed.", { id: "clipboard" });
+        });
     },
     [encryptClipboardText],
   );
@@ -461,11 +466,16 @@ export function App() {
 
   const openPendingClipboard = useCallback(() => {
     if (!pendingClipboardPayload) return;
-    void decryptClipboardPayload(pendingClipboardPayload).then((text) => {
-      setPasteHelperText(null);
-      setSelectableText(text);
-      setPendingClipboardPayload(null);
-    });
+    void decryptClipboardPayload(pendingClipboardPayload)
+      .then((text) => {
+        setPasteHelperText(null);
+        setSelectableText(text);
+        setPendingClipboardPayload(null);
+      })
+      .catch((err: unknown) => {
+        console.error("Failed to decrypt clipboard payload:", err);
+        toast.error("Failed to open clipboard data.", { id: "clipboard" });
+      });
   }, [pendingClipboardPayload, decryptClipboardPayload]);
 
   const openPasteHelper = useCallback(() => {
