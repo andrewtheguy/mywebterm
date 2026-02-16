@@ -1,10 +1,20 @@
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function buildLoginPageHtml(appTitle: string): string {
+  const safeTitle = escapeHtml(appTitle);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login — ${appTitle}</title>
+  <title>Login — ${safeTitle}</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; overflow: hidden; }
@@ -87,7 +97,7 @@ export function buildLoginPageHtml(appTitle: string): string {
 </head>
 <body>
   <div class="login-card">
-    <h1 class="login-title">${appTitle}</h1>
+    <h1 class="login-title">${safeTitle}</h1>
     <input class="login-input" type="password" id="secret" placeholder="Enter secret" autocomplete="current-password" autofocus>
     <button class="login-button" id="submit" type="button">Login</button>
     <p class="login-error" id="error"></p>

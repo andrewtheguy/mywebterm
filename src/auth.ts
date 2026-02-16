@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 const AUTH_SECRET = process.env.AUTH_SECRET;
 
@@ -6,16 +6,18 @@ const validTokens = new Set<string>();
 
 const COOKIE_NAME = "mywebterm_session";
 
+function sha256(input: string): Buffer {
+  return createHash("sha256").update(input).digest();
+}
+
 export function getAuthSecret(): string | undefined {
   return AUTH_SECRET;
 }
 
 export function validateSecret(candidate: string): boolean {
-  if (!AUTH_SECRET) return false;
-  const a = Buffer.from(candidate);
-  const b = Buffer.from(AUTH_SECRET);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  const a = sha256(candidate);
+  const b = sha256(AUTH_SECRET ?? "");
+  return timingSafeEqual(a, b) && AUTH_SECRET !== undefined;
 }
 
 export function createSession(): string {

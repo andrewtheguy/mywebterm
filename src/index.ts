@@ -262,15 +262,17 @@ function handleLoginPost(req: Request): Response | Promise<Response> {
 }
 
 function handleLogout(req: Request): Response {
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405, headers: { Allow: "POST" } });
+  }
   const token = extractSessionToken(req);
   if (token) invalidateSession(token);
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: "/login",
-      "Set-Cookie": clearSessionCookie(),
+  return Response.json(
+    { ok: true },
+    {
+      headers: { "Set-Cookie": clearSessionCookie() },
     },
-  });
+  );
 }
 
 function handleAuthCheck(req: Request): Response {
@@ -339,7 +341,7 @@ const server = serve<WsData>({
     "/": index,
     "/login": handleLoginPage,
     "/api/auth/login": { POST: handleLoginPost },
-    "/api/auth/logout": handleLogout,
+    "/api/auth/logout": { POST: handleLogout },
     "/api/auth/check": handleAuthCheck,
   },
 
