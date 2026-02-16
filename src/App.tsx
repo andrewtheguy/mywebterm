@@ -1085,7 +1085,7 @@ export function App() {
 
           {arrowOverlayEnabled && (
             <div
-              className="arrow-overlay touch-only"
+              className="arrow-overlay"
               role="group"
               aria-label="Arrow controls"
               ref={arrowOverlayRef}

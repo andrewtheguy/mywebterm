@@ -749,8 +749,14 @@ body {
   background: transparent;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  display: grid;
+  display: none;
   gap: 0.2rem;
+}
+
+@media (pointer: coarse) {
+  .arrow-overlay {
+    display: grid;
+  }
 }
 
 .arrow-overlay-drag-handle {
@@ -1187,7 +1193,7 @@ dialog.font-size-dialog-backdrop {
   display: none;
 }
 
-@media (pointer: coarse) {
+@media (max-width: 768px) {
   .btn-icon {
     display: inline-flex;
     align-items: center;
@@ -1201,6 +1207,9 @@ dialog.font-size-dialog-backdrop {
   .pointer-only {
     display: none;
   }
+}
+
+@media (pointer: coarse) {
   .terminal-viewport {
     touch-action: none;
   }
