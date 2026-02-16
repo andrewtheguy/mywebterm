@@ -1,10 +1,21 @@
 import { spawn as cpSpawn } from "node:child_process";
 import { parseArgs } from "node:util";
 import { type Server, type ServerWebSocket, serve } from "bun";
+import {
+  clearSessionCookie,
+  createSession as createAuthSession,
+  extractSessionToken,
+  getSessionCookie,
+  hasAuthSecret,
+  invalidateSession,
+  isRequestAuthenticated,
+  validateSecret,
+} from "./auth";
 import boldFont from "./fonts/JetBrainsMonoNerdFontMono-Bold.woff2" with { type: "file" };
 import regularFont from "./fonts/JetBrainsMonoNerdFontMono-Regular.woff2" with { type: "file" };
 import symbolsFont from "./fonts/SymbolsNerdFontMono-Regular.woff2" with { type: "file" };
 import index from "./index.html";
+import { buildLoginPageHtml } from "./loginPage";
 import {
   attachSession,
   createSession,
@@ -91,6 +102,11 @@ if (values.daemonize) {
   child.unref();
   console.log(`Daemonized (PID ${child.pid})`);
   process.exit(0);
+}
+
+if (!hasAuthSecret()) {
+  console.error("AUTH_SECRET environment variable is required but not set.");
+  process.exit(1);
 }
 
 // Embed font files into memory at startup so they work without
@@ -212,62 +228,145 @@ function handleWsMessage(ws: ServerWebSocket<WsData>, message: string | Buffer):
   }
 }
 
+function isSecureRequest(req: Request): boolean {
+  return req.headers.get("x-forwarded-proto") === "https";
+}
+
+function handleLoginPage(): Response {
+  return new Response(buildLoginPageHtml(appTitle), {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
+
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 60_000;
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function checkLoginRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = loginAttempts.get(ip);
+  if (!record || now >= record.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return true;
+  }
+  record.count += 1;
+  return record.count <= LOGIN_MAX_ATTEMPTS;
+}
+
+function clearLoginAttempts(ip: string): void {
+  loginAttempts.delete(ip);
+}
+
+async function handleLoginPost(req: Request): Promise<Response> {
+  const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+
+  if (!checkLoginRateLimit(ip)) {
+    console.warn(`[auth] rate-limited login from ${ip}`);
+    return Response.json({ error: "Too many attempts, try again later" }, { status: 429 });
+  }
+
+  let body: { secret?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  if (typeof body.secret !== "string" || !validateSecret(body.secret)) {
+    console.warn(`[auth] invalid login attempt from ${ip}`);
+    return Response.json({ error: "Invalid secret" }, { status: 401 });
+  }
+  clearLoginAttempts(ip);
+  const token = createAuthSession();
+  return Response.json(
+    { ok: true },
+    {
+      headers: { "Set-Cookie": getSessionCookie(token, isSecureRequest(req)) },
+    },
+  );
+}
+
+function handleLogout(req: Request): Response {
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405, headers: { Allow: "POST" } });
+  }
+  const token = extractSessionToken(req);
+  if (token) invalidateSession(token);
+  return Response.json(
+    { ok: true },
+    {
+      headers: { "Set-Cookie": clearSessionCookie() },
+    },
+  );
+}
+
+function handleAuthCheck(req: Request): Response {
+  if (isRequestAuthenticated(req)) {
+    return Response.json({ authenticated: true });
+  }
+  return Response.json({ authenticated: false }, { status: 401 });
+}
+
+function handleWebSocketUpgrade(req: Request, srv: Server<WsData>): Response | undefined {
+  if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+    return new Response("WebSocket upgrade required", { status: 426 });
+  }
+
+  const connectionId = createConnectionId();
+  const upgraded = srv.upgrade(req, {
+    data: { sessionId: null, connectionId, handshakeTimer: null },
+  });
+
+  if (!upgraded) {
+    return new Response("WebSocket upgrade failed", { status: 400 });
+  }
+
+  return undefined;
+}
+
+function handleConfig(): Response {
+  return Response.json({
+    hscroll,
+    appTitle,
+    shellCommand: command,
+  });
+}
+
+async function handleSessions(): Promise<Response> {
+  const ppid = process.pid;
+  const children: { pid: number; command: string }[] = [];
+  try {
+    const result = await Bun.$`ps -ax -o pid=,ppid=,command=`.quiet().nothrow();
+    const output = result.stdout.toString().trim();
+    if (output) {
+      for (const line of output.split("\n")) {
+        const match = line.trim().match(/^\s*(\d+)\s+(\d+)\s+(.*)$/);
+        if (!match) continue;
+        const pid = Number(match[1]);
+        const parentPid = Number(match[2]);
+        if (parentPid === ppid) {
+          children.push({ pid, command: match[3] ?? "" });
+        }
+      }
+    }
+  } catch {
+    // ps may not be available
+  }
+
+  return Response.json({ ppid, children, sessions: getSessionSummaries() });
+}
+
+function handleRestart(): Response {
+  destroyAllSessions();
+  return Response.json({ ok: true });
+}
+
 const server = serve<WsData>({
   routes: {
-    "/tty/ws": (req: Request, server: Server<WsData>) => {
-      if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") {
-        return new Response("WebSocket upgrade required", { status: 426 });
-      }
-
-      const connectionId = createConnectionId();
-      const upgraded = server.upgrade(req, {
-        data: { sessionId: null, connectionId, handshakeTimer: null },
-      });
-
-      if (!upgraded) {
-        return new Response("WebSocket upgrade failed", { status: 400 });
-      }
-
-      return undefined;
-    },
-    "/api/restart": {
-      POST: () => {
-        destroyAllSessions();
-        return Response.json({ ok: true });
-      },
-    },
-    "/api/sessions": {
-      GET: async () => {
-        const ppid = process.pid;
-        const children: { pid: number; command: string }[] = [];
-        try {
-          const result = await Bun.$`ps -ax -o pid=,ppid=,command=`.quiet().nothrow();
-          const output = result.stdout.toString().trim();
-          if (output) {
-            for (const line of output.split("\n")) {
-              const match = line.trim().match(/^\s*(\d+)\s+(\d+)\s+(.*)$/);
-              if (!match) continue;
-              const pid = Number(match[1]);
-              const parentPid = Number(match[2]);
-              if (parentPid === ppid) {
-                children.push({ pid, command: match[3] ?? "" });
-              }
-            }
-          }
-        } catch {
-          // ps may not be available
-        }
-
-        return Response.json({ ppid, children, sessions: getSessionSummaries() });
-      },
-    },
-    "/api/config": () =>
-      Response.json({
-        hscroll,
-        appTitle,
-        shellCommand: command,
-      }),
     "/": index,
+    "/login": handleLoginPage,
+    "/api/auth/login": { POST: handleLoginPost },
+    "/api/auth/logout": { POST: handleLogout },
+    "/api/auth/check": handleAuthCheck,
   },
 
   websocket: {
@@ -304,9 +403,10 @@ const server = serve<WsData>({
   hostname,
   port,
 
-  fetch(req) {
-    // Serve font files in production (dev server handles this automatically via HMR).
+  fetch(req, srv) {
     const pathname = new URL(req.url).pathname;
+
+    // Serve font files (always public).
     if (pathname.endsWith(".woff2")) {
       const requested = pathname.split("/").pop() ?? "";
       // Bun's bundler adds a content hash: "Font-e5tw0acz.woff2" -> try "Font.woff2"
@@ -321,6 +421,32 @@ const server = serve<WsData>({
         });
       }
     }
+
+    // Auth gate for API and WebSocket routes
+    if (!isRequestAuthenticated(req)) {
+      if (pathname.startsWith("/api/") || pathname === "/tty/ws") {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      return new Response("Not Found", { status: 404 });
+    }
+
+    // Authenticated routes
+    if (pathname === "/tty/ws") {
+      return handleWebSocketUpgrade(req, srv);
+    }
+    if (pathname === "/api/config") {
+      if (req.method !== "GET") {
+        return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET" } });
+      }
+      return handleConfig();
+    }
+    if (pathname === "/api/sessions" && req.method === "GET") {
+      return handleSessions();
+    }
+    if (pathname === "/api/restart" && req.method === "POST") {
+      return handleRestart();
+    }
+
     return new Response("Not Found", { status: 404 });
   },
 
