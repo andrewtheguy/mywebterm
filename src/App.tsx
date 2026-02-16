@@ -234,11 +234,15 @@ export function App() {
   });
 
   const appShellRef = useRef<HTMLDivElement>(null);
+  const terminalStageRef = useRef<HTMLDivElement>(null);
   const scrollbarTrackRef = useRef<HTMLDivElement>(null);
   const scrollbarThumbRef = useRef<HTMLDivElement>(null);
   const scrollbarDraggingRef = useRef(false);
   const scrollbarDragStartXRef = useRef(0);
   const scrollbarDragStartScrollLeftRef = useRef(0);
+  const arrowOverlayRef = useRef<HTMLDivElement>(null);
+  const arrowOverlayDragRef = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
+  const [arrowOverlayPosition, setArrowOverlayPosition] = useState<{ left: number; top: number } | null>(null);
   const repeatTimerRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
   const repeatModifiersRef = useRef<SoftKeyModifiers | null>(null);
@@ -526,6 +530,113 @@ export function App() {
     return () => viewport.removeEventListener("scroll", syncScrollbarThumb);
   }, [containerElement, horizontalOverflow, syncScrollbarThumb]);
 
+  const clampArrowOverlayPosition = useCallback(
+    (left: number, top: number, stageRect: DOMRect, overlayRect: DOMRect) => {
+      const maxLeft = Math.max(0, stageRect.width - overlayRect.width);
+      const maxTop = Math.max(0, stageRect.height - overlayRect.height);
+      return {
+        left: Math.min(Math.max(0, left), maxLeft),
+        top: Math.min(Math.max(0, top), maxTop),
+      };
+    },
+    [],
+  );
+
+  const updateArrowOverlayPosition = useCallback(
+    (clientX: number, clientY: number) => {
+      const dragState = arrowOverlayDragRef.current;
+      const stage = terminalStageRef.current;
+      const overlay = arrowOverlayRef.current;
+      if (!dragState || !stage || !overlay) {
+        return;
+      }
+
+      const stageRect = stage.getBoundingClientRect();
+      const overlayRect = overlay.getBoundingClientRect();
+      const nextLeft = clientX - stageRect.left - dragState.offsetX;
+      const nextTop = clientY - stageRect.top - dragState.offsetY;
+      setArrowOverlayPosition(clampArrowOverlayPosition(nextLeft, nextTop, stageRect, overlayRect));
+    },
+    [clampArrowOverlayPosition],
+  );
+
+  const startArrowOverlayDrag = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const stage = terminalStageRef.current;
+      const overlay = arrowOverlayRef.current;
+      if (!stage || !overlay) {
+        return;
+      }
+
+      const stageRect = stage.getBoundingClientRect();
+      const overlayRect = overlay.getBoundingClientRect();
+      const nextPosition = clampArrowOverlayPosition(
+        overlayRect.left - stageRect.left,
+        overlayRect.top - stageRect.top,
+        stageRect,
+        overlayRect,
+      );
+      setArrowOverlayPosition(nextPosition);
+      arrowOverlayDragRef.current = {
+        pointerId: event.pointerId,
+        offsetX: event.clientX - overlayRect.left,
+        offsetY: event.clientY - overlayRect.top,
+      };
+    },
+    [clampArrowOverlayPosition],
+  );
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const dragState = arrowOverlayDragRef.current;
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+      event.preventDefault();
+      updateArrowOverlayPosition(event.clientX, event.clientY);
+    };
+
+    const stopDrag = (event: PointerEvent) => {
+      const dragState = arrowOverlayDragRef.current;
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+      arrowOverlayDragRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", stopDrag);
+    window.addEventListener("pointercancel", stopDrag);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopDrag);
+      window.removeEventListener("pointercancel", stopDrag);
+    };
+  }, [updateArrowOverlayPosition]);
+
+  useEffect(() => {
+    const clampPosition = () => {
+      setArrowOverlayPosition((previous) => {
+        if (!previous) {
+          return previous;
+        }
+        const stage = terminalStageRef.current;
+        const overlay = arrowOverlayRef.current;
+        if (!stage || !overlay) {
+          return previous;
+        }
+        const stageRect = stage.getBoundingClientRect();
+        const overlayRect = overlay.getBoundingClientRect();
+        return clampArrowOverlayPosition(previous.left, previous.top, stageRect, overlayRect);
+      });
+    };
+
+    window.addEventListener("resize", clampPosition);
+    return () => window.removeEventListener("resize", clampPosition);
+  }, [clampArrowOverlayPosition]);
+
   const handleScrollbarPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       event.preventDefault();
@@ -580,6 +691,16 @@ export function App() {
     event.preventDefault();
     scrollbarDraggingRef.current = false;
   }, []);
+
+  const arrowOverlayStyle =
+    arrowOverlayPosition === null
+      ? undefined
+      : {
+          left: `${arrowOverlayPosition.left}px`,
+          top: `${arrowOverlayPosition.top}px`,
+          right: "auto",
+          bottom: "auto",
+        };
 
   return (
     <div className="app-shell" ref={appShellRef}>
@@ -827,7 +948,7 @@ export function App() {
       </header>
 
       <main className="terminal-card">
-        <div className="terminal-stage">
+        <div className="terminal-stage" ref={terminalStageRef}>
           <div
             ref={containerRef}
             className={`terminal-viewport ${horizontalOverflow ? "terminal-viewport-overflow" : ""}`}
@@ -871,7 +992,21 @@ export function App() {
             </div>
           )}
 
-          <div className="arrow-overlay" role="group" aria-label="Arrow controls">
+          <div
+            className="arrow-overlay"
+            role="group"
+            aria-label="Arrow controls"
+            ref={arrowOverlayRef}
+            style={arrowOverlayStyle}
+          >
+            <button
+              type="button"
+              className="arrow-overlay-drag-handle"
+              aria-label="Drag arrow controls"
+              onPointerDown={startArrowOverlayDrag}
+            >
+              ≡
+            </button>
             <div className="arrow-overlay-grid">
               <div className="arrow-overlay-spacer" />
               <button

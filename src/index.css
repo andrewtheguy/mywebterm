@@ -730,6 +730,38 @@ body {
   background: transparent;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.arrow-overlay-drag-handle {
+  border: 1px solid rgba(120, 190, 170, 0.35);
+  border-radius: 999px;
+  background: rgba(33, 54, 71, 0.42);
+  color: #d8ecff;
+  font-family: var(--mono-font);
+  font-size: 0.68rem;
+  line-height: 1;
+  font-weight: 700;
+  min-height: 1rem;
+  padding: 0.1rem 0.35rem;
+  touch-action: none;
+  cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.arrow-overlay-drag-handle:active {
+  cursor: grabbing;
+  background: rgba(75, 125, 110, 0.52);
+}
+
+.arrow-overlay-drag-handle:focus {
+  outline: none;
+}
+
+.arrow-overlay-drag-handle:focus-visible {
+  outline: 2px solid #8fffcb;
+  outline-offset: 1px;
 }
 
 .arrow-overlay-grid {
