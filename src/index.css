@@ -690,33 +690,115 @@ body {
 .custom-scrollbar-track {
   position: relative;
   width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  background: transparent;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(106, 232, 206, 0.14);
 }
 
 .custom-scrollbar-thumb {
   position: absolute;
-  top: 50%;
+  top: 0;
   left: 0;
-  transform: translateY(-50%);
-  height: 6px;
+  transform: none;
+  height: 100%;
   min-width: 20px;
-  border-radius: 3px;
+  border-radius: 999px;
   background: rgba(106, 232, 206, 0.45);
   cursor: grab;
   touch-action: none;
-  padding: 8px 0;
-  background-clip: content-box;
-  box-sizing: content-box;
-  margin-top: -8px;
+  padding: 0;
+  background-clip: border-box;
+  box-sizing: border-box;
+  margin-top: 0;
   -webkit-tap-highlight-color: transparent;
 }
 
 .custom-scrollbar-thumb:active {
   cursor: grabbing;
   background: rgba(106, 232, 206, 0.7);
-  background-clip: content-box;
+  background-clip: border-box;
+}
+
+.arrow-overlay {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 15;
+  border: none;
+  border-radius: 16px;
+  padding: 0.25rem;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.arrow-overlay-drag-handle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(120, 190, 170, 0.35);
+  border-radius: 999px;
+  background: rgba(33, 54, 71, 0.42);
+  color: #d8ecff;
+  font-family: var(--mono-font);
+  font-size: 0.68rem;
+  line-height: 1;
+  font-weight: 700;
+  min-height: 1.1rem;
+  padding: 0.1rem 0.35rem;
+  touch-action: none;
+  cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.arrow-overlay-drag-handle:active {
+  cursor: grabbing;
+  background: rgba(75, 125, 110, 0.52);
+}
+
+.arrow-overlay-drag-handle:focus {
+  outline: none;
+}
+
+.arrow-overlay-drag-handle:focus-visible {
+  outline: 2px solid #8fffcb;
+  outline-offset: 1px;
+}
+
+.arrow-overlay-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.arrow-overlay-spacer {
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.arrow-overlay-button {
+  width: 2.4rem;
+  height: 2.4rem;
+  min-width: 2.4rem;
+  min-height: 2.4rem;
+  border-radius: 10px;
+  border: 1px solid rgba(120, 190, 170, 0.45);
+  background: rgba(33, 54, 71, 0.58);
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-family: var(--mono-font);
+  line-height: 1;
+  padding: 0;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.arrow-overlay-button:active {
+  background: rgba(75, 125, 110, 0.72);
 }
 
 .error-card {
