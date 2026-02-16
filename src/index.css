@@ -158,7 +158,8 @@ body {
 }
 
 .clipboard-pending-badge.clipboard-idle {
-  background: rgba(45, 60, 80, 0.6);
+  background: rgba(70, 90, 115, 0.7);
+  color: #a0b0c0;
   animation: none;
 }
 
@@ -191,6 +192,9 @@ body {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background-color 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @media (hover: hover) {
