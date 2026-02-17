@@ -117,7 +117,7 @@ const fontBuffers = new Map<string, ArrayBuffer>([
   ["SymbolsNerdFontMono-Regular.woff2", await Bun.file(symbolsFont).arrayBuffer()],
 ]);
 
-const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh"];
+const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh", "-l"];
 const hostname = "127.0.0.1";
 const DEFAULT_PORT = 8671;
 const port = (() => {
@@ -175,7 +175,6 @@ function handleWsMessage(ws: ServerWebSocket<WsData>, message: string | Buffer):
         }
         return;
     }
-    return;
   }
 
   // Binary messages are tty frames — require an attached session
