@@ -1543,7 +1543,8 @@ export function App() {
           <div className="info-dialog">
             <p className="info-dialog-title">{appTitle}</p>
             <p className="info-tagline">
-              Web terminal powered by {appTitle === DEFAULT_APP_TITLE ? "Bun PTY" : DEFAULT_APP_TITLE}
+              Powered by {DEFAULT_APP_TITLE}
+              {config?.version ? ` ${config.version}` : ""}
             </p>
             <div className="info-details">
               <div className="info-detail-row">
