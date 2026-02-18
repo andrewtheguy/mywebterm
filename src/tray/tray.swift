@@ -1,10 +1,13 @@
 import Cocoa
+import Foundation
 
 class TrayDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
+    private let serverProcess: Process
     private let url: URL
 
-    init(url: URL) {
+    init(serverProcess: Process, url: URL) {
+        self.serverProcess = serverProcess
         self.url = url
         super.init()
     }
@@ -26,19 +29,12 @@ class TrayDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q"))
         statusItem.menu = menu
+    }
 
-        // Monitor stdin — when the parent process dies the pipe closes, so we exit too.
-        let stdinSource = DispatchSource.makeReadSource(fileDescriptor: STDIN_FILENO, queue: .main)
-        stdinSource.setEventHandler {
-            // Try reading; EOF (0 bytes) means parent is gone.
-            var buf = [UInt8](repeating: 0, count: 64)
-            let n = read(STDIN_FILENO, &buf, buf.count)
-            if n <= 0 {
-                NSApplication.shared.terminate(nil)
-            }
+    func applicationWillTerminate(_ notification: Notification) {
+        if serverProcess.isRunning {
+            serverProcess.terminate()
         }
-        stdinSource.setCancelHandler {}
-        stdinSource.resume()
     }
 
     @objc func openBrowser() {
@@ -46,28 +42,66 @@ class TrayDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func quitApp() {
-        // Signal the parent (Bun) process via stdout, then exit.
-        print("quit")
-        fflush(stdout)
+        if serverProcess.isRunning {
+            serverProcess.terminate()
+        }
         NSApplication.shared.terminate(nil)
     }
 }
 
 // --- Main ---
 
-var urlString = "http://127.0.0.1:8671"
 let args = CommandLine.arguments
-if let idx = args.firstIndex(of: "--url"), idx + 1 < args.count {
-    urlString = args[idx + 1]
+
+// Parse --port / -p from CLI args to construct URL (default 8671)
+var port = 8671
+if let idx = args.firstIndex(of: "--port") ?? args.firstIndex(of: "-p"), idx + 1 < args.count {
+    if let p = Int(args[idx + 1]), p >= 1, p <= 65535 {
+        port = p
+    }
 }
 
+let urlString = "http://127.0.0.1:\(port)"
 guard let url = URL(string: urlString) else {
     fputs("Invalid URL: \(urlString)\n", stderr)
     exit(1)
 }
 
+// Find the server binary next to this executable in the app bundle
+let trayBin = URL(fileURLWithPath: CommandLine.arguments[0])
+let serverBin = trayBin.deletingLastPathComponent().appendingPathComponent("mywebterm")
+
+guard FileManager.default.isExecutableFile(atPath: serverBin.path) else {
+    fputs("Server binary not found at: \(serverBin.path)\n", stderr)
+    exit(1)
+}
+
+// Pass through all CLI args to the server binary, injecting --no-auth by default
+var serverArgs = Array(args.dropFirst())
+if !serverArgs.contains("--no-auth") {
+    serverArgs.append("--no-auth")
+}
+
+let serverProcess = Process()
+serverProcess.executableURL = serverBin
+serverProcess.arguments = serverArgs
+
+// When the server dies, exit the tray app too
+serverProcess.terminationHandler = { _ in
+    DispatchQueue.main.async {
+        NSApplication.shared.terminate(nil)
+    }
+}
+
+do {
+    try serverProcess.run()
+} catch {
+    fputs("Failed to start server: \(error)\n", stderr)
+    exit(1)
+}
+
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory) // No dock icon
-let delegate = TrayDelegate(url: url)
+let delegate = TrayDelegate(serverProcess: serverProcess, url: url)
 app.delegate = delegate
 app.run()

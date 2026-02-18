@@ -1,4 +1,3 @@
-import { spawn as cpSpawn } from "node:child_process";
 import { parseArgs } from "node:util";
 import { type Server, type ServerWebSocket, serve } from "bun";
 import {
@@ -29,7 +28,6 @@ import {
   startStaleSweep,
   type WsData,
 } from "./sessionManager";
-import { startTray } from "./trayManager";
 import { ClientCommand, decodeFrame, parseClientControl } from "./ttyProtocol";
 
 declare const BUILD_VERSION: string;
@@ -41,7 +39,7 @@ Options:
   -h, --help          Show this help message
   -v, --version       Show version
   -p, --port <n>      Port to listen on (default: 8671)
-      --daemonize     Run as a background daemon
+      --no-auth       Disable authentication (localhost use only)
       --no-hscroll    Disable horizontal scrolling
       --title <s>     Set the terminal title (default: "MyWebTerm")`;
 
@@ -50,8 +48,7 @@ const parseArgsOptions = {
     help: { type: "boolean", short: "h" },
     version: { type: "boolean", short: "v" },
     port: { type: "string", short: "p" },
-    daemonize: { type: "boolean" },
-    _tray: { type: "boolean" },
+    "no-auth": { type: "boolean" },
     "no-hscroll": { type: "boolean" },
     title: { type: "string" },
   },
@@ -84,33 +81,15 @@ if (values.version) {
   process.exit(0);
 }
 
-if (values.daemonize) {
-  // Filter out --daemonize and add --_tray so the child doesn't fork again
-  const childArgs = process.argv.slice(1).filter((arg) => arg !== "--daemonize");
-  childArgs.push("--_tray");
+const noAuth = !!values["no-auth"];
+const hostname = "127.0.0.1";
 
-  let child: ReturnType<typeof cpSpawn>;
-  try {
-    child = cpSpawn(process.execPath, childArgs, {
-      detached: true,
-      stdio: "ignore",
-    });
-  } catch (error) {
-    console.error("Failed to daemonize:", error);
-    process.exit(1);
-  }
-
-  if (!child.pid) {
-    console.error("Failed to daemonize: child process has no PID");
-    process.exit(1);
-  }
-
-  child.unref();
-  console.log(`Daemonized (PID ${child.pid})`);
-  process.exit(0);
+if (noAuth && hostname !== "127.0.0.1" && hostname !== "localhost") {
+  console.error("--no-auth is only allowed when binding to localhost.");
+  process.exit(1);
 }
 
-if (!hasAuthSecret()) {
+if (!noAuth && !hasAuthSecret()) {
   console.error("AUTH_SECRET environment variable is required but not set.");
   process.exit(1);
 }
@@ -124,7 +103,6 @@ const fontBuffers = new Map<string, ArrayBuffer>([
 ]);
 
 const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh", "-l"];
-const hostname = "127.0.0.1";
 const DEFAULT_PORT = 8671;
 const port = (() => {
   if (!values.port) return DEFAULT_PORT;
@@ -305,7 +283,7 @@ function handleLogout(req: Request): Response {
 }
 
 function handleAuthCheck(req: Request): Response {
-  if (isRequestAuthenticated(req)) {
+  if (noAuth || isRequestAuthenticated(req)) {
     return Response.json({ authenticated: true });
   }
   return Response.json({ authenticated: false }, { status: 401 });
@@ -428,7 +406,7 @@ const server = serve<WsData>({
     }
 
     // Auth gate for API and WebSocket routes
-    if (!isRequestAuthenticated(req)) {
+    if (!noAuth && !isRequestAuthenticated(req)) {
       if (pathname.startsWith("/api/") || pathname === "/tty/ws") {
         return Response.json({ error: "Unauthorized" }, { status: 401 });
       }
@@ -462,7 +440,3 @@ const server = serve<WsData>({
 });
 
 console.log(`Server running at ${server.url} (command: ${JSON.stringify(command)})`);
-
-if (values._tray) {
-  startTray(server.url.toString());
-}

@@ -46,27 +46,44 @@ jobs:
 
       - run: bun install
 
-      - name: Compile standalone binary
+      - name: Determine version
+        id: version
         run: |
           if [ "${{ github.event_name }}" = "release" ]; then
-            VERSION="${{ github.event.release.tag_name }}"
+            echo "version=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
           else
-            VERSION="${{ needs.create-prerelease.outputs.tag }}"
+            echo "version=${{ needs.create-prerelease.outputs.tag }}" >> "$GITHUB_OUTPUT"
           fi
-          bun build --compile src/index.ts --outfile ${{ matrix.artifact }} --define "BUILD_VERSION='\"$VERSION\"'"
+
+      - name: Compile standalone binary
+        run: |
+          mkdir -p dist
+          bun build --compile src/index.ts --outfile dist/${{ matrix.artifact }} --define "BUILD_VERSION='\"${{ steps.version.outputs.version }}\"'"
+
+      - name: Build app bundle (macOS only)
+        if: runner.os == 'macOS'
+        run: |
+          MYWEBTERM_BIN=dist/${{ matrix.artifact }} VERSION=${{ steps.version.outputs.version }} scripts/build-app-bundle.sh
+          tar -czf dist/MyWebTerm-darwin-arm64.app.tar.gz -C dist MyWebTerm.app
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          path: |
+            dist/${{ matrix.artifact }}
+            dist/MyWebTerm-darwin-arm64.app.tar.gz
 
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'release'
         with:
-          files: ${{ matrix.artifact }}
+          files: |
+            dist/${{ matrix.artifact }}
+            dist/MyWebTerm-darwin-arm64.app.tar.gz
 
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'workflow_dispatch'
         with:
           tag_name: ${{ needs.create-prerelease.outputs.tag }}
-          files: ${{ matrix.artifact }}
+          files: |
+            dist/${{ matrix.artifact }}
+            dist/MyWebTerm-darwin-arm64.app.tar.gz
