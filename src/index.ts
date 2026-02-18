@@ -351,19 +351,6 @@ function handleRestart(): Response {
   return Response.json({ ok: true });
 }
 
-const manifestJson = JSON.stringify({
-  name: appTitle,
-  short_name: appTitle,
-  start_url: "/",
-  display: "standalone",
-  background_color: "#0d1117",
-  theme_color: "#0d1117",
-  icons: [
-    { src: "/pwa-icon-192.png", sizes: "192x192", type: "image/png" },
-    { src: "/pwa-icon-512.png", sizes: "512x512", type: "image/png" },
-  ],
-});
-
 const server = serve<WsData>({
   routes: {
     "/": index,
@@ -371,7 +358,6 @@ const server = serve<WsData>({
     "/api/auth/login": { POST: handleLoginPost },
     "/api/auth/logout": { POST: handleLogout },
     "/api/auth/check": handleAuthCheck,
-    "/manifest.json": () => new Response(manifestJson, { headers: { "Content-Type": "application/manifest+json" } }),
     "/sw.js": () =>
       new Response("self.addEventListener('fetch', () => {});\n", {
         headers: { "Content-Type": "application/javascript", "Cache-Control": "no-cache" },
