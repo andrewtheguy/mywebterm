@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { type Server, type ServerWebSocket, serve } from "bun";
+import appleTouchIconPath from "./apple-touch-icon.png" with { type: "file" };
 import {
   clearSessionCookie,
   createSession as createAuthSession,
@@ -15,6 +16,8 @@ import regularFont from "./fonts/JetBrainsMonoNerdFontMono-Regular.woff2" with {
 import symbolsFont from "./fonts/SymbolsNerdFontMono-Regular.woff2" with { type: "file" };
 import index from "./index.html";
 import { buildLoginPageHtml } from "./loginPage";
+import pwaIcon192Path from "./pwa-icon-192.png" with { type: "file" };
+import pwaIcon512Path from "./pwa-icon-512.png" with { type: "file" };
 import {
   attachSession,
   createSession,
@@ -95,13 +98,16 @@ if (!noAuth && !hasAuthSecret()) {
   process.exit(1);
 }
 
-// Embed font files into memory at startup so they work without
-// the fonts directory on the filesystem at runtime.
+// Embed font and icon files into memory at startup so they work without
+// the source directories on the filesystem at runtime.
 const fontBuffers = new Map<string, ArrayBuffer>([
   ["JetBrainsMonoNerdFontMono-Bold.woff2", await Bun.file(boldFont).arrayBuffer()],
   ["JetBrainsMonoNerdFontMono-Regular.woff2", await Bun.file(regularFont).arrayBuffer()],
   ["SymbolsNerdFontMono-Regular.woff2", await Bun.file(symbolsFont).arrayBuffer()],
 ]);
+const pwaIcon192 = await Bun.file(pwaIcon192Path).arrayBuffer();
+const pwaIcon512 = await Bun.file(pwaIcon512Path).arrayBuffer();
+const appleTouchIcon = await Bun.file(appleTouchIconPath).arrayBuffer();
 
 const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh", "-l"];
 const DEFAULT_PORT = 8671;
@@ -345,6 +351,19 @@ function handleRestart(): Response {
   return Response.json({ ok: true });
 }
 
+const manifestJson = JSON.stringify({
+  name: appTitle,
+  short_name: appTitle,
+  start_url: "/",
+  display: "standalone",
+  background_color: "#0d1117",
+  theme_color: "#0d1117",
+  icons: [
+    { src: "/pwa-icon-192.png", sizes: "192x192", type: "image/png" },
+    { src: "/pwa-icon-512.png", sizes: "512x512", type: "image/png" },
+  ],
+});
+
 const server = serve<WsData>({
   routes: {
     "/": index,
@@ -352,6 +371,14 @@ const server = serve<WsData>({
     "/api/auth/login": { POST: handleLoginPost },
     "/api/auth/logout": { POST: handleLogout },
     "/api/auth/check": handleAuthCheck,
+    "/manifest.json": () => new Response(manifestJson, { headers: { "Content-Type": "application/manifest+json" } }),
+    "/sw.js": () =>
+      new Response("self.addEventListener('fetch', () => {});\n", {
+        headers: { "Content-Type": "application/javascript", "Cache-Control": "no-cache" },
+      }),
+    "/pwa-icon-192.png": () => new Response(pwaIcon192, { headers: { "Content-Type": "image/png" } }),
+    "/pwa-icon-512.png": () => new Response(pwaIcon512, { headers: { "Content-Type": "image/png" } }),
+    "/apple-touch-icon.png": () => new Response(appleTouchIcon, { headers: { "Content-Type": "image/png" } }),
   },
 
   websocket: {
