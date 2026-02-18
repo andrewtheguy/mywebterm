@@ -15,7 +15,7 @@ mkdir -p "$MACOS_DIR"
 
 # 1. Build the Swift tray binary
 echo "==> Compiling tray binary..."
-swiftc -framework Cocoa -O -o "$MACOS_DIR/MyWebTermTray" "$ROOT_DIR/src/tray/tray.swift"
+swiftc -framework Cocoa -framework WebKit -O -o "$MACOS_DIR/MyWebTermTray" "$ROOT_DIR/src/tray/tray.swift"
 
 # 2. Copy or compile the server binary
 if [ -n "${MYWEBTERM_BIN:-}" ]; then
