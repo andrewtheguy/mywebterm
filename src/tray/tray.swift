@@ -77,6 +77,9 @@ class TrayDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func openWebView() {
+        // Show dock icon while the window is visible.
+        NSApp.setActivationPolicy(.regular)
+
         if let existingWindow = window {
             existingWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -119,6 +122,8 @@ class TrayDelegate: NSObject, NSApplicationDelegate {
 extension TrayDelegate: NSWindowDelegate {
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         sender.orderOut(nil)
+        // Hide dock icon when the window is closed, keep the tray app running.
+        NSApp.setActivationPolicy(.accessory)
         return false
     }
 }
