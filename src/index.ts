@@ -1,3 +1,4 @@
+import { spawn as cpSpawn } from "node:child_process";
 import { parseArgs } from "node:util";
 import { type Server, type ServerWebSocket, serve } from "bun";
 import {
@@ -28,6 +29,7 @@ import {
   startStaleSweep,
   type WsData,
 } from "./sessionManager";
+import { startTray } from "./trayManager";
 import { ClientCommand, decodeFrame, parseClientControl } from "./ttyProtocol";
 
 declare const BUILD_VERSION: string;
@@ -49,6 +51,7 @@ const parseArgsOptions = {
     version: { type: "boolean", short: "v" },
     port: { type: "string", short: "p" },
     daemonize: { type: "boolean" },
+    _tray: { type: "boolean" },
     "no-hscroll": { type: "boolean" },
     title: { type: "string" },
   },
@@ -82,8 +85,29 @@ if (values.version) {
 }
 
 if (values.daemonize) {
-  console.error("--daemonize is temporarily disabled (fork loop bug). Use the 'tray' branch for the fixed version.");
-  process.exit(1);
+  // Filter out --daemonize and add --_tray so the child doesn't fork again
+  const childArgs = process.argv.slice(1).filter((arg) => arg !== "--daemonize");
+  childArgs.push("--_tray");
+
+  let child: ReturnType<typeof cpSpawn>;
+  try {
+    child = cpSpawn(process.execPath, childArgs, {
+      detached: true,
+      stdio: "ignore",
+    });
+  } catch (error) {
+    console.error("Failed to daemonize:", error);
+    process.exit(1);
+  }
+
+  if (!child.pid) {
+    console.error("Failed to daemonize: child process has no PID");
+    process.exit(1);
+  }
+
+  child.unref();
+  console.log(`Daemonized (PID ${child.pid})`);
+  process.exit(0);
 }
 
 if (!hasAuthSecret()) {
@@ -438,3 +462,7 @@ const server = serve<WsData>({
 });
 
 console.log(`Server running at ${server.url} (command: ${JSON.stringify(command)})`);
+
+if (values._tray) {
+  startTray(server.url.toString());
+}

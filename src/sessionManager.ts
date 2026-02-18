@@ -1,4 +1,5 @@
 import type { ServerWebSocket } from "bun";
+import { stopTray } from "./trayManager";
 import { encodeServerControl } from "./ttyProtocol";
 
 // --- Types ---
@@ -413,6 +414,7 @@ export function stopStaleSweep(): void {
 function gracefulShutdown(): void {
   console.log("Shutting down: destroying all sessions");
   stopStaleSweep();
+  stopTray();
   destroyAllSessions();
   process.exit(0);
 }
