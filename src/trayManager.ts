@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
+const IS_MACOS = process.platform === "darwin";
 const SWIFT_SRC = join(import.meta.dir, "tray", "tray.swift");
 const TRAY_BIN = join(import.meta.dir, "tray", "tray_darwin_arm64");
 
@@ -23,6 +24,7 @@ async function ensureBinary(): Promise<void> {
 }
 
 export async function startTray(url: string): Promise<void> {
+  if (!IS_MACOS) return;
   try {
     await ensureBinary();
   } catch (err) {
