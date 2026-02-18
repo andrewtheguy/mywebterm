@@ -320,6 +320,7 @@ function handleConfig(): Response {
     hscroll,
     appTitle,
     shellCommand: command,
+    authEnabled: !noAuth,
   });
 }
 
