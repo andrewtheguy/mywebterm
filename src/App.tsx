@@ -377,6 +377,7 @@ export function App() {
   }, []);
 
   const appTitle = config?.appTitle ?? DEFAULT_APP_TITLE;
+  const authEnabled = config?.authEnabled ?? true;
 
   useEffect(() => {
     document.title = remoteTitle ? `${remoteTitle} | ${appTitle}` : appTitle;
@@ -1069,13 +1070,15 @@ export function App() {
                   >
                     Font Size: {fontSize ?? "Auto"}
                   </button>
-                  <button
-                    type="button"
-                    className="toolbar-button overflow-menu-item logout-button"
-                    onClick={() => overflowAction(handleLogout)}
-                  >
-                    Log Out
-                  </button>
+                  {authEnabled ? (
+                    <button
+                      type="button"
+                      className="toolbar-button overflow-menu-item logout-button"
+                      onClick={() => overflowAction(handleLogout)}
+                    >
+                      Log Out
+                    </button>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -1112,9 +1115,11 @@ export function App() {
             >
               Font Size: {fontSize ?? "Auto"}
             </button>
-            <button type="button" className="toolbar-button pointer-only logout-button" onClick={handleLogout}>
-              Log Out
-            </button>
+            {authEnabled ? (
+              <button type="button" className="toolbar-button pointer-only logout-button" onClick={handleLogout}>
+                Log Out
+              </button>
+            ) : null}
           </div>
         </div>
       </header>
