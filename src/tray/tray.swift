@@ -1,10 +1,13 @@
 import Cocoa
 import Foundation
+import WebKit
 
 class TrayDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let serverProcess: Process
     private let url: URL
+    private var window: NSWindow?
+    private var webView: WKWebView?
 
     init(serverProcess: Process, url: URL) {
         self.serverProcess = serverProcess
@@ -25,10 +28,14 @@ class TrayDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Open MyWebTerm", action: #selector(openBrowser), keyEquivalent: "o"))
+        menu.addItem(NSMenuItem(title: "Open MyWebTerm", action: #selector(openWebView), keyEquivalent: "o"))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q"))
         statusItem.menu = menu
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -37,8 +44,34 @@ class TrayDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc func openBrowser() {
-        NSWorkspace.shared.open(url)
+    @objc func openWebView() {
+        if let existingWindow = window {
+            existingWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let config = WKWebViewConfiguration()
+        let wv = WKWebView(frame: .zero, configuration: config)
+        wv.load(URLRequest(url: url))
+
+        let w = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1024, height: 768),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        w.title = "MyWebTerm"
+        w.contentView = wv
+        w.isReleasedWhenClosed = false
+        w.center()
+        w.delegate = self
+        w.makeKeyAndOrderFront(nil)
+
+        NSApp.activate(ignoringOtherApps: true)
+
+        self.window = w
+        self.webView = wv
     }
 
     @objc func quitApp() {
@@ -46,6 +79,13 @@ class TrayDelegate: NSObject, NSApplicationDelegate {
             serverProcess.terminate()
         }
         NSApplication.shared.terminate(nil)
+    }
+}
+
+extension TrayDelegate: NSWindowDelegate {
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        sender.orderOut(nil)
+        return false
     }
 }
 
