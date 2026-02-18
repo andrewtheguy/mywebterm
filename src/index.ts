@@ -362,7 +362,7 @@ const server = serve<WsData>({
     "/api/auth/check": handleAuthCheck,
     "/manifest.json": () => Response.json(manifestJson, { headers: { "Content-Type": "application/manifest+json" } }),
     "/sw.js": () =>
-      new Response("self.addEventListener('fetch', () => {});\n", {
+      new Response("// no-op service worker for PWA installability\n", {
         headers: { "Content-Type": "application/javascript", "Cache-Control": "no-cache" },
       }),
     "/pwa-icon-192.png": () => new Response(pwaIcon192, { headers: { "Content-Type": "image/png" } }),
