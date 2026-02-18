@@ -84,6 +84,7 @@ if (values.version) {
 const noAuth = !!values["no-auth"];
 const hostname = "127.0.0.1";
 
+// Guard for when hostname becomes configurable
 if (noAuth && hostname !== "127.0.0.1" && hostname !== "localhost") {
   console.error("--no-auth is only allowed when binding to localhost.");
   process.exit(1);

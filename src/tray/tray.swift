@@ -56,8 +56,11 @@ let args = CommandLine.arguments
 // Parse --port / -p from CLI args to construct URL (default 8671)
 var port = 8671
 if let idx = args.firstIndex(of: "--port") ?? args.firstIndex(of: "-p"), idx + 1 < args.count {
-    if let p = Int(args[idx + 1]), p >= 1, p <= 65535 {
+    let raw = args[idx + 1]
+    if let p = Int(raw), p >= 1, p <= 65535 {
         port = p
+    } else {
+        fputs("Warning: invalid port '\(raw)', using default \(port)\n", stderr)
     }
 }
 
