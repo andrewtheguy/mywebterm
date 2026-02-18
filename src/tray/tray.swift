@@ -2,6 +2,20 @@ import Cocoa
 import Foundation
 import WebKit
 
+class TerminalWindow: NSWindow {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if super.performKeyEquivalent(with: event) {
+            return true
+        }
+        // Suppress system beeps for non-Cmd key equivalents (Ctrl+C, Ctrl+V, etc.)
+        // Let Cmd+key fall through to the Edit menu for copy/paste
+        if !event.modifierFlags.contains(.command) {
+            return true
+        }
+        return false
+    }
+}
+
 class TrayDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let serverProcess: Process
@@ -16,6 +30,8 @@ class TrayDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        setupMainMenu()
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
@@ -32,6 +48,22 @@ class TrayDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q"))
         statusItem.menu = menu
+    }
+
+    private func setupMainMenu() {
+        let mainMenu = NSMenu()
+
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+        editMenu.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        editMenu.addItem(NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        editMenu.addItem(NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+
+        let editMenuItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
+
+        NSApp.mainMenu = mainMenu
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -57,7 +89,7 @@ class TrayDelegate: NSObject, NSApplicationDelegate {
         let wv = WKWebView(frame: .zero, configuration: config)
         wv.load(URLRequest(url: url))
 
-        let w = NSWindow(
+        let w = TerminalWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1024, height: 768),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
