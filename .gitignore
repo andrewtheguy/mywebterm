@@ -34,6 +34,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Finder (MacOS) folder config
 .DS_Store
 
+# Bun build artifacts
+*.bun-build
+
 # Compiled tray helper binary
 src/tray/tray_darwin_*
 
