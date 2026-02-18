@@ -1,4 +1,3 @@
-import { spawn as cpSpawn } from "node:child_process";
 import { parseArgs } from "node:util";
 import { type Server, type ServerWebSocket, serve } from "bun";
 import {
@@ -83,25 +82,8 @@ if (values.version) {
 }
 
 if (values.daemonize) {
-  let child: ReturnType<typeof cpSpawn>;
-  try {
-    child = cpSpawn(process.execPath, process.argv.slice(1), {
-      detached: true,
-      stdio: "ignore",
-    });
-  } catch (error) {
-    console.error("Failed to daemonize:", error);
-    process.exit(1);
-  }
-
-  if (!child.pid) {
-    console.error("Failed to daemonize: child process has no PID");
-    process.exit(1);
-  }
-
-  child.unref();
-  console.log(`Daemonized (PID ${child.pid})`);
-  process.exit(0);
+  console.error("--daemonize is temporarily disabled (fork loop bug). Use the 'tray' branch for the fixed version.");
+  process.exit(1);
 }
 
 if (!hasAuthSecret()) {
