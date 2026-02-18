@@ -52,6 +52,8 @@ class TrayDelegate: NSObject, NSApplicationDelegate {
         }
 
         let config = WKWebViewConfiguration()
+        config.preferences.setValue(true, forKey: "javaScriptCanAccessClipboard")
+        config.preferences.setValue(true, forKey: "DOMPasteAllowed")
         let wv = WKWebView(frame: .zero, configuration: config)
         wv.load(URLRequest(url: url))
 
