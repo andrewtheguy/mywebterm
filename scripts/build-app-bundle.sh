@@ -19,6 +19,10 @@ swiftc -framework Cocoa -O -o "$MACOS_DIR/MyWebTermTray" "$ROOT_DIR/src/tray/tra
 
 # 2. Copy or compile the server binary
 if [ -n "${MYWEBTERM_BIN:-}" ]; then
+  if [ ! -f "$MYWEBTERM_BIN" ]; then
+    echo "Error: MYWEBTERM_BIN does not exist: $MYWEBTERM_BIN" >&2
+    exit 1
+  fi
   echo "==> Using pre-compiled server binary: $MYWEBTERM_BIN"
   cp "$MYWEBTERM_BIN" "$MACOS_DIR/mywebterm"
 else
