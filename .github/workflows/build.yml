@@ -58,7 +58,7 @@ jobs:
       - name: Compile standalone binary
         run: |
           mkdir -p dist
-          bun build --compile src/index.ts --outfile dist/${{ matrix.artifact }} --define "BUILD_VERSION='\"${{ steps.version.outputs.version }}\"'"
+          bun build --compile --no-compile-autoload-dotenv src/index.ts --outfile dist/${{ matrix.artifact }} --define "BUILD_VERSION='\"${{ steps.version.outputs.version }}\"'"
 
       - name: Build app bundle (macOS only)
         if: runner.os == 'macOS'
