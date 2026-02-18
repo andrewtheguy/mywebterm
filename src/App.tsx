@@ -1142,12 +1142,18 @@ export function App() {
             >
               {sessionStorage.getItem(SESSION_STORAGE_KEY) !== null ? (
                 <div className="disconnect-overlay-text start-overlay-text start-overlay-resume">
-                  <span>Click or press Enter to resume</span>
+                  <span>
+                    <span className="pointer-only">Click or press Enter to</span>
+                    <span className="touch-only">Tap to</span> resume
+                  </span>
                 </div>
               ) : (
                 <div className="disconnect-overlay-text start-overlay-text">
                   <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
-                  <span>Click or press Enter to start</span>
+                  <span>
+                    <span className="pointer-only">Click or press Enter to</span>
+                    <span className="touch-only">Tap to</span> start
+                  </span>
                 </div>
               )}
             </div>
@@ -1170,7 +1176,10 @@ export function App() {
                   }
                 }}
               >
-                <p className="disconnect-overlay-text">Click or press Space to reconnect</p>
+                <p className="disconnect-overlay-text">
+                  <span className="pointer-only">Click or press Space to</span>
+                  <span className="touch-only">Tap to</span> reconnect
+                </p>
               </div>
             ))
           )}
@@ -1543,7 +1552,8 @@ export function App() {
           <div className="info-dialog">
             <p className="info-dialog-title">{appTitle}</p>
             <p className="info-tagline">
-              Web terminal powered by {appTitle === DEFAULT_APP_TITLE ? "Bun PTY" : DEFAULT_APP_TITLE}
+              Powered by {DEFAULT_APP_TITLE}
+              {config?.version ? ` ${config.version}` : ""}
             </p>
             <div className="info-details">
               <div className="info-detail-row">

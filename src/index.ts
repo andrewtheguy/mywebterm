@@ -309,6 +309,7 @@ function handleWebSocketUpgrade(req: Request, srv: Server<WsData>): Response | u
 
 function handleConfig(): Response {
   return Response.json({
+    version: VERSION,
     hscroll,
     appTitle,
     shellCommand: command,
