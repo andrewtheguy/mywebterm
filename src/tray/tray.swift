@@ -90,6 +90,7 @@ if !serverArgs.contains("--no-auth") {
 let serverProcess = Process()
 serverProcess.executableURL = serverBin
 serverProcess.arguments = serverArgs
+serverProcess.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
 
 // When the server dies, exit the tray app too
 serverProcess.terminationHandler = { _ in
