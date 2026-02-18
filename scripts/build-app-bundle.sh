@@ -27,7 +27,7 @@ if [ -n "${MYWEBTERM_BIN:-}" ]; then
   cp "$MYWEBTERM_BIN" "$MACOS_DIR/mywebterm"
 else
   echo "==> Compiling server binary..."
-  bun build --compile "$ROOT_DIR/src/index.ts" --outfile "$MACOS_DIR/mywebterm" \
+  bun build --compile --no-compile-autoload-dotenv "$ROOT_DIR/src/index.ts" --outfile "$MACOS_DIR/mywebterm" \
     --define "BUILD_VERSION='\"$VERSION\"'"
 fi
 
