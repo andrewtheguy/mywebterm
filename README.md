@@ -40,15 +40,29 @@ mywebterm --port 9090 --title Dev -- python3
 | `-h`, `--help` | | Show usage and exit |
 | `-v`, `--version` | | Show version and exit |
 | `-p`, `--port <n>` | `8671` | Port to listen on |
+| `--htpasswd-file <path>` | `.htpasswd` | Path to htpasswd credentials file |
 | `--daemonize` | off | Detach from the parent process and run in the background |
+| `--no-auth` | off | Disable authentication (localhost use only) |
 | `--no-hscroll` | off | Disable the minimum 80-column width with horizontal scrollbar on narrow viewports |
 | `--title <s>` | `MyWebTerm` | Customize the app heading and browser tab title |
 
 A shell command can be specified after `--` (e.g. `mywebterm -- /bin/bash`). When omitted, the `SHELL` environment variable is used (falling back to `/bin/sh`). `SHELL` is set by your OS/login shell — do not set it manually; use `-- command` to override instead.
 
+### Authentication
+
+MyWebTerm uses an `.htpasswd` file with bcrypt-hashed passwords. Generate credentials with:
+
+```bash
+bun run htpasswd <username> >> .htpasswd
+```
+
+The server reads `.htpasswd` from the working directory by default. Use `--htpasswd-file <path>` or the `HTPASSWD_FILE` environment variable to specify a different location. The file is hot-reloaded when it changes.
+
+Use `--no-auth` to disable authentication entirely (only allowed when binding to localhost).
+
 ### Exposing publicly
 
-MyWebTerm gives full shell access to anyone who can reach it — it is a highly privileged program. For this reason it only listens on the loopback interface (`127.0.0.1`) and cannot be configured to bind to other addresses. To make it accessible over a network, put it behind a reverse proxy that handles authentication, such as [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) or Caddy with basic auth.
+MyWebTerm gives full shell access to anyone who can reach it — it is a highly privileged program. For this reason it only listens on the loopback interface (`127.0.0.1`) and cannot be configured to bind to other addresses. To make it accessible over a network, put it behind a reverse proxy, such as [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) or Caddy.
 
 > [!NOTE]
 > Avoid using HTTP basic auth with Safari — Safari does not reliably send cached credentials for WebSocket upgrade requests and XHR/fetch calls, which will break the terminal connection. Use cookie/session-based auth (e.g. OAuth2 Proxy) instead.
