@@ -1,4 +1,4 @@
-export { hasUsers, initHtpasswd, verifyCredentials } from "./htpasswd";
+export { initHtpasswd, verifyCredentials } from "./htpasswd";
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24; // 1 day
 const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
