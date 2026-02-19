@@ -245,10 +245,10 @@ body {
   color: var(--muted-ink);
 }
 
-.overflow-menu-panel {
+.dropdown-panel {
   position: absolute;
   top: calc(100% + 0.4rem);
-  right: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -260,6 +260,12 @@ body {
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   min-width: 10rem;
+  max-width: min(92vw, 22rem);
+}
+
+.overflow-menu-panel {
+  left: auto;
+  right: 0;
 }
 
 .overflow-menu-item {
@@ -274,21 +280,8 @@ body {
 }
 
 .copy-mode-menu-panel {
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.45rem;
   z-index: 45;
-  border-radius: 12px;
-  border: 1px solid rgba(172, 255, 236, 0.36);
-  background: rgba(4, 18, 31, 0.94);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
   min-width: 15rem;
-  max-width: min(92vw, 22rem);
 }
 
 .copy-mode-menu-item {

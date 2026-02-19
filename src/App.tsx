@@ -1037,10 +1037,11 @@ export function App() {
                 <span className="btn-label">Copy Text</span>
               </button>
               {copyModePickerOpen && (
-                <div className="copy-mode-menu-panel" role="menu" aria-label="Choose copy source">
+                <div className="dropdown-panel copy-mode-menu-panel" role="menu" aria-label="Choose copy source">
                   <button
                     type="button"
                     className="toolbar-button copy-mode-menu-item"
+                    role="menuitem"
                     onClick={() => void openSelectableRecentText()}
                   >
                     Recent Output
@@ -1048,6 +1049,7 @@ export function App() {
                   <button
                     type="button"
                     className="toolbar-button copy-mode-menu-item"
+                    role="menuitem"
                     onClick={openSelectableVisibleText}
                   >
                     Visible Screen
@@ -1091,7 +1093,7 @@ export function App() {
                 &#8942;
               </button>
               {overflowMenuOpen && (
-                <div className="overflow-menu-panel">
+                <div className="dropdown-panel overflow-menu-panel">
                   <button
                     type="button"
                     className={`toolbar-button overflow-menu-item ${sysKeyActive ? "toolbar-button-active" : ""}`}

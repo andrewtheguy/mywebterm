@@ -3,7 +3,26 @@ import { describe, expect, test } from "bun:test";
 import { extractVisibleTerminalRowsText, normalizeVisibleTerminalLines } from "./terminalCopyText";
 
 function mockRowsElement(rows: Array<{ textContent?: string | null; innerHTML?: string }>): Element {
-  return { children: rows } as unknown as Element;
+  const children = {
+    length: rows.length,
+    item(index: number): Element | null {
+      return (rows[index] as Element | undefined) ?? null;
+    },
+    namedItem(_name: string): Element | null {
+      return null;
+    },
+    *[Symbol.iterator](): IterableIterator<Element> {
+      for (const row of rows) {
+        yield row as Element;
+      }
+    },
+  } as unknown as HTMLCollectionOf<Element> & Iterable<Element> & { [index: number]: Element };
+
+  for (const [index, row] of rows.entries()) {
+    children[index] = row as Element;
+  }
+
+  return { children } as unknown as Element;
 }
 
 describe("terminalCopyText", () => {

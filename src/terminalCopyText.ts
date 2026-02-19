@@ -11,10 +11,7 @@ export function extractVisibleTerminalRowsText(rowsElement: Element | null): str
     return "";
   }
 
-  const rowLines: string[] = [];
-  for (const rowElement of Array.from(rowsElement.children)) {
-    rowLines.push(rowElement.textContent ?? "");
-  }
+  const rowLines = Array.from(rowsElement.children).map((child) => child.textContent ?? "");
 
   return normalizeVisibleTerminalLines(rowLines);
 }
