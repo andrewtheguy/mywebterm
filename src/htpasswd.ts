@@ -1,14 +1,13 @@
 import { readFileSync } from "node:fs";
 
-let store = new Map<string, string>();
+let credential: { username: string; hash: string } | null = null;
 let filePath = "";
 let lastModified = 0;
 let reloadPromise: Promise<void> | null = null;
 
-function loadHtpasswd(path: string): Map<string, string> {
+function loadHtpasswd(path: string): { username: string; hash: string } {
   const content = readFileSync(path, "utf-8");
 
-  const entries = new Map<string, string>();
   for (const raw of content.split("\n")) {
     const line = raw.trim();
     if (line === "" || line.startsWith("#")) continue;
@@ -23,21 +22,17 @@ function loadHtpasswd(path: string): Map<string, string> {
       throw new Error(`Unsupported hash for user "${username}" (only bcrypt $2a$/$2b$/$2y$ supported)`);
     }
 
-    entries.set(username, hash);
+    return { username, hash };
   }
 
-  if (entries.size === 0) {
-    throw new Error(`No valid entries found in htpasswd file: ${path}`);
-  }
-
-  return entries;
+  throw new Error(`No valid entries found in htpasswd file: ${path}`);
 }
 
 export function initHtpasswd(path: string): void {
-  store = loadHtpasswd(path);
+  credential = loadHtpasswd(path);
   filePath = path;
   lastModified = Bun.file(path).lastModified;
-  console.log(`[htpasswd] loaded ${store.size} user(s) from ${path}`);
+  console.log(`[htpasswd] loaded user "${credential.username}" from ${path}`);
 }
 
 export async function verifyCredentials(username: string, password: string): Promise<boolean> {
@@ -49,10 +44,9 @@ export async function verifyCredentials(username: string, password: string): Pro
     if (!reloadPromise) {
       reloadPromise = (async () => {
         try {
-          const newStore = loadHtpasswd(filePath);
-          store = newStore;
+          credential = loadHtpasswd(filePath);
           lastModified = currentMtime;
-          console.log(`[htpasswd] reloaded ${store.size} user(s) from ${filePath}`);
+          console.log(`[htpasswd] reloaded user "${credential.username}" from ${filePath}`);
         } catch (err) {
           console.error("[htpasswd] failed to reload:", err);
         } finally {
@@ -63,12 +57,7 @@ export async function verifyCredentials(username: string, password: string): Pro
     await reloadPromise;
   }
 
-  const hash = store.get(username);
-  if (!hash) return false;
+  if (!credential || username !== credential.username) return false;
 
-  return Bun.password.verify(password, hash);
-}
-
-export function hasUsers(): boolean {
-  return store.size > 0;
+  return Bun.password.verify(password, credential.hash);
 }
