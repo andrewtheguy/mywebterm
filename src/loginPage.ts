@@ -97,31 +97,34 @@ export function buildLoginPageHtml(appTitle: string): string {
 <body>
   <div class="login-card">
     <h1 class="login-title">${safeTitle}</h1>
-    <input class="login-input" type="password" id="secret" placeholder="Enter secret" autocomplete="current-password" autofocus>
+    <input class="login-input" type="text" id="username" placeholder="Username" autocomplete="username" autofocus>
+    <input class="login-input" type="password" id="password" placeholder="Password" autocomplete="current-password">
     <button class="login-button" id="submit" type="button">Login</button>
     <p class="login-error" id="error"></p>
   </div>
   <script>
-    const input = document.getElementById("secret");
+    const usernameInput = document.getElementById("username");
+    const passwordInput = document.getElementById("password");
     const btn = document.getElementById("submit");
     const err = document.getElementById("error");
 
     async function doLogin() {
-      const secret = input.value;
-      if (!secret) { err.textContent = "Please enter a secret."; return; }
+      const username = usernameInput.value;
+      const password = passwordInput.value;
+      if (!username || !password) { err.textContent = "Please enter username and password."; return; }
       btn.disabled = true;
       err.textContent = "";
       try {
         const res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ secret }),
+          body: JSON.stringify({ username, password }),
         });
         if (res.ok) {
           window.location.href = "/";
         } else {
           const data = await res.json().catch(() => ({}));
-          err.textContent = data.error || "Invalid secret.";
+          err.textContent = data.error || "Invalid credentials.";
         }
       } catch (e) {
         err.textContent = "Network error.";
@@ -131,7 +134,8 @@ export function buildLoginPageHtml(appTitle: string): string {
     }
 
     btn.addEventListener("click", doLogin);
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+    usernameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") passwordInput.focus(); });
+    passwordInput.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
   </script>
 </body>
 </html>`;

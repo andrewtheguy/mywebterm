@@ -6,10 +6,10 @@ import {
   createSession as createAuthSession,
   extractSessionToken,
   getSessionCookie,
-  hasAuthSecret,
+  initHtpasswd,
   invalidateSession,
   isRequestAuthenticated,
-  validateSecret,
+  verifyCredentials,
 } from "./auth";
 import boldFont from "./fonts/JetBrainsMonoNerdFontMono-Bold.woff2" with { type: "file" };
 import regularFont from "./fonts/JetBrainsMonoNerdFontMono-Regular.woff2" with { type: "file" };
@@ -43,6 +43,7 @@ Options:
   -h, --help          Show this help message
   -v, --version       Show version
   -p, --port <n>      Port to listen on (default: 8671)
+      --htpasswd-file <path>  Path to htpasswd file (default: .htpasswd)
       --no-auth       Disable authentication (localhost use only)
       --no-hscroll    Disable horizontal scrolling
       --title <s>     Set the terminal title (default: "MyWebTerm")`;
@@ -52,6 +53,7 @@ const parseArgsOptions = {
     help: { type: "boolean", short: "h" },
     version: { type: "boolean", short: "v" },
     port: { type: "string", short: "p" },
+    "htpasswd-file": { type: "string" },
     "no-auth": { type: "boolean" },
     "no-hscroll": { type: "boolean" },
     title: { type: "string" },
@@ -94,9 +96,14 @@ if (noAuth && hostname !== "127.0.0.1" && hostname !== "localhost") {
   process.exit(1);
 }
 
-if (!noAuth && !hasAuthSecret()) {
-  console.error("AUTH_SECRET environment variable is required but not set.");
-  process.exit(1);
+if (!noAuth) {
+  const htpasswdPath = values["htpasswd-file"] ?? process.env.HTPASSWD_FILE ?? ".htpasswd";
+  try {
+    initHtpasswd(htpasswdPath);
+  } catch (err) {
+    console.error(`Failed to load htpasswd file: ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  }
 }
 
 // Embed font and icon files into memory at startup so they work without
@@ -256,18 +263,22 @@ async function handleLoginPost(req: Request): Promise<Response> {
     return Response.json({ error: "Too many attempts, try again later" }, { status: 429 });
   }
 
-  let body: { secret?: string };
+  let body: { username?: string; password?: string };
   try {
     body = await req.json();
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  if (typeof body.secret !== "string" || !validateSecret(body.secret)) {
-    console.warn(`[auth] invalid login attempt from ${ip}`);
-    return Response.json({ error: "Invalid secret" }, { status: 401 });
+  if (typeof body.username !== "string" || typeof body.password !== "string") {
+    return Response.json({ error: "Missing username or password" }, { status: 400 });
+  }
+  if (!(await verifyCredentials(body.username, body.password))) {
+    console.warn(`[auth] invalid login attempt from ${ip} (user: ${body.username})`);
+    return Response.json({ error: "Invalid credentials" }, { status: 401 });
   }
   clearLoginAttempts(ip);
-  const token = createAuthSession();
+  console.log(`[auth] login success for user "${body.username}" from ${ip}`);
+  const token = createAuthSession(body.username);
   return Response.json(
     { ok: true },
     {

@@ -241,7 +241,7 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
           sessions.delete(sessionId);
         },
       },
-      env: { ...process.env, TERM: "xterm-256color", AUTH_SECRET: undefined },
+      env: { ...process.env, TERM: "xterm-256color" },
     });
   } catch (error) {
     console.error(`[session ${sessionId}] Failed to spawn PTY:`, error);
