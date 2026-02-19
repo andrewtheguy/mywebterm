@@ -20,12 +20,18 @@ if (username.length === 0) {
 async function readPassword(prompt: string): Promise<string> {
   await Bun.write(Bun.stderr, prompt);
   Bun.spawnSync(["stty", "-echo"], { stdin: "inherit" });
-  const reader = Bun.stdin.stream().getReader();
-  const { value } = await reader.read();
-  reader.releaseLock();
-  Bun.spawnSync(["stty", "echo"], { stdin: "inherit" });
-  await Bun.write(Bun.stderr, "\n");
-  return new TextDecoder().decode(value).trim();
+  try {
+    const reader = Bun.stdin.stream().getReader();
+    try {
+      const { value } = await reader.read();
+      return new TextDecoder().decode(value).trim();
+    } finally {
+      reader.releaseLock();
+    }
+  } finally {
+    Bun.spawnSync(["stty", "echo"], { stdin: "inherit" });
+    await Bun.write(Bun.stderr, "\n");
+  }
 }
 
 const password = await readPassword("Password: ");

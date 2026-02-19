@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 let store = new Map<string, string>();
 let filePath = "";
 let lastModified = 0;
+let reloadPromise: Promise<void> | null = null;
 
 function loadHtpasswd(path: string): Map<string, string> {
   const content = readFileSync(path, "utf-8");
@@ -40,16 +41,26 @@ export function initHtpasswd(path: string): void {
 }
 
 export async function verifyCredentials(username: string, password: string): Promise<boolean> {
-  // Hot-reload if file changed
+  if (!filePath) return false;
+
+  // Hot-reload if file changed, deduplicating concurrent callers
   const currentMtime = Bun.file(filePath).lastModified;
   if (currentMtime !== lastModified) {
-    try {
-      store = loadHtpasswd(filePath);
-      lastModified = currentMtime;
-      console.log(`[htpasswd] reloaded ${store.size} user(s) from ${filePath}`);
-    } catch (err) {
-      console.error("[htpasswd] failed to reload:", err);
+    if (!reloadPromise) {
+      reloadPromise = (async () => {
+        try {
+          const newStore = loadHtpasswd(filePath);
+          store = newStore;
+          lastModified = currentMtime;
+          console.log(`[htpasswd] reloaded ${store.size} user(s) from ${filePath}`);
+        } catch (err) {
+          console.error("[htpasswd] failed to reload:", err);
+        } finally {
+          reloadPromise = null;
+        }
+      })();
     }
+    await reloadPromise;
   }
 
   const hash = store.get(username);

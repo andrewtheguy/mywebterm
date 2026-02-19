@@ -46,16 +46,6 @@ export function isValidSession(token: string): boolean {
   return true;
 }
 
-export function getSessionUsername(token: string): string | null {
-  const data = validTokens.get(token);
-  if (!data) return null;
-  if (Date.now() >= data.expiresAt) {
-    validTokens.delete(token);
-    return null;
-  }
-  return data.username;
-}
-
 export function invalidateSession(token: string): void {
   validTokens.delete(token);
 }

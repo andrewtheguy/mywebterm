@@ -109,7 +109,7 @@ export function buildLoginPageHtml(appTitle: string): string {
     const err = document.getElementById("error");
 
     async function doLogin() {
-      const username = usernameInput.value;
+      const username = usernameInput.value.trim();
       const password = passwordInput.value;
       if (!username || !password) { err.textContent = "Please enter username and password."; return; }
       btn.disabled = true;

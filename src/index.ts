@@ -272,12 +272,14 @@ async function handleLoginPost(req: Request): Promise<Response> {
   if (typeof body.username !== "string" || typeof body.password !== "string") {
     return Response.json({ error: "Missing username or password" }, { status: 400 });
   }
+  // biome-ignore lint/complexity/useRegexLiterals: literal form triggers noControlCharactersInRegex
+  const safeUsername = body.username.replace(new RegExp("[\\x00-\\x1f\\x7f]", "g"), "").slice(0, 64);
   if (!(await verifyCredentials(body.username, body.password))) {
-    console.warn(`[auth] invalid login attempt from ${ip} (user: ${body.username})`);
+    console.warn(`[auth] invalid login attempt from ${ip} (user: ${safeUsername})`);
     return Response.json({ error: "Invalid credentials" }, { status: 401 });
   }
   clearLoginAttempts(ip);
-  console.log(`[auth] login success for user "${body.username}" from ${ip}`);
+  console.log(`[auth] login success for user "${safeUsername}" from ${ip}`);
   const token = createAuthSession(body.username);
   return Response.json(
     { ok: true },
