@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import "@xterm/xterm/css/xterm.css";
 
 import { isLikelyIOS, type Point } from "./mobileTouchSelection";
+import { extractVisibleTerminalRowsText } from "./terminalCopyText";
 import type { ServerControlMessage } from "./ttyProtocol";
 import { decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttyProtocol";
 
@@ -34,6 +35,7 @@ interface UseTerminalResult {
   attemptPasteFromClipboard: () => Promise<PasteResult>;
   pasteTextIntoTerminal: (text: string) => boolean;
   getSelectableText: () => Promise<string>;
+  getVisibleTerminalText: () => string;
   copyTextToClipboard: (text: string) => Promise<boolean>;
   horizontalOverflow: boolean;
   containerElement: HTMLDivElement | null;
@@ -1116,6 +1118,11 @@ export function useTerminal({
     });
   }, []);
 
+  const getVisibleTerminalText = useCallback((): string => {
+    const rowsElement = container?.querySelector(".xterm-rows") ?? null;
+    return extractVisibleTerminalRowsText(rowsElement);
+  }, [container]);
+
   const copyTextToClipboard = useCallback(async (text: string): Promise<boolean> => {
     return writeClipboardText(text);
   }, []);
@@ -1133,6 +1140,7 @@ export function useTerminal({
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
     getSelectableText,
+    getVisibleTerminalText,
     copyTextToClipboard,
     horizontalOverflow,
     containerElement: container,

@@ -88,6 +88,8 @@ body {
   padding: 0.25rem 0.5rem;
   border-bottom: 1px solid var(--panel-border);
   background: rgba(10, 38, 62, 0.95);
+  position: relative;
+  z-index: 40;
 }
 
 .brand {
@@ -110,6 +112,7 @@ body {
   gap: 0.7rem;
   align-items: center;
   flex-wrap: wrap;
+  overflow: visible;
 }
 
 .toolbar-actions {
@@ -118,6 +121,7 @@ body {
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
+  overflow: visible;
 }
 
 .status-badge {
@@ -241,10 +245,10 @@ body {
   color: var(--muted-ink);
 }
 
-.overflow-menu-panel {
+.dropdown-panel {
   position: absolute;
   top: calc(100% + 0.4rem);
-  right: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -256,11 +260,34 @@ body {
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   min-width: 10rem;
+  max-width: min(92vw, 22rem);
+}
+
+.overflow-menu-panel {
+  left: auto;
+  right: 0;
 }
 
 .overflow-menu-item {
   width: 100%;
   text-align: left;
+  border-radius: 8px;
+}
+
+.copy-mode-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.copy-mode-menu-panel {
+  z-index: 45;
+  min-width: 15rem;
+}
+
+.copy-mode-menu-item {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
   border-radius: 8px;
 }
 
@@ -1029,6 +1056,12 @@ body {
 
   .copy-sheet-textarea {
     min-height: 260px;
+  }
+
+  .copy-mode-menu-panel {
+    left: auto;
+    right: 0;
+    min-width: min(92vw, 18rem);
   }
 
   .copy-sheet-header h2 {
