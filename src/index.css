@@ -281,7 +281,7 @@ body {
   flex-direction: column;
   gap: 0.3rem;
   padding: 0.45rem;
-  z-index: 60;
+  z-index: 45;
   border-radius: 12px;
   border: 1px solid rgba(172, 255, 236, 0.36);
   background: rgba(4, 18, 31, 0.94);
