@@ -53,7 +53,7 @@ A shell command can be specified after `--` (e.g. `mywebterm -- /bin/bash`). Whe
 MyWebTerm uses an `.htpasswd` file with bcrypt-hashed passwords. Generate credentials with:
 
 ```bash
-bun run htpasswd <username> >> .htpasswd
+bun run htpasswd <username> > .htpasswd
 ```
 
 The server reads `.htpasswd` from the working directory by default. Use `--htpasswd-file <path>` or the `HTPASSWD_FILE` environment variable to specify a different location. The file is hot-reloaded when it changes.
