@@ -172,6 +172,7 @@ function formatShellCommand(args: string[]): string {
 export function App() {
   const [config, setConfig] = useState<TtyConfig | null>(null);
   const [remoteTitle, setRemoteTitle] = useState<string | null>(null);
+  const [copyModePickerOpen, setCopyModePickerOpen] = useState(false);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [pasteHelperText, setPasteHelperText] = useState<string | null>(null);
   const [pendingClipboardPayload, setPendingClipboardPayload] = useState<EncryptedClipboardPayload | null>(null);
@@ -192,6 +193,7 @@ export function App() {
     if (el) el.focus();
   }, []);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
+  const copyModeMenuRef = useRef<HTMLDivElement>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperRef = useRef<HTMLTextAreaElement | null>(null);
   const pasteHelperFocusedRef = useRef(false);
@@ -245,6 +247,32 @@ export function App() {
       document.removeEventListener("touchstart", close);
     };
   }, [overflowMenuOpen]);
+
+  useEffect(() => {
+    if (!copyModePickerOpen) {
+      return;
+    }
+
+    const close = (e: MouseEvent | TouchEvent) => {
+      if (copyModeMenuRef.current && !copyModeMenuRef.current.contains(e.target as Node)) {
+        setCopyModePickerOpen(false);
+      }
+    };
+    const closeOnEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setCopyModePickerOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", close);
+    document.addEventListener("touchstart", close);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [copyModePickerOpen]);
 
   const overflowAction = useCallback((action: () => void) => {
     setOverflowMenuOpen(false);
@@ -321,6 +349,7 @@ export function App() {
     attemptPasteFromClipboard,
     pasteTextIntoTerminal,
     getSelectableText,
+    getVisibleTerminalText,
     copyTextToClipboard,
     horizontalOverflow,
     containerElement,
@@ -451,16 +480,36 @@ export function App() {
     repeatModifiersRef.current = null;
   }, [softKeysOpen]);
 
-  const openSelectableText = useCallback(async () => {
+  const openCopyModePicker = useCallback(() => {
+    setPasteHelperText(null);
+    setSelectableText(null);
+    setOverflowMenuOpen(false);
+    setCopyModePickerOpen(true);
+  }, []);
+
+  const openSelectableRecentText = useCallback(async () => {
     const text = await getSelectableText();
     if (text.length === 0) {
       return;
     }
     setPasteHelperText(null);
+    setCopyModePickerOpen(false);
     setSelectableText(text);
   }, [getSelectableText]);
 
+  const openSelectableVisibleText = useCallback(() => {
+    const text = getVisibleTerminalText();
+    if (text.length === 0) {
+      toast.info("No visible terminal output available.", { id: "copy-visible" });
+      return;
+    }
+    setPasteHelperText(null);
+    setCopyModePickerOpen(false);
+    setSelectableText(text);
+  }, [getVisibleTerminalText]);
+
   const closeSelectableText = useCallback(() => {
+    setCopyModePickerOpen(false);
     setSelectableText(null);
     setPendingClipboardPayload(null);
   }, []);
@@ -470,6 +519,7 @@ export function App() {
     void decryptClipboardPayload(pendingClipboardPayload)
       .then((text) => {
         setPasteHelperText(null);
+        setCopyModePickerOpen(false);
         setSelectableText(text);
         setPendingClipboardPayload(null);
       })
@@ -480,6 +530,7 @@ export function App() {
   }, [pendingClipboardPayload, decryptClipboardPayload]);
 
   const openPasteHelper = useCallback(() => {
+    setCopyModePickerOpen(false);
     setSelectableText(null);
     setPasteHelperText("");
   }, []);
@@ -959,29 +1010,51 @@ export function App() {
               </svg>
               <span className="btn-label">Soft Keys</span>
             </button>
-            <button
-              type="button"
-              className="toolbar-button"
-              onClick={() => void openSelectableText()}
-              title="Copy Text"
-            >
-              <svg
-                className="btn-icon"
-                aria-hidden="true"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <div className="copy-mode-menu" ref={copyModeMenuRef}>
+              <button
+                type="button"
+                className={`toolbar-button ${copyModePickerOpen ? "toolbar-button-active" : ""}`}
+                onClick={openCopyModePicker}
+                title="Copy Text"
+                aria-expanded={copyModePickerOpen}
+                aria-haspopup="menu"
               >
-                <rect x="9" y="9" width="13" height="13" rx="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-              <span className="btn-label">Copy Text</span>
-            </button>
+                <svg
+                  className="btn-icon"
+                  aria-hidden="true"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <span className="btn-label">Copy Text</span>
+              </button>
+              {copyModePickerOpen && (
+                <div className="copy-mode-menu-panel" role="menu" aria-label="Choose copy source">
+                  <button
+                    type="button"
+                    className="toolbar-button copy-mode-menu-item"
+                    onClick={() => void openSelectableRecentText()}
+                  >
+                    Recent Output
+                  </button>
+                  <button
+                    type="button"
+                    className="toolbar-button copy-mode-menu-item"
+                    onClick={openSelectableVisibleText}
+                  >
+                    Visible Screen
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               className="toolbar-button"

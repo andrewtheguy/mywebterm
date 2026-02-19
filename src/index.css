@@ -88,6 +88,8 @@ body {
   padding: 0.25rem 0.5rem;
   border-bottom: 1px solid var(--panel-border);
   background: rgba(10, 38, 62, 0.95);
+  position: relative;
+  z-index: 40;
 }
 
 .brand {
@@ -110,6 +112,7 @@ body {
   gap: 0.7rem;
   align-items: center;
   flex-wrap: wrap;
+  overflow: visible;
 }
 
 .toolbar-actions {
@@ -118,6 +121,7 @@ body {
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
+  overflow: visible;
 }
 
 .status-badge {
@@ -261,6 +265,36 @@ body {
 .overflow-menu-item {
   width: 100%;
   text-align: left;
+  border-radius: 8px;
+}
+
+.copy-mode-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.copy-mode-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.45rem;
+  z-index: 60;
+  border-radius: 12px;
+  border: 1px solid rgba(172, 255, 236, 0.36);
+  background: rgba(4, 18, 31, 0.94);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  min-width: 15rem;
+  max-width: min(92vw, 22rem);
+}
+
+.copy-mode-menu-item {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
   border-radius: 8px;
 }
 
@@ -1029,6 +1063,12 @@ body {
 
   .copy-sheet-textarea {
     min-height: 260px;
+  }
+
+  .copy-mode-menu-panel {
+    left: auto;
+    right: 0;
+    min-width: min(92vw, 18rem);
   }
 
   .copy-sheet-header h2 {
