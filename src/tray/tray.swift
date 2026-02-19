@@ -160,7 +160,7 @@ guard FileManager.default.isExecutableFile(atPath: serverBin.path) else {
 
 // The app bundle runs the server without auth since it binds to localhost only,
 // and macOS apps don't receive environment variables or CLI args when launched normally.
-// Inject --no-auth so the server doesn't require AUTH_SECRET.
+// Inject --no-auth so the server doesn't require an htpasswd file.
 var serverArgs = Array(args.dropFirst())
 if !serverArgs.contains("--no-auth") {
     serverArgs.append("--no-auth")

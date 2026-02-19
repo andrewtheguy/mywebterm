@@ -40,6 +40,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Compiled tray helper binary
 src/tray/tray_darwin_*
 
+# htpasswd credentials
+.htpasswd
+
 # Claude Code
 .claude/
 

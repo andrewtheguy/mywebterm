@@ -11,7 +11,8 @@
     "lint:fix": "bunx biome check --write src/",
     "tsc": "bunx tsc --noEmit",
     "build:tray": "mkdir -p dist && swiftc -framework Cocoa -framework WebKit -O -o dist/MyWebTermTray src/tray/tray.swift",
-    "build:app": "scripts/build-app-bundle.sh"
+    "build:app": "scripts/build-app-bundle.sh",
+    "htpasswd": "bun src/gen-htpasswd.ts"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.12.0-beta.156",
