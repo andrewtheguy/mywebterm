@@ -303,6 +303,99 @@ body {
   background: rgba(8, 16, 28, 0.92);
 }
 
+.extra-keys-floating {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 15;
+  width: min(500px, calc(100% - 1.5rem));
+  max-width: 500px;
+  gap: 0;
+  padding: 0.25rem;
+  border: 1px solid rgba(120, 190, 170, 0.45);
+  border-radius: 14px;
+  background: rgba(8, 16, 28, 0.94);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.extra-keys-floating .extra-keys-grid {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.extra-keys-floating .extra-keys-fkey-row {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.extra-keys-floating-toolbar {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.extra-keys-floating-toolbar-spacer {
+  width: 1.4rem;
+  flex-shrink: 0;
+}
+
+.extra-keys-floating-drag-handle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 1.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 190, 170, 0.35);
+  background: rgba(33, 54, 71, 0.58);
+  color: var(--muted-ink);
+  font-size: 0.68rem;
+  line-height: 1;
+  font-weight: 700;
+  padding: 0 0.35rem;
+  touch-action: none;
+  cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.extra-keys-floating-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 142, 132, 0.35);
+  background: rgba(80, 30, 28, 0.58);
+  color: rgba(255, 142, 132, 0.9);
+  font-size: 0.85rem;
+  line-height: 1;
+  font-weight: 700;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.extra-keys-floating-drag-handle:active {
+  cursor: grabbing;
+  background: rgba(75, 125, 110, 0.52);
+}
+
+.extra-keys-floating-close:active {
+  background: rgba(120, 40, 36, 0.8);
+}
+
+.extra-keys-floating-drag-handle:focus,
+.extra-keys-floating-close:focus {
+  outline: none;
+}
+
+.extra-keys-floating-drag-handle:focus-visible,
+.extra-keys-floating-close:focus-visible {
+  outline: 2px solid #8fffcb;
+  outline-offset: 1px;
+}
+
 .extra-keys-header {
   display: flex;
   gap: 0.6rem;
@@ -788,6 +881,13 @@ body {
 @media (pointer: coarse) {
   .arrow-overlay {
     display: block;
+  }
+}
+
+@media (min-width: 1024px) {
+  .arrow-overlay,
+  .arrow-overlay-collapsed {
+    display: none;
   }
 }
 
