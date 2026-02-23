@@ -50,6 +50,7 @@ interface EncryptedClipboardPayload {
 
 const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
 const DESKTOP_WIDTH_BREAKPOINT = 1024;
+const OVERLAY_DRAG_ACTIVATION_PX = 6;
 
 const SECONDARY_ROW2_ARROW_LABELS = new Set([",", "▲", "Ins"]);
 const SECONDARY_ROW3_ARROW_LABELS = new Set(["◀", "▼", "▶"]);
@@ -704,7 +705,13 @@ export function App() {
   const scrollbarDragStartXRef = useRef(0);
   const scrollbarDragStartScrollLeftRef = useRef(0);
   const arrowOverlayRef = useRef<HTMLElement>(null);
-  const arrowOverlayDragRef = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
+  const arrowOverlayDragRef = useRef<{
+    pointerId: number;
+    offsetX: number;
+    offsetY: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
   const arrowOverlayDragMovedRef = useRef(false);
   const [arrowOverlayPosition, setArrowOverlayPosition] = useState<{ left: number; top: number } | null>(null);
   const floatingKeyboardRef = useRef<HTMLElement>(null);
@@ -1106,6 +1113,8 @@ export function App() {
         pointerId: event.pointerId,
         offsetX: event.clientX - overlayRect.left,
         offsetY: event.clientY - overlayRect.top,
+        startX: event.clientX,
+        startY: event.clientY,
       };
     },
     [clampOverlayPosition],
@@ -1165,6 +1174,11 @@ export function App() {
       }
       event.preventDefault();
       if (!arrowOverlayDragMovedRef.current) {
+        const deltaX = event.clientX - dragState.startX;
+        const deltaY = event.clientY - dragState.startY;
+        if (Math.hypot(deltaX, deltaY) < OVERLAY_DRAG_ACTIVATION_PX) {
+          return;
+        }
         if (repeatTimerRef.current !== null) {
           window.clearTimeout(repeatTimerRef.current);
           repeatTimerRef.current = null;
@@ -1395,6 +1409,7 @@ export function App() {
   const showFloatingSoftKeyboard = softKeysOpen && isDesktopWide;
   const showDockedSoftKeyboard = softKeysOpen && !isDesktopWide;
   const showArrowOverlay = !isDesktopWide;
+  const showDesktopSoftKeyboardCollapsedToggle = isDesktopWide && !softKeysOpen;
 
   const arrowOverlayStyle =
     arrowOverlayPosition === null
@@ -1415,6 +1430,11 @@ export function App() {
           right: "auto",
           bottom: "auto",
         };
+
+  const desktopSoftKeyboardToggleStyle = {
+    ...(arrowOverlayStyle ?? {}),
+    display: "flex",
+  } as const;
 
   return (
     <div className="app-shell" ref={appShellRef}>
@@ -1819,6 +1839,27 @@ export function App() {
                 stopKeyRepeat={stopKeyRepeat}
               />
             </section>
+          )}
+
+          {showDesktopSoftKeyboardCollapsedToggle && (
+            <button
+              type="button"
+              className="arrow-overlay arrow-overlay-collapsed soft-keys-collapsed-desktop-toggle"
+              aria-label="Show soft keyboard"
+              ref={arrowOverlayRef as React.RefObject<HTMLButtonElement>}
+              style={desktopSoftKeyboardToggleStyle}
+              onPointerDown={startArrowOverlayDrag}
+              onClick={() => {
+                if (!arrowOverlayDragMovedRef.current) {
+                  setSoftKeysOpen(true);
+                  blurTerminalInput();
+                }
+              }}
+            >
+              <span className="arrow-overlay-collapsed-icon soft-keys-collapsed-desktop-icon" aria-hidden="true">
+                ⌨︎
+              </span>
+            </button>
           )}
 
           {showArrowOverlay &&

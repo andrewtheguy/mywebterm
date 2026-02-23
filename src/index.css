@@ -1147,6 +1147,22 @@ body {
   color: #d8ecff;
 }
 
+@media (min-width: 1024px) {
+  .soft-keys-collapsed-desktop-toggle {
+    width: 2.6rem;
+    height: 2.6rem;
+    min-width: 2.6rem;
+    min-height: 2.6rem;
+    padding: 0;
+    aspect-ratio: 1 / 1;
+    border-radius: 14px;
+  }
+
+  .soft-keys-collapsed-desktop-icon {
+    font-size: 2.35rem;
+  }
+}
+
 .arrow-overlay-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
