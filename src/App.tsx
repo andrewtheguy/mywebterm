@@ -7,6 +7,10 @@ import {
   buildSoftKeySequence,
   COMBO_KEY_ROW,
   DEFAULT_SOFT_KEY_MODIFIERS,
+  DESKTOP_PC_ARROW_ROWS,
+  DESKTOP_PC_FUNCTION_ROW,
+  DESKTOP_PC_MAIN_ROWS,
+  DESKTOP_PC_NAV_ROWS,
   FUNCTION_KEY_ROW,
   PRIMARY_SCREEN_ROWS,
   SECONDARY_SCREEN_ROWS,
@@ -165,7 +169,7 @@ function ArrowKeyButton({
   );
 }
 
-function SoftKeyboardGrid({
+function MobileSoftKeyboardGrid({
   keyboardScreen,
   softKeyModifiers,
   toggleSoftModifier,
@@ -331,6 +335,162 @@ function SoftKeyboardGrid({
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+function DesktopPcKeyboardGrid({
+  softKeyModifiers,
+  toggleSoftModifier,
+  startKeyRepeat,
+  stopKeyRepeat,
+}: {
+  softKeyModifiers: SoftKeyModifiers;
+  toggleSoftModifier: (modifier: SoftModifierName) => void;
+  startKeyRepeat: (key: SoftKeyDefinition) => void;
+  stopKeyRepeat: () => void;
+}) {
+  const renderSoftKey = (key: SoftKeyDefinition, className?: string) => {
+    const label = softKeyLabel(key, softKeyModifiers.shift);
+    const hint = softKeyShiftHint(key, softKeyModifiers.shift);
+    const classes = [label.length === 1 ? "extra-key-single-char" : "", className ?? ""].filter(Boolean).join(" ");
+    return (
+      <ExtraKeyButton
+        key={key.id}
+        softKey={key}
+        className={classes}
+        startKeyRepeat={startKeyRepeat}
+        stopKeyRepeat={stopKeyRepeat}
+      >
+        {label}
+        {hint && <span className="extra-key-shift-hint">{hint}</span>}
+      </ExtraKeyButton>
+    );
+  };
+
+  const numberRow = DESKTOP_PC_MAIN_ROWS[0] ?? [];
+  const qwertyRow = DESKTOP_PC_MAIN_ROWS[1] ?? [];
+  const homeRow = DESKTOP_PC_MAIN_ROWS[2] ?? [];
+  const zxcvRow = DESKTOP_PC_MAIN_ROWS[3] ?? [];
+  const spaceRow = DESKTOP_PC_MAIN_ROWS[4] ?? [];
+
+  return (
+    <div className="desktop-pc-layout" role="group" aria-label="Terminal keys">
+      <div className="desktop-pc-main">
+        <div className="desktop-pc-row desktop-pc-row-function">
+          {DESKTOP_PC_FUNCTION_ROW.map((key) =>
+            renderSoftKey(
+              key,
+              key.kind === "function" ? "extra-key-fkey desktop-key-function" : "desktop-key-esc desktop-key-function",
+            ),
+          )}
+        </div>
+
+        <div className="desktop-pc-row">
+          {numberRow.map((key, index) =>
+            renderSoftKey(key, index === numberRow.length - 1 ? "desktop-key-wide-bksp" : undefined),
+          )}
+        </div>
+
+        <div className="desktop-pc-row">
+          {qwertyRow.map((key, index) =>
+            renderSoftKey(
+              key,
+              index === 0
+                ? "desktop-key-wide-tab"
+                : index === qwertyRow.length - 1
+                  ? "desktop-key-wide-slash"
+                  : undefined,
+            ),
+          )}
+        </div>
+
+        <div className="desktop-pc-row">
+          <div className="desktop-pc-left-spacer desktop-pc-home-left-spacer" aria-hidden />
+          {homeRow.map((key, index) =>
+            renderSoftKey(key, index === homeRow.length - 1 ? "desktop-key-wide-enter" : undefined),
+          )}
+        </div>
+
+        <div className="desktop-pc-row">
+          <button
+            type="button"
+            className={`toolbar-button extra-key-button desktop-key-wide-shift ${softKeyModifiers.shift ? "toolbar-button-active" : ""}`}
+            onClick={() => toggleSoftModifier("shift")}
+            aria-pressed={softKeyModifiers.shift}
+          >
+            Shift
+          </button>
+          {zxcvRow.map((key) => renderSoftKey(key))}
+          <button
+            type="button"
+            className={`toolbar-button extra-key-button desktop-key-wide-shift ${softKeyModifiers.shift ? "toolbar-button-active" : ""}`}
+            onClick={() => toggleSoftModifier("shift")}
+            aria-pressed={softKeyModifiers.shift}
+          >
+            Shift
+          </button>
+        </div>
+
+        <div className="desktop-pc-row">
+          <button
+            type="button"
+            className={`toolbar-button extra-key-button desktop-key-wide-modifier ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
+            onClick={() => toggleSoftModifier("ctrl")}
+            aria-pressed={softKeyModifiers.ctrl}
+          >
+            Ctrl
+          </button>
+          <button
+            type="button"
+            className={`toolbar-button extra-key-button desktop-key-wide-modifier ${softKeyModifiers.alt ? "toolbar-button-active" : ""}`}
+            onClick={() => toggleSoftModifier("alt")}
+            aria-pressed={softKeyModifiers.alt}
+          >
+            Alt
+          </button>
+          {spaceRow[0] ? renderSoftKey(spaceRow[0], "desktop-key-space") : null}
+          <button
+            type="button"
+            className={`toolbar-button extra-key-button desktop-key-wide-modifier ${softKeyModifiers.alt ? "toolbar-button-active" : ""}`}
+            onClick={() => toggleSoftModifier("alt")}
+            aria-pressed={softKeyModifiers.alt}
+          >
+            Alt
+          </button>
+          <button
+            type="button"
+            className={`toolbar-button extra-key-button desktop-key-wide-modifier ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
+            onClick={() => toggleSoftModifier("ctrl")}
+            aria-pressed={softKeyModifiers.ctrl}
+          >
+            Ctrl
+          </button>
+        </div>
+      </div>
+
+      <aside className="desktop-pc-side" aria-label="Navigation and arrow keys">
+        <div className="desktop-pc-side-panel">
+          <div className="desktop-pc-nav">
+            {DESKTOP_PC_NAV_ROWS.map((row) => (
+              <div key={`desktop-nav-${row.map((key) => key.id).join("-")}`} className="desktop-pc-side-row">
+                {row.map((key) => renderSoftKey(key, "desktop-key-side"))}
+              </div>
+            ))}
+          </div>
+
+          <div className="desktop-pc-arrows">
+            <div className="desktop-pc-side-row desktop-pc-arrow-row-up">
+              <div className="desktop-pc-spacer" />
+              {(DESKTOP_PC_ARROW_ROWS[0] ?? []).map((key) => renderSoftKey(key, "desktop-key-side desktop-key-arrow"))}
+              <div className="desktop-pc-spacer" />
+            </div>
+            <div className="desktop-pc-side-row desktop-pc-arrow-row-main">
+              {(DESKTOP_PC_ARROW_ROWS[1] ?? []).map((key) => renderSoftKey(key, "desktop-key-side desktop-key-arrow"))}
+            </div>
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }
@@ -1637,11 +1797,9 @@ export function App() {
                   ✕
                 </button>
               </div>
-              <SoftKeyboardGrid
-                keyboardScreen={keyboardScreen}
+              <DesktopPcKeyboardGrid
                 softKeyModifiers={softKeyModifiers}
                 toggleSoftModifier={toggleSoftModifier}
-                toggleKeyboardScreen={toggleKeyboardScreen}
                 startKeyRepeat={startKeyRepeat}
                 stopKeyRepeat={stopKeyRepeat}
               />
@@ -1733,7 +1891,7 @@ export function App() {
 
       {showDockedSoftKeyboard && (
         <section className="extra-keys-panel" aria-label="Extra key controls">
-          <SoftKeyboardGrid
+          <MobileSoftKeyboardGrid
             keyboardScreen={keyboardScreen}
             softKeyModifiers={softKeyModifiers}
             toggleSoftModifier={toggleSoftModifier}

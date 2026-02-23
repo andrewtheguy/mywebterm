@@ -240,6 +240,83 @@ export const COMBO_KEY_ROW: readonly SoftKeyDefinition[] = [
   createComboKey("^Q", "q", { ctrl: true }),
 ];
 
+export const DESKTOP_PC_FUNCTION_ROW: readonly SoftKeyDefinition[] = [
+  createSpecialKey("escape", "Esc"),
+  ...FUNCTION_KEY_ROW,
+];
+
+export const DESKTOP_PC_MAIN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
+  [
+    createPrintableKey("`"),
+    createPrintableKey("1"),
+    createPrintableKey("2"),
+    createPrintableKey("3"),
+    createPrintableKey("4"),
+    createPrintableKey("5"),
+    createPrintableKey("6"),
+    createPrintableKey("7"),
+    createPrintableKey("8"),
+    createPrintableKey("9"),
+    createPrintableKey("0"),
+    createPrintableKey("-"),
+    createPrintableKey("="),
+    createSpecialKey("backspace", "Bksp"),
+  ],
+  [
+    createSpecialKey("tab", "Tab"),
+    createPrintableKey("q", "Q"),
+    createPrintableKey("w", "W"),
+    createPrintableKey("e", "E"),
+    createPrintableKey("r", "R"),
+    createPrintableKey("t", "T"),
+    createPrintableKey("y", "Y"),
+    createPrintableKey("u", "U"),
+    createPrintableKey("i", "I"),
+    createPrintableKey("o", "O"),
+    createPrintableKey("p", "P"),
+    createPrintableKey("["),
+    createPrintableKey("]"),
+    createPrintableKey("\\"),
+  ],
+  [
+    createPrintableKey("a", "A"),
+    createPrintableKey("s", "S"),
+    createPrintableKey("d", "D"),
+    createPrintableKey("f", "F"),
+    createPrintableKey("g", "G"),
+    createPrintableKey("h", "H"),
+    createPrintableKey("j", "J"),
+    createPrintableKey("k", "K"),
+    createPrintableKey("l", "L"),
+    createPrintableKey(";"),
+    createPrintableKey("'"),
+    createSpecialKey("enter", "Enter"),
+  ],
+  [
+    createPrintableKey("z", "Z"),
+    createPrintableKey("x", "X"),
+    createPrintableKey("c", "C"),
+    createPrintableKey("v", "V"),
+    createPrintableKey("b", "B"),
+    createPrintableKey("n", "N"),
+    createPrintableKey("m", "M"),
+    createPrintableKey(","),
+    createPrintableKey("."),
+    createPrintableKey("/"),
+  ],
+  [createPrintableKey(" ", "Space")],
+];
+
+export const DESKTOP_PC_NAV_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
+  [createSpecialKey("insert", "Ins"), createSpecialKey("home", "Home"), createSpecialKey("pageUp", "PgUp")],
+  [createSpecialKey("delete", "Del"), createSpecialKey("end", "End"), createSpecialKey("pageDown", "PgDn")],
+];
+
+export const DESKTOP_PC_ARROW_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
+  [createSpecialKey("arrowUp", "▲")],
+  [createSpecialKey("arrowLeft", "◀"), createSpecialKey("arrowDown", "▼"), createSpecialKey("arrowRight", "▶")],
+];
+
 export const FUNCTION_SCREEN_ROWS: readonly (readonly SoftKeyDefinition[])[] = [
   FUNCTION_KEY_ROW.slice(0, 10),
   FUNCTION_KEY_ROW.slice(10),
