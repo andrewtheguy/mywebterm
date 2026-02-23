@@ -715,30 +715,45 @@ export function App() {
   const repeatModifiersRef = useRef<SoftKeyModifiers | null>(null);
 
   useEffect(() => {
+    const syncViewportLayout = () => {
+      const shell = appShellRef.current;
+      if (!shell) {
+        return;
+      }
+      const vv = window.visualViewport;
+      if (!vv) {
+        shell.style.removeProperty("height");
+        shell.style.setProperty("--viewport-bottom-compensation", "0px");
+        return;
+      }
+
+      const layoutHeight = document.documentElement.clientHeight;
+      const visibleBottom = vv.offsetTop + vv.height;
+      const bottomClip = Math.max(0, layoutHeight - visibleBottom);
+      const boundedBottomClip = Math.min(96, Math.round(bottomClip));
+
+      shell.style.height = `${vv.height}px`;
+      shell.style.setProperty("--viewport-bottom-compensation", `${boundedBottomClip}px`);
+    };
+
+    const onResize = () => {
+      syncViewportLayout();
+      window.scrollTo(0, 0);
+    };
+
+    syncViewportLayout();
+
     const vv = window.visualViewport;
     if (!vv) {
       return;
     }
-
-    const syncHeight = () => {
-      const shell = appShellRef.current;
-      if (shell) {
-        shell.style.height = `${vv.height}px`;
-      }
-    };
-
-    const onResize = () => {
-      syncHeight();
-      window.scrollTo(0, 0);
-    };
-
-    onResize();
-
     vv.addEventListener("resize", onResize);
-    vv.addEventListener("scroll", syncHeight);
+    vv.addEventListener("scroll", syncViewportLayout);
+    window.addEventListener("orientationchange", onResize);
     return () => {
       vv.removeEventListener("resize", onResize);
-      vv.removeEventListener("scroll", syncHeight);
+      vv.removeEventListener("scroll", syncViewportLayout);
+      window.removeEventListener("orientationchange", onResize);
     };
   }, []);
 
