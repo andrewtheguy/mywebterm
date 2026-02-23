@@ -468,11 +468,11 @@ body {
 }
 
 .desktop-key-wide-modifier {
-  flex: 1.35 1 0;
+  flex: 1.1 1 0;
 }
 
 .desktop-key-space {
-  flex: 4.5 1 0;
+  flex: 9 1 0;
 }
 
 .desktop-pc-side {
@@ -626,6 +626,39 @@ body {
   user-select: none;
   flex: 1 1 0;
   margin-right: -1px;
+}
+
+/* Keep desktop PC key widths effective after base extra-key-button flex defaults. */
+.desktop-pc-row > .extra-key-button.desktop-key-esc {
+  flex: 1.2 1 0;
+}
+
+.desktop-pc-row > .extra-key-button.desktop-key-wide-tab {
+  flex: 1.45 1 0;
+}
+
+.desktop-pc-row > .extra-key-button.desktop-key-wide-slash {
+  flex: 1.15 1 0;
+}
+
+.desktop-pc-row > .extra-key-button.desktop-key-wide-bksp {
+  flex: 1.75 1 0;
+}
+
+.desktop-pc-row > .extra-key-button.desktop-key-wide-enter {
+  flex: 1.95 1 0;
+}
+
+.desktop-pc-row > .extra-key-button.desktop-key-wide-shift {
+  flex: 1.95 1 0;
+}
+
+.desktop-pc-row > .extra-key-button.desktop-key-wide-modifier {
+  flex: 1.1 1 0;
+}
+
+.desktop-pc-row > .extra-key-button.desktop-key-space {
+  flex: 9 1 0;
 }
 
 .extra-key-single-char {
