@@ -309,6 +309,7 @@ body {
   right: 0.75rem;
   bottom: 0.75rem;
   z-index: 15;
+  opacity: 0.8;
   width: min(800px, calc(100% - 1.5rem));
   max-width: 800px;
   gap: 0;
