@@ -304,6 +304,10 @@ body {
   background: rgba(8, 16, 28, 0.92);
 }
 
+.extra-keys-docked {
+  position: relative;
+}
+
 .extra-keys-floating {
   position: absolute;
   right: 0.75rem;
@@ -328,6 +332,30 @@ body {
 .extra-keys-floating .extra-keys-fkey-row {
   -webkit-mask-image: none;
   mask-image: none;
+}
+
+.floating-keypress-overlay {
+  position: absolute;
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(80, 130, 170);
+  border-radius: 0;
+  background: linear-gradient(to bottom, rgb(40, 65, 90), rgb(20, 40, 60));
+  color: #e0e8f0;
+  font-family: system-ui, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.compact-keypress-overlay {
+  z-index: 4;
 }
 
 .extra-keys-floating-toolbar {
