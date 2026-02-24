@@ -814,12 +814,12 @@ export function App() {
       const visibleBottom = vv.offsetTop + vv.height;
       const bottomClip = Math.max(0, layoutHeight - visibleBottom);
       const boundedBottomClip = Math.min(96, Math.round(bottomClip));
-      const hasSignificantViewportHeightReduction = layoutHeight - vv.height > 120;
+      const shouldApplyBottomCompensation = layoutHeight - vv.height <= 120;
 
       shell.style.height = `${vv.height}px`;
       shell.style.setProperty(
         "--viewport-bottom-compensation",
-        `${hasSignificantViewportHeightReduction ? 0 : boundedBottomClip}px`,
+        `${shouldApplyBottomCompensation ? boundedBottomClip : 0}px`,
       );
     };
 
