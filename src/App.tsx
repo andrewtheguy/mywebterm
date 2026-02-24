@@ -48,6 +48,17 @@ interface EncryptedClipboardPayload {
   iv: Uint8Array;
 }
 
+interface DragRefBase {
+  pointerId: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+interface ArrowOverlayDragRef extends DragRefBase {
+  startX: number;
+  startY: number;
+}
+
 const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
 const DESKTOP_WIDTH_BREAKPOINT = 1024;
 const OVERLAY_DRAG_ACTIVATION_PX = 6;
@@ -705,17 +716,11 @@ export function App() {
   const scrollbarDragStartXRef = useRef(0);
   const scrollbarDragStartScrollLeftRef = useRef(0);
   const arrowOverlayRef = useRef<HTMLElement>(null);
-  const arrowOverlayDragRef = useRef<{
-    pointerId: number;
-    offsetX: number;
-    offsetY: number;
-    startX: number;
-    startY: number;
-  } | null>(null);
+  const arrowOverlayDragRef = useRef<ArrowOverlayDragRef | null>(null);
   const arrowOverlayDragMovedRef = useRef(false);
   const [arrowOverlayPosition, setArrowOverlayPosition] = useState<{ left: number; top: number } | null>(null);
   const floatingKeyboardRef = useRef<HTMLElement>(null);
-  const floatingKeyboardDragRef = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
+  const floatingKeyboardDragRef = useRef<DragRefBase | null>(null);
   const [floatingKeyboardPosition, setFloatingKeyboardPosition] = useState<{ left: number; top: number } | null>(null);
   const repeatTimerRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
@@ -1431,10 +1436,15 @@ export function App() {
           bottom: "auto",
         };
 
-  const desktopSoftKeyboardToggleStyle = {
-    ...(arrowOverlayStyle ?? {}),
-    display: "flex",
-  } as const;
+  const desktopSoftKeyboardToggleStyle = isDesktopWide
+    ? {
+        left: "auto",
+        top: "auto",
+        right: "0.75rem",
+        bottom: "0.75rem",
+        display: "flex",
+      }
+    : undefined;
 
   return (
     <div className="app-shell" ref={appShellRef}>

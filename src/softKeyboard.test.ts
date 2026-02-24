@@ -26,18 +26,19 @@ const desktopMainKeys = flattenSoftKeyRows(DESKTOP_PC_MAIN_ROWS);
 const desktopNavKeys = flattenSoftKeyRows(DESKTOP_PC_NAV_ROWS);
 const desktopArrowKeys = flattenSoftKeyRows(DESKTOP_PC_ARROW_ROWS);
 const desktopKeys = [...desktopFunctionKeys, ...desktopMainKeys, ...desktopNavKeys, ...desktopArrowKeys];
-const allKeys = [
-  ...primaryKeys,
-  ...secondaryKeys,
-  ...functionKeys,
-  ...desktopFunctionKeys,
-  ...desktopMainKeys,
-  ...desktopNavKeys,
-  ...desktopArrowKeys,
-];
+const allKeys = [...primaryKeys, ...secondaryKeys, ...functionKeys, ...desktopKeys];
+const desktopKeyIds = new Set(desktopKeys.map((k) => k.id));
+const keyByLabel = new Map<string, SoftKeyDefinition>();
+
+for (const key of allKeys) {
+  // Prefer desktop keys when labels overlap between mobile and desktop layouts.
+  if (!keyByLabel.has(key.label) || desktopKeyIds.has(key.id)) {
+    keyByLabel.set(key.label, key);
+  }
+}
 
 function findKey(label: string): SoftKeyDefinition {
-  const key = allKeys.find((candidate) => candidate.label === label);
+  const key = keyByLabel.get(label);
   if (!key) {
     throw new Error(`Missing key: ${label}`);
   }
@@ -174,7 +175,7 @@ describe("softKeyboard", () => {
   });
 
   test("desktop main rows do not include right-cluster nav or arrow keys", () => {
-    const mainLabels = new Set(flattenSoftKeyRows(DESKTOP_PC_MAIN_ROWS).map((k) => k.label));
+    const mainLabels = new Set(desktopMainKeys.map((k) => k.label));
     for (const label of ["Ins", "Del", "Home", "End", "PgUp", "PgDn", "▲", "◀", "▼", "▶"]) {
       expect(mainLabels.has(label)).toBe(false);
     }
@@ -187,6 +188,7 @@ describe("softKeyboard", () => {
 
   test("desktop nav and arrow keys encode expected sequences", () => {
     const expectedSequences: Array<[string, string]> = [
+      ["Esc", "\x1b"],
       ["Ins", "\x1b[2~"],
       ["Del", "\x1b[3~"],
       ["Home", "\x1b[H"],
