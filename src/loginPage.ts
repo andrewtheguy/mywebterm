@@ -97,7 +97,7 @@ export function buildLoginPageHtml(appTitle: string): string {
 <body>
   <div class="login-card">
     <h1 class="login-title">${safeTitle}</h1>
-    <input class="login-input" type="text" id="username" placeholder="Username" autocomplete="username" autofocus>
+    <input class="login-input" type="text" id="username" placeholder="Username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" autofocus>
     <input class="login-input" type="password" id="password" placeholder="Password" autocomplete="current-password">
     <button class="login-button" id="submit" type="button">Login</button>
     <p class="login-error" id="error"></p>

@@ -5,6 +5,10 @@ import {
   COMBO_KEY_ROW,
   type ComboSoftKeyDefinition,
   DEFAULT_SOFT_KEY_MODIFIERS,
+  DESKTOP_PC_ARROW_ROWS,
+  DESKTOP_PC_FUNCTION_ROW,
+  DESKTOP_PC_MAIN_ROWS,
+  DESKTOP_PC_NAV_ROWS,
   FUNCTION_KEY_ROW,
   FUNCTION_SCREEN_ROWS,
   flattenSoftKeyRows,
@@ -17,12 +21,34 @@ import {
 const primaryKeys = flattenSoftKeyRows(PRIMARY_SCREEN_ROWS);
 const secondaryKeys = flattenSoftKeyRows(SECONDARY_SCREEN_ROWS);
 const functionKeys = flattenSoftKeyRows(FUNCTION_SCREEN_ROWS);
-const allKeys = [...primaryKeys, ...secondaryKeys, ...functionKeys];
+const desktopFunctionKeys = DESKTOP_PC_FUNCTION_ROW;
+const desktopMainKeys = flattenSoftKeyRows(DESKTOP_PC_MAIN_ROWS);
+const desktopNavKeys = flattenSoftKeyRows(DESKTOP_PC_NAV_ROWS);
+const desktopArrowKeys = flattenSoftKeyRows(DESKTOP_PC_ARROW_ROWS);
+const desktopKeys = [...desktopFunctionKeys, ...desktopMainKeys, ...desktopNavKeys, ...desktopArrowKeys];
+const allKeys = [...primaryKeys, ...secondaryKeys, ...functionKeys, ...desktopKeys];
+const desktopKeyIds = new Set(desktopKeys.map((k) => k.id));
+const keyByLabel = new Map<string, SoftKeyDefinition>();
+
+for (const key of allKeys) {
+  // Prefer desktop keys when labels overlap between mobile and desktop layouts.
+  if (!keyByLabel.has(key.label) || desktopKeyIds.has(key.id)) {
+    keyByLabel.set(key.label, key);
+  }
+}
 
 function findKey(label: string): SoftKeyDefinition {
-  const key = allKeys.find((candidate) => candidate.label === label);
+  const key = keyByLabel.get(label);
   if (!key) {
     throw new Error(`Missing key: ${label}`);
+  }
+  return key;
+}
+
+function findDesktopKey(label: string): SoftKeyDefinition {
+  const key = desktopKeys.find((candidate) => candidate.label === label);
+  if (!key) {
+    throw new Error(`Missing desktop key: ${label}`);
   }
   return key;
 }
@@ -131,6 +157,55 @@ describe("softKeyboard", () => {
       expect(fkey.label).toBe(`F${i + 1}`);
       if (fkey.kind === "function") {
         expect(fkey.number).toBe(i + 1);
+      }
+    }
+  });
+
+  test("desktop function row starts with Esc followed by F1-F12", () => {
+    const labels = DESKTOP_PC_FUNCTION_ROW.map((k) => k.label);
+    expect(labels).toEqual(["Esc", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]);
+  });
+
+  test("desktop nav rows contain Ins/Home/PgUp and Del/End/PgDn", () => {
+    const labels = DESKTOP_PC_NAV_ROWS.map((row) => row.map((k) => k.label));
+    expect(labels).toEqual([
+      ["Ins", "Home", "PgUp"],
+      ["Del", "End", "PgDn"],
+    ]);
+  });
+
+  test("desktop main rows do not include right-cluster nav or arrow keys", () => {
+    const mainLabels = new Set(desktopMainKeys.map((k) => k.label));
+    for (const label of ["Ins", "Del", "Home", "End", "PgUp", "PgDn", "▲", "◀", "▼", "▶"]) {
+      expect(mainLabels.has(label)).toBe(false);
+    }
+  });
+
+  test("desktop arrow rows place arrows in bottom-right cluster shape", () => {
+    const labels = DESKTOP_PC_ARROW_ROWS.map((row) => row.map((k) => k.label));
+    expect(labels).toEqual([["▲"], ["◀", "▼", "▶"]]);
+  });
+
+  test("desktop nav and arrow keys encode expected sequences", () => {
+    const expectedSequences: Array<[string, string]> = [
+      ["Esc", "\x1b"],
+      ["Ins", "\x1b[2~"],
+      ["Del", "\x1b[3~"],
+      ["Home", "\x1b[H"],
+      ["End", "\x1b[F"],
+      ["PgUp", "\x1b[5~"],
+      ["PgDn", "\x1b[6~"],
+      ["▲", "\x1b[A"],
+      ["◀", "\x1b[D"],
+      ["▼", "\x1b[B"],
+      ["▶", "\x1b[C"],
+    ];
+
+    for (const [label, expectedSequence] of expectedSequences) {
+      const result = buildSoftKeySequence(findDesktopKey(label), withModifiers({}));
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.sequence).toBe(expectedSequence);
       }
     }
   });

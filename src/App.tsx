@@ -7,6 +7,10 @@ import {
   buildSoftKeySequence,
   COMBO_KEY_ROW,
   DEFAULT_SOFT_KEY_MODIFIERS,
+  DESKTOP_PC_ARROW_ROWS,
+  DESKTOP_PC_FUNCTION_ROW,
+  DESKTOP_PC_MAIN_ROWS,
+  DESKTOP_PC_NAV_ROWS,
   FUNCTION_KEY_ROW,
   PRIMARY_SCREEN_ROWS,
   SECONDARY_SCREEN_ROWS,
@@ -44,7 +48,20 @@ interface EncryptedClipboardPayload {
   iv: Uint8Array;
 }
 
+interface DragRefBase {
+  pointerId: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+interface ArrowOverlayDragRef extends DragRefBase {
+  startX: number;
+  startY: number;
+}
+
 const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
+const DESKTOP_WIDTH_BREAKPOINT = 1024;
+const OVERLAY_DRAG_ACTIVATION_PX = 6;
 
 const SECONDARY_ROW2_ARROW_LABELS = new Set([",", "▲", "Ins"]);
 const SECONDARY_ROW3_ARROW_LABELS = new Set(["◀", "▼", "▶"]);
@@ -164,6 +181,332 @@ function ArrowKeyButton({
   );
 }
 
+function MobileSoftKeyboardGrid({
+  keyboardScreen,
+  softKeyModifiers,
+  toggleSoftModifier,
+  toggleKeyboardScreen,
+  startKeyRepeat,
+  stopKeyRepeat,
+}: {
+  keyboardScreen: SoftKeyboardScreen;
+  softKeyModifiers: SoftKeyModifiers;
+  toggleSoftModifier: (modifier: SoftModifierName) => void;
+  toggleKeyboardScreen: () => void;
+  startKeyRepeat: (key: SoftKeyDefinition) => void;
+  stopKeyRepeat: () => void;
+}) {
+  const screenRows = keyboardScreen === "primary" ? PRIMARY_SCREEN_ROWS : SECONDARY_SCREEN_ROWS;
+
+  return (
+    <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
+      {keyboardScreen === "primary" && (
+        <div className="extra-keys-fkey-row extra-keys-combo-row">
+          {COMBO_KEY_ROW.map((combo) => (
+            <ExtraKeyButton
+              key={combo.id}
+              softKey={combo}
+              className="extra-key-combo"
+              startKeyRepeat={startKeyRepeat}
+              stopKeyRepeat={stopKeyRepeat}
+            >
+              {combo.label}
+            </ExtraKeyButton>
+          ))}
+        </div>
+      )}
+      {keyboardScreen === "secondary" && (
+        <div className="extra-keys-fkey-row">
+          {FUNCTION_KEY_ROW.map((fkey) => (
+            <ExtraKeyButton
+              key={fkey.id}
+              softKey={fkey}
+              className="extra-key-fkey"
+              startKeyRepeat={startKeyRepeat}
+              stopKeyRepeat={stopKeyRepeat}
+            >
+              {fkey.label}
+            </ExtraKeyButton>
+          ))}
+        </div>
+      )}
+      {screenRows.map((row, rowIndex) => (
+        <div
+          key={ROW_KEYS[rowIndex]}
+          className={`extra-keys-row${rowIndex === 3 && keyboardScreen === "primary" ? " extra-keys-zrow" : ""}`}
+        >
+          {rowIndex === 3 && (
+            <button
+              type="button"
+              className={`toolbar-button extra-key-button extra-key-wide-xl ${softKeyModifiers.shift ? "toolbar-button-active" : ""}`}
+              onClick={() => toggleSoftModifier("shift")}
+              aria-pressed={softKeyModifiers.shift}
+            >
+              ⇧
+            </button>
+          )}
+          {rowIndex === 4 && (
+            <>
+              <button
+                type="button"
+                className="toolbar-button extra-key-button extra-key-meta extra-key-wide-md"
+                onClick={toggleKeyboardScreen}
+                aria-label={keyboardScreen === "primary" ? "Switch to symbols keyboard" : "Switch to alphabet keyboard"}
+              >
+                {keyboardScreen === "primary" ? "sym" : "abc"}
+              </button>
+              <button
+                type="button"
+                className={`toolbar-button extra-key-button extra-key-wide-md ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
+                onClick={() => toggleSoftModifier("ctrl")}
+                aria-pressed={softKeyModifiers.ctrl}
+              >
+                Ctrl
+              </button>
+              <button
+                type="button"
+                className={`toolbar-button extra-key-button extra-key-wide-md ${softKeyModifiers.alt ? "toolbar-button-active" : ""}`}
+                onClick={() => toggleSoftModifier("alt")}
+                aria-pressed={softKeyModifiers.alt}
+              >
+                Alt
+              </button>
+              <ExtraKeyButton
+                softKey={FRAME_SPACE}
+                className="extra-key-button-space"
+                startKeyRepeat={startKeyRepeat}
+                stopKeyRepeat={stopKeyRepeat}
+              >
+                Space
+              </ExtraKeyButton>
+            </>
+          )}
+          {(() => {
+            const dataKeys = row.map((key) => {
+              const label = softKeyLabel(key, softKeyModifiers.shift);
+              const hint = softKeyShiftHint(key, softKeyModifiers.shift);
+              const isSecondaryArrow =
+                keyboardScreen === "secondary" &&
+                ((rowIndex === 2 && SECONDARY_ROW2_ARROW_LABELS.has(key.label)) ||
+                  (rowIndex === 3 && SECONDARY_ROW3_ARROW_LABELS.has(key.label)));
+              const classes = [
+                label.length === 1 ? "extra-key-single-char" : "",
+                isSecondaryArrow ? "extra-key-arrow" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+              return (
+                <ExtraKeyButton
+                  key={key.id}
+                  softKey={key}
+                  className={classes}
+                  startKeyRepeat={startKeyRepeat}
+                  stopKeyRepeat={stopKeyRepeat}
+                >
+                  {label}
+                  {hint && <span className="extra-key-shift-hint">{hint}</span>}
+                </ExtraKeyButton>
+              );
+            });
+            if (rowIndex === 4) {
+              return <div className="extra-key-data-group">{dataKeys}</div>;
+            }
+            if (rowIndex === 2 && keyboardScreen === "primary") {
+              return (
+                <>
+                  <div className="extra-key-spacer extra-key-half-spacer" />
+                  {dataKeys}
+                  <div className="extra-key-spacer extra-key-half-spacer" />
+                </>
+              );
+            }
+            if (rowIndex === 3 && keyboardScreen === "primary") {
+              return <div className="extra-key-data-group extra-key-zrow-group">{dataKeys}</div>;
+            }
+            return dataKeys;
+          })()}
+          {rowIndex === 3 && keyboardScreen === "primary" && (
+            <ExtraKeyButton
+              softKey={FRAME_BKSP}
+              className="extra-key-wide-lg"
+              startKeyRepeat={startKeyRepeat}
+              stopKeyRepeat={stopKeyRepeat}
+            >
+              ⌫
+            </ExtraKeyButton>
+          )}
+          {rowIndex === 4 && (
+            <ExtraKeyButton
+              softKey={FRAME_ENTER}
+              className="extra-key-wide-xl"
+              startKeyRepeat={startKeyRepeat}
+              stopKeyRepeat={stopKeyRepeat}
+            >
+              Enter
+            </ExtraKeyButton>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DesktopPcKeyboardGrid({
+  softKeyModifiers,
+  toggleSoftModifier,
+  startKeyRepeat,
+  stopKeyRepeat,
+}: {
+  softKeyModifiers: SoftKeyModifiers;
+  toggleSoftModifier: (modifier: SoftModifierName) => void;
+  startKeyRepeat: (key: SoftKeyDefinition) => void;
+  stopKeyRepeat: () => void;
+}) {
+  const renderSoftKey = (key: SoftKeyDefinition, className?: string) => {
+    const label = softKeyLabel(key, softKeyModifiers.shift);
+    const hint = softKeyShiftHint(key, softKeyModifiers.shift);
+    const classes = [label.length === 1 ? "extra-key-single-char" : "", className ?? ""].filter(Boolean).join(" ");
+    return (
+      <ExtraKeyButton
+        key={key.id}
+        softKey={key}
+        className={classes}
+        startKeyRepeat={startKeyRepeat}
+        stopKeyRepeat={stopKeyRepeat}
+      >
+        {label}
+        {hint && <span className="extra-key-shift-hint">{hint}</span>}
+      </ExtraKeyButton>
+    );
+  };
+
+  const numberRow = DESKTOP_PC_MAIN_ROWS[0] ?? [];
+  const qwertyRow = DESKTOP_PC_MAIN_ROWS[1] ?? [];
+  const homeRow = DESKTOP_PC_MAIN_ROWS[2] ?? [];
+  const zxcvRow = DESKTOP_PC_MAIN_ROWS[3] ?? [];
+  const spaceRow = DESKTOP_PC_MAIN_ROWS[4] ?? [];
+
+  return (
+    <div className="desktop-pc-layout" role="group" aria-label="Terminal keys">
+      <div className="desktop-pc-main">
+        <div className="desktop-pc-row desktop-pc-row-function">
+          {DESKTOP_PC_FUNCTION_ROW.map((key) =>
+            renderSoftKey(
+              key,
+              key.kind === "function" ? "extra-key-fkey desktop-key-function" : "desktop-key-esc desktop-key-function",
+            ),
+          )}
+        </div>
+
+        <div className="desktop-pc-row">
+          {numberRow.map((key, index) =>
+            renderSoftKey(key, index === numberRow.length - 1 ? "desktop-key-wide-bksp" : undefined),
+          )}
+        </div>
+
+        <div className="desktop-pc-row">
+          {qwertyRow.map((key, index) =>
+            renderSoftKey(
+              key,
+              index === 0
+                ? "desktop-key-wide-tab"
+                : index === qwertyRow.length - 1
+                  ? "desktop-key-wide-slash"
+                  : undefined,
+            ),
+          )}
+        </div>
+
+        <div className="desktop-pc-row">
+          <div className="desktop-pc-left-spacer desktop-pc-home-left-spacer" aria-hidden />
+          {homeRow.map((key, index) =>
+            renderSoftKey(key, index === homeRow.length - 1 ? "desktop-key-wide-enter" : undefined),
+          )}
+        </div>
+
+        <div className="desktop-pc-row">
+          <button
+            type="button"
+            className={`toolbar-button extra-key-button desktop-key-wide-shift ${softKeyModifiers.shift ? "toolbar-button-active" : ""}`}
+            onClick={() => toggleSoftModifier("shift")}
+            aria-pressed={softKeyModifiers.shift}
+          >
+            Shift
+          </button>
+          {zxcvRow.map((key) => renderSoftKey(key))}
+          <button
+            type="button"
+            className={`toolbar-button extra-key-button desktop-key-wide-shift ${softKeyModifiers.shift ? "toolbar-button-active" : ""}`}
+            onClick={() => toggleSoftModifier("shift")}
+            aria-pressed={softKeyModifiers.shift}
+          >
+            Shift
+          </button>
+        </div>
+
+        <div className="desktop-pc-row">
+          <button
+            type="button"
+            className={`toolbar-button extra-key-button desktop-key-wide-modifier ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
+            onClick={() => toggleSoftModifier("ctrl")}
+            aria-pressed={softKeyModifiers.ctrl}
+          >
+            Ctrl
+          </button>
+          <button
+            type="button"
+            className={`toolbar-button extra-key-button desktop-key-wide-modifier ${softKeyModifiers.alt ? "toolbar-button-active" : ""}`}
+            onClick={() => toggleSoftModifier("alt")}
+            aria-pressed={softKeyModifiers.alt}
+          >
+            Alt
+          </button>
+          {spaceRow[0] ? renderSoftKey(spaceRow[0], "desktop-key-space") : null}
+          <button
+            type="button"
+            className={`toolbar-button extra-key-button desktop-key-wide-modifier ${softKeyModifiers.alt ? "toolbar-button-active" : ""}`}
+            onClick={() => toggleSoftModifier("alt")}
+            aria-pressed={softKeyModifiers.alt}
+          >
+            Alt
+          </button>
+          <button
+            type="button"
+            className={`toolbar-button extra-key-button desktop-key-wide-modifier ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
+            onClick={() => toggleSoftModifier("ctrl")}
+            aria-pressed={softKeyModifiers.ctrl}
+          >
+            Ctrl
+          </button>
+        </div>
+      </div>
+
+      <aside className="desktop-pc-side" aria-label="Navigation and arrow keys">
+        <div className="desktop-pc-side-panel">
+          <div className="desktop-pc-nav">
+            {DESKTOP_PC_NAV_ROWS.map((row) => (
+              <div key={`desktop-nav-${row.map((key) => key.id).join("-")}`} className="desktop-pc-side-row">
+                {row.map((key) => renderSoftKey(key, "desktop-key-side"))}
+              </div>
+            ))}
+          </div>
+
+          <div className="desktop-pc-arrows">
+            <div className="desktop-pc-side-row desktop-pc-arrow-row-up">
+              <div className="desktop-pc-spacer" />
+              {(DESKTOP_PC_ARROW_ROWS[0] ?? []).map((key) => renderSoftKey(key, "desktop-key-side desktop-key-arrow"))}
+              <div className="desktop-pc-spacer" />
+            </div>
+            <div className="desktop-pc-side-row desktop-pc-arrow-row-main">
+              {(DESKTOP_PC_ARROW_ROWS[1] ?? []).map((key) => renderSoftKey(key, "desktop-key-side desktop-key-arrow"))}
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 function formatShellCommand(args: string[]): string {
   if (args.length === 0) return "shell";
   return args.map((a) => (/[^a-zA-Z0-9_\-./=:@]/.test(a) ? `'${a.replace(/'/g, "'\\''")}'` : a)).join(" ");
@@ -179,6 +522,9 @@ export function App() {
   const [clipboardSeq, setClipboardSeq] = useState(0);
   const [processesText, setProcessesText] = useState<string | null>(null);
   const [softKeysOpen, setSoftKeysOpen] = useState(false);
+  const [isDesktopWide, setIsDesktopWide] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= DESKTOP_WIDTH_BREAKPOINT : false,
+  );
   const [keyboardScreen, setKeyboardScreen] = useState<SoftKeyboardScreen>("primary");
   const [softKeyModifiers, setSoftKeyModifiers] = useState(() => ({
     ...DEFAULT_SOFT_KEY_MODIFIERS,
@@ -370,39 +716,66 @@ export function App() {
   const scrollbarDragStartXRef = useRef(0);
   const scrollbarDragStartScrollLeftRef = useRef(0);
   const arrowOverlayRef = useRef<HTMLElement>(null);
-  const arrowOverlayDragRef = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
+  const arrowOverlayDragRef = useRef<ArrowOverlayDragRef | null>(null);
   const arrowOverlayDragMovedRef = useRef(false);
   const [arrowOverlayPosition, setArrowOverlayPosition] = useState<{ left: number; top: number } | null>(null);
+  const floatingKeyboardRef = useRef<HTMLElement>(null);
+  const floatingKeyboardDragRef = useRef<DragRefBase | null>(null);
+  const [floatingKeyboardPosition, setFloatingKeyboardPosition] = useState<{ left: number; top: number } | null>(null);
   const repeatTimerRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
   const repeatModifiersRef = useRef<SoftKeyModifiers | null>(null);
 
   useEffect(() => {
+    const syncViewportLayout = () => {
+      const shell = appShellRef.current;
+      if (!shell) {
+        return;
+      }
+      const vv = window.visualViewport;
+      if (!vv) {
+        shell.style.removeProperty("height");
+        shell.style.setProperty("--viewport-bottom-compensation", "0px");
+        return;
+      }
+
+      const layoutHeight = document.documentElement.clientHeight;
+      const visibleBottom = vv.offsetTop + vv.height;
+      const bottomClip = Math.max(0, layoutHeight - visibleBottom);
+      const boundedBottomClip = Math.min(96, Math.round(bottomClip));
+
+      shell.style.height = `${vv.height}px`;
+      shell.style.setProperty("--viewport-bottom-compensation", `${boundedBottomClip}px`);
+    };
+
+    const onResize = () => {
+      syncViewportLayout();
+      window.scrollTo(0, 0);
+    };
+
+    syncViewportLayout();
+
     const vv = window.visualViewport;
     if (!vv) {
       return;
     }
-
-    const syncHeight = () => {
-      const shell = appShellRef.current;
-      if (shell) {
-        shell.style.height = `${vv.height}px`;
-      }
-    };
-
-    const onResize = () => {
-      syncHeight();
-      window.scrollTo(0, 0);
-    };
-
-    onResize();
-
     vv.addEventListener("resize", onResize);
-    vv.addEventListener("scroll", syncHeight);
+    vv.addEventListener("scroll", syncViewportLayout);
+    window.addEventListener("orientationchange", onResize);
     return () => {
       vv.removeEventListener("resize", onResize);
-      vv.removeEventListener("scroll", syncHeight);
+      vv.removeEventListener("scroll", syncViewportLayout);
+      window.removeEventListener("orientationchange", onResize);
     };
+  }, []);
+
+  useEffect(() => {
+    const syncDesktopMode = () => {
+      setIsDesktopWide(window.innerWidth >= DESKTOP_WIDTH_BREAKPOINT);
+    };
+    syncDesktopMode();
+    window.addEventListener("resize", syncDesktopMode);
+    return () => window.removeEventListener("resize", syncDesktopMode);
   }, []);
 
   const appTitle = config?.appTitle ?? DEFAULT_APP_TITLE;
@@ -572,6 +945,10 @@ export function App() {
     }));
   }, []);
 
+  const toggleKeyboardScreen = useCallback(() => {
+    setKeyboardScreen((previous) => (previous === "primary" ? "secondary" : "primary"));
+  }, []);
+
   const clearSoftModifiers = useCallback(() => {
     setSoftKeyModifiers({
       ...DEFAULT_SOFT_KEY_MODIFIERS,
@@ -690,17 +1067,14 @@ export function App() {
     return () => viewport.removeEventListener("scroll", syncScrollbarThumb);
   }, [containerElement, horizontalOverflow, syncScrollbarThumb]);
 
-  const clampArrowOverlayPosition = useCallback(
-    (left: number, top: number, stageRect: DOMRect, overlayRect: DOMRect) => {
-      const maxLeft = Math.max(0, stageRect.width - overlayRect.width);
-      const maxTop = Math.max(0, stageRect.height - overlayRect.height);
-      return {
-        left: Math.min(Math.max(0, left), maxLeft),
-        top: Math.min(Math.max(0, top), maxTop),
-      };
-    },
-    [],
-  );
+  const clampOverlayPosition = useCallback((left: number, top: number, stageRect: DOMRect, overlayRect: DOMRect) => {
+    const maxLeft = Math.max(0, stageRect.width - overlayRect.width);
+    const maxTop = Math.max(0, stageRect.height - overlayRect.height);
+    return {
+      left: Math.min(Math.max(0, left), maxLeft),
+      top: Math.min(Math.max(0, top), maxTop),
+    };
+  }, []);
 
   const updateArrowOverlayPosition = useCallback(
     (clientX: number, clientY: number) => {
@@ -715,9 +1089,9 @@ export function App() {
       const overlayRect = overlay.getBoundingClientRect();
       const nextLeft = clientX - stageRect.left - dragState.offsetX;
       const nextTop = clientY - stageRect.top - dragState.offsetY;
-      setArrowOverlayPosition(clampArrowOverlayPosition(nextLeft, nextTop, stageRect, overlayRect));
+      setArrowOverlayPosition(clampOverlayPosition(nextLeft, nextTop, stageRect, overlayRect));
     },
-    [clampArrowOverlayPosition],
+    [clampOverlayPosition],
   );
 
   const startArrowOverlayDrag = useCallback(
@@ -732,7 +1106,7 @@ export function App() {
 
       const stageRect = stage.getBoundingClientRect();
       const overlayRect = overlay.getBoundingClientRect();
-      const nextPosition = clampArrowOverlayPosition(
+      const nextPosition = clampOverlayPosition(
         overlayRect.left - stageRect.left,
         overlayRect.top - stageRect.top,
         stageRect,
@@ -744,9 +1118,57 @@ export function App() {
         pointerId: event.pointerId,
         offsetX: event.clientX - overlayRect.left,
         offsetY: event.clientY - overlayRect.top,
+        startX: event.clientX,
+        startY: event.clientY,
       };
     },
-    [clampArrowOverlayPosition],
+    [clampOverlayPosition],
+  );
+
+  const updateFloatingKeyboardPosition = useCallback(
+    (clientX: number, clientY: number) => {
+      const dragState = floatingKeyboardDragRef.current;
+      const stage = terminalStageRef.current;
+      const keyboard = floatingKeyboardRef.current;
+      if (!dragState || !stage || !keyboard) {
+        return;
+      }
+
+      const stageRect = stage.getBoundingClientRect();
+      const keyboardRect = keyboard.getBoundingClientRect();
+      const nextLeft = clientX - stageRect.left - dragState.offsetX;
+      const nextTop = clientY - stageRect.top - dragState.offsetY;
+      setFloatingKeyboardPosition(clampOverlayPosition(nextLeft, nextTop, stageRect, keyboardRect));
+    },
+    [clampOverlayPosition],
+  );
+
+  const startFloatingKeyboardDrag = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const stage = terminalStageRef.current;
+      const keyboard = floatingKeyboardRef.current;
+      if (!stage || !keyboard) {
+        return;
+      }
+
+      const stageRect = stage.getBoundingClientRect();
+      const keyboardRect = keyboard.getBoundingClientRect();
+      const nextPosition = clampOverlayPosition(
+        keyboardRect.left - stageRect.left,
+        keyboardRect.top - stageRect.top,
+        stageRect,
+        keyboardRect,
+      );
+      setFloatingKeyboardPosition(nextPosition);
+      floatingKeyboardDragRef.current = {
+        pointerId: event.pointerId,
+        offsetX: event.clientX - keyboardRect.left,
+        offsetY: event.clientY - keyboardRect.top,
+      };
+    },
+    [clampOverlayPosition],
   );
 
   useEffect(() => {
@@ -757,6 +1179,11 @@ export function App() {
       }
       event.preventDefault();
       if (!arrowOverlayDragMovedRef.current) {
+        const deltaX = event.clientX - dragState.startX;
+        const deltaY = event.clientY - dragState.startY;
+        if (Math.hypot(deltaX, deltaY) < OVERLAY_DRAG_ACTIVATION_PX) {
+          return;
+        }
         if (repeatTimerRef.current !== null) {
           window.clearTimeout(repeatTimerRef.current);
           repeatTimerRef.current = null;
@@ -789,6 +1216,34 @@ export function App() {
   }, [updateArrowOverlayPosition]);
 
   useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const dragState = floatingKeyboardDragRef.current;
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+      event.preventDefault();
+      updateFloatingKeyboardPosition(event.clientX, event.clientY);
+    };
+
+    const stopDrag = (event: PointerEvent) => {
+      const dragState = floatingKeyboardDragRef.current;
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+      floatingKeyboardDragRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", stopDrag);
+    window.addEventListener("pointercancel", stopDrag);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopDrag);
+      window.removeEventListener("pointercancel", stopDrag);
+    };
+  }, [updateFloatingKeyboardPosition]);
+
+  useEffect(() => {
     const clampPosition = () => {
       setArrowOverlayPosition((previous) => {
         if (!previous) {
@@ -801,13 +1256,26 @@ export function App() {
         }
         const stageRect = stage.getBoundingClientRect();
         const overlayRect = overlay.getBoundingClientRect();
-        return clampArrowOverlayPosition(previous.left, previous.top, stageRect, overlayRect);
+        return clampOverlayPosition(previous.left, previous.top, stageRect, overlayRect);
+      });
+      setFloatingKeyboardPosition((previous) => {
+        if (!previous) {
+          return previous;
+        }
+        const stage = terminalStageRef.current;
+        const keyboard = floatingKeyboardRef.current;
+        if (!stage || !keyboard) {
+          return previous;
+        }
+        const stageRect = stage.getBoundingClientRect();
+        const keyboardRect = keyboard.getBoundingClientRect();
+        return clampOverlayPosition(previous.left, previous.top, stageRect, keyboardRect);
       });
     };
 
     window.addEventListener("resize", clampPosition);
     return () => window.removeEventListener("resize", clampPosition);
-  }, [clampArrowOverlayPosition]);
+  }, [clampOverlayPosition]);
 
   useEffect(() => {
     if (!arrowOverlayEnabled) return;
@@ -819,13 +1287,13 @@ export function App() {
         if (!stage || !overlay) return previous;
         const stageRect = stage.getBoundingClientRect();
         const overlayRect = overlay.getBoundingClientRect();
-        return clampArrowOverlayPosition(previous.left, previous.top, stageRect, overlayRect);
+        return clampOverlayPosition(previous.left, previous.top, stageRect, overlayRect);
       });
     });
     return () => {
       cancelAnimationFrame(frameId);
     };
-  }, [arrowOverlayEnabled, clampArrowOverlayPosition]);
+  }, [arrowOverlayEnabled, clampOverlayPosition]);
 
   useEffect(() => {
     if (!softKeysOpen) return;
@@ -837,13 +1305,50 @@ export function App() {
         if (!stage || !overlay) return previous;
         const stageRect = stage.getBoundingClientRect();
         const overlayRect = overlay.getBoundingClientRect();
-        return clampArrowOverlayPosition(previous.left, previous.top, stageRect, overlayRect);
+        return clampOverlayPosition(previous.left, previous.top, stageRect, overlayRect);
       });
     });
     return () => {
       cancelAnimationFrame(frameId);
     };
-  }, [softKeysOpen, clampArrowOverlayPosition]);
+  }, [softKeysOpen, clampOverlayPosition]);
+
+  useEffect(() => {
+    if (!softKeysOpen || !isDesktopWide) {
+      floatingKeyboardDragRef.current = null;
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      setFloatingKeyboardPosition((previous) => {
+        const stage = terminalStageRef.current;
+        const keyboard = floatingKeyboardRef.current;
+        if (!stage || !keyboard) {
+          return previous;
+        }
+        const stageRect = stage.getBoundingClientRect();
+        const keyboardRect = keyboard.getBoundingClientRect();
+        if (previous === null) {
+          const inset = 12;
+          const defaultLeft = stageRect.width - keyboardRect.width - inset;
+          const defaultTop = stageRect.height - keyboardRect.height - inset;
+          return clampOverlayPosition(defaultLeft, defaultTop, stageRect, keyboardRect);
+        }
+        return clampOverlayPosition(previous.left, previous.top, stageRect, keyboardRect);
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [softKeysOpen, isDesktopWide, clampOverlayPosition]);
+
+  useEffect(() => {
+    if (!isDesktopWide) {
+      return;
+    }
+    arrowOverlayDragRef.current = null;
+  }, [isDesktopWide]);
 
   const handleScrollbarPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -906,6 +1411,11 @@ export function App() {
     });
   }
 
+  const showFloatingSoftKeyboard = softKeysOpen && isDesktopWide;
+  const showDockedSoftKeyboard = softKeysOpen && !isDesktopWide;
+  const showArrowOverlay = !isDesktopWide;
+  const showDesktopSoftKeyboardCollapsedToggle = isDesktopWide && !softKeysOpen;
+
   const arrowOverlayStyle =
     arrowOverlayPosition === null
       ? undefined
@@ -915,6 +1425,34 @@ export function App() {
           right: "auto",
           bottom: "auto",
         };
+
+  const floatingKeyboardStyle =
+    floatingKeyboardPosition === null
+      ? undefined
+      : {
+          left: `${floatingKeyboardPosition.left}px`,
+          top: `${floatingKeyboardPosition.top}px`,
+          right: "auto",
+          bottom: "auto",
+        };
+
+  const desktopSoftKeyboardToggleStyle = isDesktopWide
+    ? arrowOverlayPosition === null
+      ? {
+          left: "auto",
+          top: "auto",
+          right: "0.75rem",
+          bottom: "0.75rem",
+          display: "flex",
+        }
+      : {
+          left: `${arrowOverlayPosition.left}px`,
+          top: `${arrowOverlayPosition.top}px`,
+          right: "auto",
+          bottom: "auto",
+          display: "flex",
+        }
+    : undefined;
 
   return (
     <div className="app-shell" ref={appShellRef}>
@@ -1280,249 +1818,163 @@ export function App() {
             </div>
           )}
 
-          {arrowOverlayEnabled ? (
-            <div
-              className="arrow-overlay"
+          {showFloatingSoftKeyboard && (
+            <section
+              className="extra-keys-panel extra-keys-floating"
               role="group"
-              aria-label="Arrow controls"
-              ref={arrowOverlayRef as React.RefObject<HTMLDivElement>}
-              style={arrowOverlayStyle}
+              aria-label="Soft keyboard"
+              ref={floatingKeyboardRef}
+              style={floatingKeyboardStyle}
             >
-              <div className="arrow-overlay-toolbar">
-                <div className="arrow-overlay-toolbar-spacer" />
+              <div className="extra-keys-floating-toolbar">
+                <div className="extra-keys-floating-toolbar-spacer" />
                 <button
                   type="button"
-                  className="arrow-overlay-drag-handle"
-                  aria-label="Drag arrow controls"
-                  onPointerDown={startArrowOverlayDrag}
+                  className="extra-keys-floating-drag-handle"
+                  aria-label="Drag soft keyboard"
+                  onPointerDown={startFloatingKeyboardDrag}
                 >
                   ⠿
                 </button>
                 <button
                   type="button"
-                  className="arrow-overlay-close"
-                  aria-label="Close arrow controls"
+                  className="extra-keys-floating-close"
+                  aria-label="Close soft keyboard"
                   onClick={() => {
-                    if (!arrowOverlayDragRef.current) {
-                      setArrowOverlayEnabled(false);
+                    if (!floatingKeyboardDragRef.current) {
+                      setSoftKeysOpen(false);
+                      focusTerminalInput();
                     }
                   }}
                 >
                   ✕
                 </button>
               </div>
-              <div className="arrow-overlay-grid">
-                <div className="arrow-overlay-spacer" />
-                <ArrowKeyButton
-                  softKey={OVERLAY_ARROW_UP}
-                  ariaLabel="Arrow Up"
-                  startKeyRepeat={startKeyRepeat}
-                  stopKeyRepeat={stopKeyRepeat}
-                />
-                <div className="arrow-overlay-spacer" />
-                <ArrowKeyButton
-                  softKey={OVERLAY_ARROW_LEFT}
-                  ariaLabel="Arrow Left"
-                  startKeyRepeat={startKeyRepeat}
-                  stopKeyRepeat={stopKeyRepeat}
-                />
-                <ArrowKeyButton
-                  softKey={OVERLAY_ARROW_DOWN}
-                  ariaLabel="Arrow Down"
-                  startKeyRepeat={startKeyRepeat}
-                  stopKeyRepeat={stopKeyRepeat}
-                />
-                <ArrowKeyButton
-                  softKey={OVERLAY_ARROW_RIGHT}
-                  ariaLabel="Arrow Right"
-                  startKeyRepeat={startKeyRepeat}
-                  stopKeyRepeat={stopKeyRepeat}
-                />
-              </div>
-            </div>
-          ) : (
+              <DesktopPcKeyboardGrid
+                softKeyModifiers={softKeyModifiers}
+                toggleSoftModifier={toggleSoftModifier}
+                startKeyRepeat={startKeyRepeat}
+                stopKeyRepeat={stopKeyRepeat}
+              />
+            </section>
+          )}
+
+          {showDesktopSoftKeyboardCollapsedToggle && (
             <button
               type="button"
-              className="arrow-overlay arrow-overlay-collapsed"
-              aria-label="Show arrow controls"
+              className="arrow-overlay arrow-overlay-collapsed soft-keys-collapsed-desktop-toggle"
+              aria-label="Show soft keyboard"
               ref={arrowOverlayRef as React.RefObject<HTMLButtonElement>}
-              style={arrowOverlayStyle}
+              style={desktopSoftKeyboardToggleStyle}
               onPointerDown={startArrowOverlayDrag}
               onClick={() => {
                 if (!arrowOverlayDragMovedRef.current) {
-                  setArrowOverlayEnabled(true);
+                  setSoftKeysOpen(true);
+                  blurTerminalInput();
                 }
               }}
             >
-              <span className="arrow-overlay-collapsed-icon" aria-hidden="true">
-                ✥
+              <span className="arrow-overlay-collapsed-icon soft-keys-collapsed-desktop-icon" aria-hidden="true">
+                ⌨︎
               </span>
             </button>
           )}
+
+          {showArrowOverlay &&
+            (arrowOverlayEnabled ? (
+              <div
+                className="arrow-overlay"
+                role="group"
+                aria-label="Arrow controls"
+                ref={arrowOverlayRef as React.RefObject<HTMLDivElement>}
+                style={arrowOverlayStyle}
+              >
+                <div className="arrow-overlay-toolbar">
+                  <div className="arrow-overlay-toolbar-spacer" />
+                  <button
+                    type="button"
+                    className="arrow-overlay-drag-handle"
+                    aria-label="Drag arrow controls"
+                    onPointerDown={startArrowOverlayDrag}
+                  >
+                    ⠿
+                  </button>
+                  <button
+                    type="button"
+                    className="arrow-overlay-close"
+                    aria-label="Close arrow controls"
+                    onClick={() => {
+                      if (!arrowOverlayDragRef.current) {
+                        setArrowOverlayEnabled(false);
+                      }
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="arrow-overlay-grid">
+                  <div className="arrow-overlay-spacer" />
+                  <ArrowKeyButton
+                    softKey={OVERLAY_ARROW_UP}
+                    ariaLabel="Arrow Up"
+                    startKeyRepeat={startKeyRepeat}
+                    stopKeyRepeat={stopKeyRepeat}
+                  />
+                  <div className="arrow-overlay-spacer" />
+                  <ArrowKeyButton
+                    softKey={OVERLAY_ARROW_LEFT}
+                    ariaLabel="Arrow Left"
+                    startKeyRepeat={startKeyRepeat}
+                    stopKeyRepeat={stopKeyRepeat}
+                  />
+                  <ArrowKeyButton
+                    softKey={OVERLAY_ARROW_DOWN}
+                    ariaLabel="Arrow Down"
+                    startKeyRepeat={startKeyRepeat}
+                    stopKeyRepeat={stopKeyRepeat}
+                  />
+                  <ArrowKeyButton
+                    softKey={OVERLAY_ARROW_RIGHT}
+                    ariaLabel="Arrow Right"
+                    startKeyRepeat={startKeyRepeat}
+                    stopKeyRepeat={stopKeyRepeat}
+                  />
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="arrow-overlay arrow-overlay-collapsed"
+                aria-label="Show arrow controls"
+                ref={arrowOverlayRef as React.RefObject<HTMLButtonElement>}
+                style={arrowOverlayStyle}
+                onPointerDown={startArrowOverlayDrag}
+                onClick={() => {
+                  if (!arrowOverlayDragMovedRef.current) {
+                    setArrowOverlayEnabled(true);
+                  }
+                }}
+              >
+                <span className="arrow-overlay-collapsed-icon" aria-hidden="true">
+                  ✥
+                </span>
+              </button>
+            ))}
         </div>
       </main>
 
-      {softKeysOpen &&
-        (() => {
-          const screenRows = keyboardScreen === "primary" ? PRIMARY_SCREEN_ROWS : SECONDARY_SCREEN_ROWS;
-          return (
-            <section className="extra-keys-panel" aria-label="Extra key controls">
-              <div className="extra-keys-grid" role="group" aria-label="Terminal keys">
-                {keyboardScreen === "primary" && (
-                  <div className="extra-keys-fkey-row extra-keys-combo-row">
-                    {COMBO_KEY_ROW.map((combo) => (
-                      <ExtraKeyButton
-                        key={combo.id}
-                        softKey={combo}
-                        className="extra-key-combo"
-                        startKeyRepeat={startKeyRepeat}
-                        stopKeyRepeat={stopKeyRepeat}
-                      >
-                        {combo.label}
-                      </ExtraKeyButton>
-                    ))}
-                  </div>
-                )}
-                {keyboardScreen === "secondary" && (
-                  <div className="extra-keys-fkey-row">
-                    {FUNCTION_KEY_ROW.map((fkey) => (
-                      <ExtraKeyButton
-                        key={fkey.id}
-                        softKey={fkey}
-                        className="extra-key-fkey"
-                        startKeyRepeat={startKeyRepeat}
-                        stopKeyRepeat={stopKeyRepeat}
-                      >
-                        {fkey.label}
-                      </ExtraKeyButton>
-                    ))}
-                  </div>
-                )}
-                {screenRows.map((row, rowIndex) => (
-                  <div
-                    key={ROW_KEYS[rowIndex]}
-                    className={`extra-keys-row${rowIndex === 3 && keyboardScreen === "primary" ? " extra-keys-zrow" : ""}`}
-                  >
-                    {rowIndex === 3 && (
-                      <button
-                        type="button"
-                        className={`toolbar-button extra-key-button extra-key-wide-xl ${softKeyModifiers.shift ? "toolbar-button-active" : ""}`}
-                        onClick={() => toggleSoftModifier("shift")}
-                        aria-pressed={softKeyModifiers.shift}
-                      >
-                        ⇧
-                      </button>
-                    )}
-                    {rowIndex === 4 && (
-                      <>
-                        <button
-                          type="button"
-                          className="toolbar-button extra-key-button extra-key-meta extra-key-wide-md"
-                          onClick={() => {
-                            setKeyboardScreen(keyboardScreen === "primary" ? "secondary" : "primary");
-                          }}
-                          aria-label={
-                            keyboardScreen === "primary" ? "Switch to symbols keyboard" : "Switch to alphabet keyboard"
-                          }
-                        >
-                          {keyboardScreen === "primary" ? "sym" : "abc"}
-                        </button>
-                        <button
-                          type="button"
-                          className={`toolbar-button extra-key-button extra-key-wide-md ${softKeyModifiers.ctrl ? "toolbar-button-active" : ""}`}
-                          onClick={() => toggleSoftModifier("ctrl")}
-                          aria-pressed={softKeyModifiers.ctrl}
-                        >
-                          Ctrl
-                        </button>
-                        <button
-                          type="button"
-                          className={`toolbar-button extra-key-button extra-key-wide-md ${softKeyModifiers.alt ? "toolbar-button-active" : ""}`}
-                          onClick={() => toggleSoftModifier("alt")}
-                          aria-pressed={softKeyModifiers.alt}
-                        >
-                          Alt
-                        </button>
-                        <ExtraKeyButton
-                          softKey={FRAME_SPACE}
-                          className="extra-key-button-space"
-                          startKeyRepeat={startKeyRepeat}
-                          stopKeyRepeat={stopKeyRepeat}
-                        >
-                          Space
-                        </ExtraKeyButton>
-                      </>
-                    )}
-                    {(() => {
-                      const dataKeys = row.map((key) => {
-                        const label = softKeyLabel(key, softKeyModifiers.shift);
-                        const hint = softKeyShiftHint(key, softKeyModifiers.shift);
-                        const isSecondaryArrow =
-                          keyboardScreen === "secondary" &&
-                          ((rowIndex === 2 && SECONDARY_ROW2_ARROW_LABELS.has(key.label)) ||
-                            (rowIndex === 3 && SECONDARY_ROW3_ARROW_LABELS.has(key.label)));
-                        const classes = [
-                          label.length === 1 ? "extra-key-single-char" : "",
-                          isSecondaryArrow ? "extra-key-arrow" : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" ");
-                        return (
-                          <ExtraKeyButton
-                            key={key.id}
-                            softKey={key}
-                            className={classes}
-                            startKeyRepeat={startKeyRepeat}
-                            stopKeyRepeat={stopKeyRepeat}
-                          >
-                            {label}
-                            {hint && <span className="extra-key-shift-hint">{hint}</span>}
-                          </ExtraKeyButton>
-                        );
-                      });
-                      if (rowIndex === 4) {
-                        return <div className="extra-key-data-group">{dataKeys}</div>;
-                      }
-                      if (rowIndex === 2 && keyboardScreen === "primary") {
-                        return (
-                          <>
-                            <div className="extra-key-spacer extra-key-half-spacer" />
-                            {dataKeys}
-                            <div className="extra-key-spacer extra-key-half-spacer" />
-                          </>
-                        );
-                      }
-                      if (rowIndex === 3 && keyboardScreen === "primary") {
-                        return <div className="extra-key-data-group extra-key-zrow-group">{dataKeys}</div>;
-                      }
-                      return dataKeys;
-                    })()}
-                    {rowIndex === 3 && keyboardScreen === "primary" && (
-                      <ExtraKeyButton
-                        softKey={FRAME_BKSP}
-                        className="extra-key-wide-lg"
-                        startKeyRepeat={startKeyRepeat}
-                        stopKeyRepeat={stopKeyRepeat}
-                      >
-                        ⌫
-                      </ExtraKeyButton>
-                    )}
-                    {rowIndex === 4 && (
-                      <ExtraKeyButton
-                        softKey={FRAME_ENTER}
-                        className="extra-key-wide-xl"
-                        startKeyRepeat={startKeyRepeat}
-                        stopKeyRepeat={stopKeyRepeat}
-                      >
-                        Enter
-                      </ExtraKeyButton>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
-          );
-        })()}
+      {showDockedSoftKeyboard && (
+        <section className="extra-keys-panel" aria-label="Extra key controls">
+          <MobileSoftKeyboardGrid
+            keyboardScreen={keyboardScreen}
+            softKeyModifiers={softKeyModifiers}
+            toggleSoftModifier={toggleSoftModifier}
+            toggleKeyboardScreen={toggleKeyboardScreen}
+            startKeyRepeat={startKeyRepeat}
+            stopKeyRepeat={stopKeyRepeat}
+          />
+        </section>
+      )}
 
       {selectableText !== null &&
         (() => {
