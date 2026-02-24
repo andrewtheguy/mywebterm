@@ -889,23 +889,6 @@ export function App() {
     setFloatingPressedOverlay(null);
   }, [softKeysOpen, isDesktopWide]);
 
-  useEffect(() => {
-    if (!(softKeysOpen && isDesktopWide)) {
-      return;
-    }
-
-    const clearFloatingPressedOverlay = () => {
-      setFloatingPressedOverlay(null);
-    };
-
-    window.addEventListener("pointerup", clearFloatingPressedOverlay);
-    window.addEventListener("pointercancel", clearFloatingPressedOverlay);
-    return () => {
-      window.removeEventListener("pointerup", clearFloatingPressedOverlay);
-      window.removeEventListener("pointercancel", clearFloatingPressedOverlay);
-    };
-  }, [softKeysOpen, isDesktopWide]);
-
   const openCopyModePicker = useCallback(() => {
     setPasteHelperText(null);
     setSelectableText(null);
@@ -1023,6 +1006,24 @@ export function App() {
       clearSoftModifiers();
     }
   }, [clearSoftModifiers]);
+
+  useEffect(() => {
+    if (!(softKeysOpen && isDesktopWide)) {
+      return;
+    }
+
+    const clearFloatingPressedOverlay = () => {
+      stopKeyRepeat();
+      setFloatingPressedOverlay(null);
+    };
+
+    window.addEventListener("pointerup", clearFloatingPressedOverlay);
+    window.addEventListener("pointercancel", clearFloatingPressedOverlay);
+    return () => {
+      window.removeEventListener("pointerup", clearFloatingPressedOverlay);
+      window.removeEventListener("pointercancel", clearFloatingPressedOverlay);
+    };
+  }, [softKeysOpen, isDesktopWide, stopKeyRepeat]);
 
   const startKeyRepeat = useCallback(
     (key: SoftKeyDefinition) => {

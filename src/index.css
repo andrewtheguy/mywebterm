@@ -336,9 +336,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(80, 130, 170, 1);
+  border: 1px solid rgb(80, 130, 170);
   border-radius: 0;
-  background: linear-gradient(to bottom, rgba(40, 65, 90, 1), rgba(20, 40, 60, 1));
+  background: linear-gradient(to bottom, rgb(40, 65, 90), rgb(20, 40, 60));
   color: #e0e8f0;
   font-family: system-ui, sans-serif;
   font-size: 0.95rem;
