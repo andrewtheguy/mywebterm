@@ -234,6 +234,7 @@ body {
 .overflow-menu {
   position: relative;
   margin-left: auto;
+  order: 999;
 }
 
 .overflow-menu-trigger {
@@ -269,9 +270,11 @@ body {
   right: 0;
 }
 
-.overflow-menu-item {
+.overflow-menu-item,
+.copy-mode-menu-item {
   width: 100%;
   text-align: left;
+  justify-content: flex-start;
   border-radius: 8px;
 }
 
@@ -283,13 +286,6 @@ body {
 .copy-mode-menu-panel {
   z-index: 45;
   min-width: 15rem;
-}
-
-.copy-mode-menu-item {
-  width: 100%;
-  text-align: left;
-  justify-content: flex-start;
-  border-radius: 8px;
 }
 
 .extra-keys-panel {
@@ -1345,7 +1341,7 @@ body {
   }
 }
 
-dialog.font-size-dialog-backdrop {
+dialog.settings-dialog-backdrop {
   position: fixed;
   inset: 0;
   width: 100%;
@@ -1362,7 +1358,7 @@ dialog.font-size-dialog-backdrop {
   -webkit-tap-highlight-color: transparent;
 }
 
-.font-size-dialog {
+.settings-dialog {
   border-radius: 16px;
   border: 1px solid rgba(172, 255, 236, 0.36);
   background: rgba(4, 18, 31, 0.96);
@@ -1375,7 +1371,7 @@ dialog.font-size-dialog-backdrop {
   align-items: center;
 }
 
-.font-size-dialog-label {
+.settings-dialog-label {
   margin: 0;
   font-size: 0.85rem;
   font-weight: 700;
@@ -1383,12 +1379,12 @@ dialog.font-size-dialog-backdrop {
   letter-spacing: 0.04em;
 }
 
-.font-size-dialog-options {
+.settings-dialog-options {
   display: flex;
   gap: 0.4rem;
 }
 
-.font-size-option {
+.settings-dialog-option {
   min-width: 3rem;
   text-align: center;
   border-radius: 8px;

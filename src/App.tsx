@@ -70,6 +70,8 @@ interface FloatingPressedOverlay {
 const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
 const DESKTOP_WIDTH_BREAKPOINT = 1024;
 const OVERLAY_DRAG_ACTIVATION_PX = 6;
+const DEFAULT_MIN_COLUMNS = 80;
+const MIN_COLUMNS_OPTIONS = [100, 120, 140] as const;
 
 const SECONDARY_ROW2_ARROW_LABELS = new Set([",", "▲", "Ins"]);
 const SECONDARY_ROW3_ARROW_LABELS = new Set(["◀", "▼", "▶"]);
@@ -576,9 +578,12 @@ export function App() {
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
   const [fontSize, setFontSize] = useState<number | undefined>(undefined);
   const [fontSizeMenuOpen, setFontSizeMenuOpen] = useState(false);
+  const [minColumns, setMinColumns] = useState<number | undefined>(undefined);
+  const [minColumnsMenuOpen, setMinColumnsMenuOpen] = useState(false);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [arrowOverlayEnabled, setArrowOverlayEnabled] = useState(true);
   const [awaitingStart, setAwaitingStart] = useState(true);
+  const effectiveMinColumns = minColumns ?? DEFAULT_MIN_COLUMNS;
   const startOverlayRef = useCallback((el: HTMLDivElement | null) => {
     if (el) el.focus();
   }, []);
@@ -669,6 +674,24 @@ export function App() {
     action();
   }, []);
 
+  const openFontSizeMenu = useCallback(() => {
+    setMinColumnsMenuOpen(false);
+    setFontSizeMenuOpen(true);
+  }, []);
+
+  const closeFontSizeMenu = useCallback(() => {
+    setFontSizeMenuOpen(false);
+  }, []);
+
+  const openMinColumnsMenu = useCallback(() => {
+    setFontSizeMenuOpen(false);
+    setMinColumnsMenuOpen(true);
+  }, []);
+
+  const closeMinColumnsMenu = useCallback(() => {
+    setMinColumnsMenuOpen(false);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     loadTtyConfig()
@@ -748,8 +771,8 @@ export function App() {
     onTitleChange: handleTitleChange,
     onClipboardFallback: handleClipboardFallback,
     onClipboardCopy: handleClipboardCopy,
-    hscroll: config?.hscroll,
     fontSize,
+    minColumns: effectiveMinColumns,
   });
 
   const appShellRef = useRef<HTMLDivElement>(null);
@@ -791,9 +814,15 @@ export function App() {
       const visibleBottom = vv.offsetTop + vv.height;
       const bottomClip = Math.max(0, layoutHeight - visibleBottom);
       const boundedBottomClip = Math.min(96, Math.round(bottomClip));
+      // `layoutHeight - vv.height` around 50-100px is usually address-bar/chrome collapse, while software keyboards are >200px;
+      // only in the small-reduction case do we pass `boundedBottomClip` to `shell.style.setProperty(...)` below.
+      const shouldApplyBottomCompensation = layoutHeight - vv.height <= 120;
 
       shell.style.height = `${vv.height}px`;
-      shell.style.setProperty("--viewport-bottom-compensation", `${boundedBottomClip}px`);
+      shell.style.setProperty(
+        "--viewport-bottom-compensation",
+        `${shouldApplyBottomCompensation ? boundedBottomClip : 0}px`,
+      );
     };
 
     const onResize = () => {
@@ -828,6 +857,8 @@ export function App() {
 
   const appTitle = config?.appTitle ?? DEFAULT_APP_TITLE;
   const authEnabled = config?.authEnabled ?? true;
+  const scrollbarRefreshToken = `${effectiveMinColumns}:${fontSize ?? "auto"}`;
+  const scrollbarRefreshTokenRef = useRef(scrollbarRefreshToken);
 
   useEffect(() => {
     document.title = remoteTitle ? `${remoteTitle} | ${appTitle}` : appTitle;
@@ -1176,6 +1207,21 @@ export function App() {
     viewport.addEventListener("scroll", syncScrollbarThumb);
     return () => viewport.removeEventListener("scroll", syncScrollbarThumb);
   }, [containerElement, horizontalOverflow, syncScrollbarThumb]);
+
+  useEffect(() => {
+    scrollbarRefreshTokenRef.current = scrollbarRefreshToken;
+    if (!containerElement || !horizontalOverflow) {
+      return;
+    }
+    const refreshToken = scrollbarRefreshToken;
+    const raf = window.requestAnimationFrame(() => {
+      if (scrollbarRefreshTokenRef.current !== refreshToken) {
+        return;
+      }
+      syncScrollbarThumb();
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [containerElement, horizontalOverflow, syncScrollbarThumb, scrollbarRefreshToken]);
 
   const clampOverlayPosition = useCallback((left: number, top: number, stageRect: DOMRect, overlayRect: DOMRect) => {
     const maxLeft = Math.max(0, stageRect.width - overlayRect.width);
@@ -1808,7 +1854,7 @@ export function App() {
               </svg>
               <span className="btn-label">Paste Text</span>
             </button>
-            <div className="overflow-menu touch-only" ref={overflowMenuRef}>
+            <div className="overflow-menu" ref={overflowMenuRef}>
               <button
                 type="button"
                 className="toolbar-button overflow-menu-trigger"
@@ -1822,7 +1868,7 @@ export function App() {
                 <div className="dropdown-panel overflow-menu-panel">
                   <button
                     type="button"
-                    className={`toolbar-button overflow-menu-item ${sysKeyActive ? "toolbar-button-active" : ""}`}
+                    className={`toolbar-button overflow-menu-item touch-only ${sysKeyActive ? "toolbar-button-active" : ""}`}
                     onClick={() =>
                       overflowAction(() => {
                         setSoftKeysOpen(false);
@@ -1834,7 +1880,7 @@ export function App() {
                   </button>
                   <button
                     type="button"
-                    className="toolbar-button overflow-menu-item"
+                    className="toolbar-button overflow-menu-item touch-only"
                     onClick={() => overflowAction(() => void inspectProcesses())}
                   >
                     Processes
@@ -1842,7 +1888,7 @@ export function App() {
                   {connectionStatus === "connected" ? (
                     <button
                       type="button"
-                      className="toolbar-button overflow-menu-item"
+                      className="toolbar-button overflow-menu-item touch-only"
                       onClick={() =>
                         overflowAction(() => {
                           if (window.confirm("Restart terminal session?")) {
@@ -1857,7 +1903,7 @@ export function App() {
                   ) : (
                     <button
                       type="button"
-                      className="toolbar-button overflow-menu-item reconnect-button"
+                      className="toolbar-button overflow-menu-item reconnect-button touch-only"
                       onClick={() => overflowAction(reconnect)}
                       disabled={connectionStatus === "connecting"}
                     >
@@ -1867,14 +1913,21 @@ export function App() {
                   <button
                     type="button"
                     className="toolbar-button overflow-menu-item"
-                    onClick={() => overflowAction(() => setFontSizeMenuOpen(true))}
+                    onClick={() => overflowAction(openFontSizeMenu)}
                   >
                     Font Size: {fontSize ?? "Auto"}
+                  </button>
+                  <button
+                    type="button"
+                    className="toolbar-button overflow-menu-item"
+                    onClick={() => overflowAction(openMinColumnsMenu)}
+                  >
+                    Min Cols: {effectiveMinColumns}
                   </button>
                   {authEnabled ? (
                     <button
                       type="button"
-                      className="toolbar-button overflow-menu-item logout-button"
+                      className="toolbar-button overflow-menu-item logout-button touch-only"
                       onClick={() => overflowAction(handleLogout)}
                     >
                       Log Out
@@ -1909,13 +1962,6 @@ export function App() {
                 Reconnect
               </button>
             )}
-            <button
-              type="button"
-              className={`toolbar-button pointer-only ${fontSizeMenuOpen ? "toolbar-button-active" : ""}`}
-              onClick={() => setFontSizeMenuOpen((prev) => !prev)}
-            >
-              Font Size: {fontSize ?? "Auto"}
-            </button>
             {authEnabled ? (
               <button type="button" className="toolbar-button pointer-only logout-button" onClick={handleLogout}>
                 Log Out
@@ -2283,7 +2329,7 @@ export function App() {
       )}
       {infoDialogOpen && (
         <dialog
-          className="font-size-dialog-backdrop"
+          className="settings-dialog-backdrop"
           open
           onClick={(e) => {
             if (e.target === e.currentTarget) setInfoDialogOpen(false);
@@ -2319,24 +2365,24 @@ export function App() {
       )}
       {fontSizeMenuOpen && (
         <dialog
-          className="font-size-dialog-backdrop"
+          className="settings-dialog-backdrop"
           open
           onClick={(e) => {
-            if (e.target === e.currentTarget) setFontSizeMenuOpen(false);
+            if (e.target === e.currentTarget) closeFontSizeMenu();
           }}
           onKeyDown={(e) => {
-            if (e.key === "Escape") setFontSizeMenuOpen(false);
+            if (e.key === "Escape") closeFontSizeMenu();
           }}
         >
-          <div className="font-size-dialog">
-            <p className="font-size-dialog-label">Font Size</p>
-            <div className="font-size-dialog-options">
+          <div className="settings-dialog">
+            <p className="settings-dialog-label">Font Size</p>
+            <div className="settings-dialog-options">
               <button
                 type="button"
-                className={`toolbar-button font-size-option ${fontSize === undefined ? "toolbar-button-active" : ""}`}
+                className={`toolbar-button settings-dialog-option ${fontSize === undefined ? "toolbar-button-active" : ""}`}
                 onClick={() => {
                   setFontSize(undefined);
-                  setFontSizeMenuOpen(false);
+                  closeFontSizeMenu();
                 }}
               >
                 Auto
@@ -2345,13 +2391,54 @@ export function App() {
                 <button
                   key={size}
                   type="button"
-                  className={`toolbar-button font-size-option ${fontSize === size ? "toolbar-button-active" : ""}`}
+                  className={`toolbar-button settings-dialog-option ${fontSize === size ? "toolbar-button-active" : ""}`}
                   onClick={() => {
                     setFontSize(size);
-                    setFontSizeMenuOpen(false);
+                    closeFontSizeMenu();
                   }}
                 >
                   {size}
+                </button>
+              ))}
+            </div>
+          </div>
+        </dialog>
+      )}
+      {minColumnsMenuOpen && (
+        <dialog
+          className="settings-dialog-backdrop"
+          open
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeMinColumnsMenu();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") closeMinColumnsMenu();
+          }}
+        >
+          <div className="settings-dialog">
+            <p className="settings-dialog-label">Min Columns</p>
+            <div className="settings-dialog-options">
+              <button
+                type="button"
+                className={`toolbar-button settings-dialog-option ${minColumns === undefined ? "toolbar-button-active" : ""}`}
+                onClick={() => {
+                  setMinColumns(undefined);
+                  closeMinColumnsMenu();
+                }}
+              >
+                Default ({DEFAULT_MIN_COLUMNS})
+              </button>
+              {MIN_COLUMNS_OPTIONS.map((columns) => (
+                <button
+                  key={columns}
+                  type="button"
+                  className={`toolbar-button settings-dialog-option ${minColumns === columns ? "toolbar-button-active" : ""}`}
+                  onClick={() => {
+                    setMinColumns(columns);
+                    closeMinColumnsMenu();
+                  }}
+                >
+                  {columns}
                 </button>
               ))}
             </div>
