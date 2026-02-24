@@ -48,7 +48,10 @@ function resolveFontSize(fontSize: number | undefined, isMobileViewport: boolean
 }
 
 function resolveMinColumns(minColumns: number | undefined): number {
-  return minColumns ?? 80;
+  if (typeof minColumns !== "number" || !Number.isFinite(minColumns)) {
+    return 80;
+  }
+  return Math.max(1, Math.floor(minColumns));
 }
 
 function buildTerminalOptions(isMobileViewport: boolean, fontSize?: number): ITerminalOptions {
