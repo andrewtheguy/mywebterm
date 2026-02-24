@@ -43,7 +43,6 @@ mywebterm --port 9090 --title Dev -- python3
 | `--htpasswd-file <path>` | `.htpasswd` | Path to htpasswd credentials file |
 | `--daemonize` | off | Detach from the parent process and run in the background |
 | `--no-auth` | off | Disable authentication (localhost use only) |
-| `--no-hscroll` | off | Disable the minimum 80-column width with horizontal scrollbar on narrow viewports |
 | `--title <s>` | `MyWebTerm` | Customize the app heading and browser tab title |
 
 A shell command can be specified after `--` (e.g. `mywebterm -- /bin/bash`). When omitted, the `SHELL` environment variable is used (falling back to `/bin/sh`). `SHELL` is set by your OS/login shell — do not set it manually; use `-- command` to override instead.

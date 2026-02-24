@@ -10,7 +10,6 @@ export const DEFAULT_APP_TITLE = "MyWebTerm";
 export interface TtyConfig {
   wsUrl: string;
   version: string;
-  hscroll: boolean;
   appTitle: string;
   shellCommand: string[];
   authEnabled: boolean;
@@ -29,7 +28,6 @@ export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = win
   proxyWsUrl.protocol = toWebSocketProtocol(proxyWsUrl.protocol);
 
   let version = "";
-  let hscroll = true;
   let appTitle = DEFAULT_APP_TITLE;
   let shellCommand: string[] = [];
   let authEnabled = true;
@@ -45,7 +43,6 @@ export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = win
     if (res.ok) {
       const json = await res.json();
       version = json.version ?? "";
-      hscroll = json.hscroll ?? true;
       appTitle = json.appTitle ?? DEFAULT_APP_TITLE;
       shellCommand = Array.isArray(json.shellCommand) ? json.shellCommand : [];
       authEnabled = typeof json.authEnabled === "boolean" ? json.authEnabled : true;
@@ -60,7 +57,6 @@ export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = win
   return {
     wsUrl: proxyWsUrl.toString(),
     version,
-    hscroll,
     appTitle,
     shellCommand,
     authEnabled,

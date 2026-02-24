@@ -234,6 +234,7 @@ body {
 .overflow-menu {
   position: relative;
   margin-left: auto;
+  order: 999;
 }
 
 .overflow-menu-trigger {
@@ -272,6 +273,7 @@ body {
 .overflow-menu-item {
   width: 100%;
   text-align: left;
+  justify-content: flex-start;
   border-radius: 8px;
 }
 

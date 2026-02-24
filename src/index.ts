@@ -45,7 +45,6 @@ Options:
   -p, --port <n>      Port to listen on (default: 8671)
       --htpasswd-file <path>  Path to htpasswd file (default: .htpasswd)
       --no-auth       Disable authentication (localhost use only)
-      --no-hscroll    Disable horizontal scrolling
       --title <s>     Set the terminal title (default: "MyWebTerm")`;
 
 const parseArgsOptions = {
@@ -55,7 +54,6 @@ const parseArgsOptions = {
     port: { type: "string", short: "p" },
     "htpasswd-file": { type: "string" },
     "no-auth": { type: "boolean" },
-    "no-hscroll": { type: "boolean" },
     title: { type: "string" },
   },
   strict: true,
@@ -128,7 +126,6 @@ const port = (() => {
   }
   return n;
 })();
-const hscroll = !values["no-hscroll"];
 const appTitle = values.title ?? "MyWebTerm";
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
@@ -330,7 +327,6 @@ function handleWebSocketUpgrade(req: Request, srv: Server<WsData>): Response | u
 function handleConfig(): Response {
   return Response.json({
     version: VERSION,
-    hscroll,
     appTitle,
     shellCommand: command,
     authEnabled: !noAuth,

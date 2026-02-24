@@ -18,8 +18,8 @@ interface UseTerminalOptions {
   onTitleChange?: (title: string) => void;
   onClipboardFallback?: (text: string) => void;
   onClipboardCopy?: (text: string) => void;
-  hscroll?: boolean;
   fontSize?: number;
+  minColumns?: number;
 }
 
 interface UseTerminalResult {
@@ -47,6 +47,10 @@ function resolveFontSize(fontSize: number | undefined, isMobileViewport: boolean
   return fontSize ?? (isMobileViewport ? 10 : 12);
 }
 
+function resolveMinColumns(minColumns: number | undefined): number {
+  return minColumns ?? 80;
+}
+
 function buildTerminalOptions(isMobileViewport: boolean, fontSize?: number): ITerminalOptions {
   return {
     cursorBlink: true,
@@ -63,7 +67,6 @@ function buildTerminalOptions(isMobileViewport: boolean, fontSize?: number): ITe
   };
 }
 
-const MIN_COLS = 80;
 const MIN_ROWS = 10;
 const DEFAULT_SCROLLBAR_WIDTH = 14;
 const RECENT_OUTPUT_LINES = 2000;
@@ -166,8 +169,8 @@ export function useTerminal({
   onTitleChange,
   onClipboardFallback,
   onClipboardCopy,
-  hscroll,
   fontSize,
+  minColumns,
 }: UseTerminalOptions): UseTerminalResult {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
@@ -215,6 +218,7 @@ export function useTerminal({
   const terminalMountedRef = useRef(false);
   const customFitRef = useRef<(() => void) | null>(null);
   const fitSuppressedRef = useRef(false);
+  const minColumnsRef = useRef(resolveMinColumns(minColumns));
 
   const getTerminalLayout = useCallback((): TerminalLayout | null => {
     const terminal = terminalRef.current;
@@ -368,19 +372,29 @@ export function useTerminal({
       if (fitSuppressedRef.current) {
         return;
       }
-      const proposed = fitAddon.proposeDimensions();
-      if (!proposed || Number.isNaN(proposed.cols) || Number.isNaN(proposed.rows)) {
-        return;
-      }
-
-      const finalCols = hscroll ? Math.max(proposed.cols, MIN_COLS) : proposed.cols;
-      const finalRows = Math.max(proposed.rows, MIN_ROWS);
-      const needsOverflow = finalCols > proposed.cols;
 
       const element = terminal.element;
       if (!element) {
         return;
       }
+
+      const previousWidth = element.style.width;
+      if (previousWidth !== "") {
+        // Measure against viewport width, not previously forced overflow width.
+        element.style.width = "";
+      }
+
+      const proposed = fitAddon.proposeDimensions();
+      if (!proposed || Number.isNaN(proposed.cols) || Number.isNaN(proposed.rows)) {
+        if (previousWidth !== "") {
+          element.style.width = previousWidth;
+        }
+        return;
+      }
+
+      const finalCols = Math.max(proposed.cols, minColumnsRef.current);
+      const finalRows = Math.max(proposed.rows, MIN_ROWS);
+      const needsOverflow = finalCols > proposed.cols;
 
       const dims = terminal.dimensions;
       const canOverflow = needsOverflow && !!dims && dims.css.cell.width > 0;
@@ -553,7 +567,7 @@ export function useTerminal({
       pendingTouchRef.current = null;
       clearScrollGesture();
     };
-  }, [closeSocket, container, clearScrollGesture, hscroll, mobileTouchSupported, sendInputFrame]);
+  }, [closeSocket, container, clearScrollGesture, mobileTouchSupported, sendInputFrame]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -564,6 +578,15 @@ export function useTerminal({
       customFitRef.current?.();
     }
   }, [fontSize, isMobileViewport]);
+
+  useEffect(() => {
+    minColumnsRef.current = resolveMinColumns(minColumns);
+    customFitRef.current?.();
+    const raf = window.requestAnimationFrame(() => {
+      customFitRef.current?.();
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [minColumns]);
 
   useEffect(() => {
     if (!container || !mobileTouchSupported) {
@@ -596,9 +619,7 @@ export function useTerminal({
       }
 
       hScrollTouch =
-        hscroll && container.scrollWidth > container.clientWidth
-          ? { identifier: touch.identifier, lastX: touch.clientX }
-          : null;
+        container.scrollWidth > container.clientWidth ? { identifier: touch.identifier, lastX: touch.clientX } : null;
 
       const point = { x: touch.clientX, y: touch.clientY };
       scrollGestureRef.current = {
@@ -733,7 +754,7 @@ export function useTerminal({
       pendingTouchRef.current = null;
       clearScrollGesture();
     };
-  }, [clearScrollGesture, container, emitWheelDelta, hscroll, getTerminalLayout, mobileTouchSupported]);
+  }, [clearScrollGesture, container, emitWheelDelta, getTerminalLayout, mobileTouchSupported]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reconnectToken and container are intentional triggers for reconnection
   useEffect(() => {
