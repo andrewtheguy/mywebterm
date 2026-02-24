@@ -144,7 +144,7 @@ function ExtraKeyButton({
   children: React.ReactNode;
   startKeyRepeat: (key: SoftKeyDefinition) => void;
   stopKeyRepeat: () => void;
-  onVisualPressStart?: (key: SoftKeyDefinition, buttonEl: HTMLButtonElement) => void;
+  onVisualPressStart?: (key: SoftKeyDefinition, buttonEl: HTMLButtonElement, pointerId: number) => void;
   onVisualPressEnd?: () => void;
 }) {
   return (
@@ -153,7 +153,7 @@ function ExtraKeyButton({
       className={`toolbar-button extra-key-button ${className ?? ""}`}
       onPointerDown={(e) => {
         e.preventDefault();
-        onVisualPressStart?.(softKey, e.currentTarget);
+        onVisualPressStart?.(softKey, e.currentTarget, e.pointerId);
         startKeyRepeat(softKey);
       }}
       onPointerUp={() => {
@@ -219,7 +219,7 @@ function MobileSoftKeyboardGrid({
   toggleKeyboardScreen: () => void;
   startKeyRepeat: (key: SoftKeyDefinition) => void;
   stopKeyRepeat: () => void;
-  onVisualPressStart?: (key: SoftKeyDefinition, buttonEl: HTMLButtonElement) => void;
+  onVisualPressStart?: (key: SoftKeyDefinition, buttonEl: HTMLButtonElement, pointerId: number) => void;
   onVisualPressEnd?: () => void;
 }) {
   const screenRows = keyboardScreen === "primary" ? PRIMARY_SCREEN_ROWS : SECONDARY_SCREEN_ROWS;
@@ -401,7 +401,7 @@ function DesktopPcKeyboardGrid({
   toggleSoftModifier: (modifier: SoftModifierName) => void;
   startKeyRepeat: (key: SoftKeyDefinition) => void;
   stopKeyRepeat: () => void;
-  onVisualPressStart?: (key: SoftKeyDefinition, buttonEl: HTMLButtonElement) => void;
+  onVisualPressStart?: (key: SoftKeyDefinition, buttonEl: HTMLButtonElement, pointerId: number) => void;
   onVisualPressEnd?: () => void;
 }) {
   const renderSoftKey = (key: SoftKeyDefinition, className?: string) => {
@@ -769,6 +769,7 @@ export function App() {
   const [floatingKeyboardPosition, setFloatingKeyboardPosition] = useState<{ left: number; top: number } | null>(null);
   const [floatingPressedOverlay, setFloatingPressedOverlay] = useState<FloatingPressedOverlay | null>(null);
   const [dockedPressedOverlay, setDockedPressedOverlay] = useState<FloatingPressedOverlay | null>(null);
+  const activeSoftKeyPointerIdRef = useRef<number | null>(null);
   const repeatTimerRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
   const repeatModifiersRef = useRef<SoftKeyModifiers | null>(null);
@@ -905,6 +906,7 @@ export function App() {
       return;
     }
     setFloatingPressedOverlay(null);
+    activeSoftKeyPointerIdRef.current = null;
   }, [softKeysOpen, isDesktopWide]);
 
   useEffect(() => {
@@ -912,6 +914,7 @@ export function App() {
       return;
     }
     setDockedPressedOverlay(null);
+    activeSoftKeyPointerIdRef.current = null;
   }, [softKeysOpen, isDesktopWide]);
 
   const openCopyModePicker = useCallback(() => {
@@ -1037,9 +1040,13 @@ export function App() {
       return;
     }
 
-    const clearFloatingPressedOverlay = () => {
+    const clearFloatingPressedOverlay = (event: PointerEvent) => {
+      if (activeSoftKeyPointerIdRef.current === null || event.pointerId !== activeSoftKeyPointerIdRef.current) {
+        return;
+      }
       stopKeyRepeat();
       setFloatingPressedOverlay(null);
+      activeSoftKeyPointerIdRef.current = null;
     };
 
     window.addEventListener("pointerup", clearFloatingPressedOverlay);
@@ -1047,6 +1054,7 @@ export function App() {
     return () => {
       window.removeEventListener("pointerup", clearFloatingPressedOverlay);
       window.removeEventListener("pointercancel", clearFloatingPressedOverlay);
+      activeSoftKeyPointerIdRef.current = null;
     };
   }, [softKeysOpen, isDesktopWide, stopKeyRepeat]);
 
@@ -1055,9 +1063,13 @@ export function App() {
       return;
     }
 
-    const clearDockedPressedOverlay = () => {
+    const clearDockedPressedOverlay = (event: PointerEvent) => {
+      if (activeSoftKeyPointerIdRef.current === null || event.pointerId !== activeSoftKeyPointerIdRef.current) {
+        return;
+      }
       stopKeyRepeat();
       setDockedPressedOverlay(null);
+      activeSoftKeyPointerIdRef.current = null;
     };
 
     window.addEventListener("pointerup", clearDockedPressedOverlay);
@@ -1065,6 +1077,7 @@ export function App() {
     return () => {
       window.removeEventListener("pointerup", clearDockedPressedOverlay);
       window.removeEventListener("pointercancel", clearDockedPressedOverlay);
+      activeSoftKeyPointerIdRef.current = null;
     };
   }, [softKeysOpen, isDesktopWide, stopKeyRepeat]);
 
@@ -1509,10 +1522,11 @@ export function App() {
   }
 
   const handleFloatingVisualPressStart = useCallback(
-    (key: SoftKeyDefinition, buttonEl: HTMLButtonElement) => {
+    (key: SoftKeyDefinition, buttonEl: HTMLButtonElement, pointerId: number) => {
       if (!(softKeysOpen && isDesktopWide)) {
         return;
       }
+      activeSoftKeyPointerIdRef.current = pointerId;
       const stage = terminalStageRef.current;
       if (!stage) {
         return;
@@ -1533,13 +1547,15 @@ export function App() {
 
   const handleFloatingVisualPressEnd = useCallback(() => {
     setFloatingPressedOverlay(null);
+    activeSoftKeyPointerIdRef.current = null;
   }, []);
 
   const handleDockedVisualPressStart = useCallback(
-    (key: SoftKeyDefinition, buttonEl: HTMLButtonElement) => {
+    (key: SoftKeyDefinition, buttonEl: HTMLButtonElement, pointerId: number) => {
       if (!(softKeysOpen && !isDesktopWide)) {
         return;
       }
+      activeSoftKeyPointerIdRef.current = pointerId;
       const panel = dockedKeyboardPanelRef.current;
       if (!panel) {
         return;
@@ -1560,6 +1576,7 @@ export function App() {
 
   const handleDockedVisualPressEnd = useCallback(() => {
     setDockedPressedOverlay(null);
+    activeSoftKeyPointerIdRef.current = null;
   }, []);
 
   const showFloatingSoftKeyboard = softKeysOpen && isDesktopWide;
