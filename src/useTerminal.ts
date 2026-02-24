@@ -583,7 +583,12 @@ export function useTerminal({
   }, [fontSize, isMobileViewport]);
 
   useEffect(() => {
-    minColumnsRef.current = resolveMinColumns(minColumns);
+    const resolved = resolveMinColumns(minColumns);
+    if (resolved === minColumnsRef.current) {
+      return;
+    }
+
+    minColumnsRef.current = resolved;
     customFitRef.current?.();
     const raf = window.requestAnimationFrame(() => {
       customFitRef.current?.();

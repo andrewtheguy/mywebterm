@@ -71,7 +71,7 @@ const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
 const DESKTOP_WIDTH_BREAKPOINT = 1024;
 const OVERLAY_DRAG_ACTIVATION_PX = 6;
 const DEFAULT_MIN_COLUMNS = 80;
-const MIN_COLUMNS_OPTIONS = [80, 100, 120, 140] as const;
+const MIN_COLUMNS_OPTIONS = [100, 120, 140] as const;
 
 const SECONDARY_ROW2_ARROW_LABELS = new Set([",", "▲", "Ins"]);
 const SECONDARY_ROW3_ARROW_LABELS = new Set(["◀", "▼", "▶"]);
@@ -814,6 +814,8 @@ export function App() {
       const visibleBottom = vv.offsetTop + vv.height;
       const bottomClip = Math.max(0, layoutHeight - visibleBottom);
       const boundedBottomClip = Math.min(96, Math.round(bottomClip));
+      // `layoutHeight - vv.height` around 50-100px is usually address-bar/chrome collapse, while software keyboards are >200px;
+      // only in the small-reduction case do we pass `boundedBottomClip` to `shell.style.setProperty(...)` below.
       const shouldApplyBottomCompensation = layoutHeight - vv.height <= 120;
 
       shell.style.height = `${vv.height}px`;
@@ -2327,7 +2329,7 @@ export function App() {
       )}
       {infoDialogOpen && (
         <dialog
-          className="font-size-dialog-backdrop"
+          className="settings-dialog-backdrop"
           open
           onClick={(e) => {
             if (e.target === e.currentTarget) setInfoDialogOpen(false);
@@ -2363,7 +2365,7 @@ export function App() {
       )}
       {fontSizeMenuOpen && (
         <dialog
-          className="font-size-dialog-backdrop"
+          className="settings-dialog-backdrop"
           open
           onClick={(e) => {
             if (e.target === e.currentTarget) closeFontSizeMenu();
@@ -2372,12 +2374,12 @@ export function App() {
             if (e.key === "Escape") closeFontSizeMenu();
           }}
         >
-          <div className="font-size-dialog">
-            <p className="font-size-dialog-label">Font Size</p>
-            <div className="font-size-dialog-options">
+          <div className="settings-dialog">
+            <p className="settings-dialog-label">Font Size</p>
+            <div className="settings-dialog-options">
               <button
                 type="button"
-                className={`toolbar-button font-size-option ${fontSize === undefined ? "toolbar-button-active" : ""}`}
+                className={`toolbar-button settings-dialog-option ${fontSize === undefined ? "toolbar-button-active" : ""}`}
                 onClick={() => {
                   setFontSize(undefined);
                   closeFontSizeMenu();
@@ -2389,7 +2391,7 @@ export function App() {
                 <button
                   key={size}
                   type="button"
-                  className={`toolbar-button font-size-option ${fontSize === size ? "toolbar-button-active" : ""}`}
+                  className={`toolbar-button settings-dialog-option ${fontSize === size ? "toolbar-button-active" : ""}`}
                   onClick={() => {
                     setFontSize(size);
                     closeFontSizeMenu();
@@ -2404,7 +2406,7 @@ export function App() {
       )}
       {minColumnsMenuOpen && (
         <dialog
-          className="font-size-dialog-backdrop"
+          className="settings-dialog-backdrop"
           open
           onClick={(e) => {
             if (e.target === e.currentTarget) closeMinColumnsMenu();
@@ -2413,12 +2415,12 @@ export function App() {
             if (e.key === "Escape") closeMinColumnsMenu();
           }}
         >
-          <div className="font-size-dialog">
-            <p className="font-size-dialog-label">Min Columns</p>
-            <div className="font-size-dialog-options">
+          <div className="settings-dialog">
+            <p className="settings-dialog-label">Min Columns</p>
+            <div className="settings-dialog-options">
               <button
                 type="button"
-                className={`toolbar-button font-size-option ${minColumns === undefined ? "toolbar-button-active" : ""}`}
+                className={`toolbar-button settings-dialog-option ${minColumns === undefined ? "toolbar-button-active" : ""}`}
                 onClick={() => {
                   setMinColumns(undefined);
                   closeMinColumnsMenu();
@@ -2426,11 +2428,11 @@ export function App() {
               >
                 Default ({DEFAULT_MIN_COLUMNS})
               </button>
-              {MIN_COLUMNS_OPTIONS.filter((columns) => columns > DEFAULT_MIN_COLUMNS).map((columns) => (
+              {MIN_COLUMNS_OPTIONS.map((columns) => (
                 <button
                   key={columns}
                   type="button"
-                  className={`toolbar-button font-size-option ${minColumns === columns ? "toolbar-button-active" : ""}`}
+                  className={`toolbar-button settings-dialog-option ${minColumns === columns ? "toolbar-button-active" : ""}`}
                   onClick={() => {
                     setMinColumns(columns);
                     closeMinColumnsMenu();
