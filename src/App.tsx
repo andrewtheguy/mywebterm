@@ -1437,13 +1437,21 @@ export function App() {
         };
 
   const desktopSoftKeyboardToggleStyle = isDesktopWide
-    ? {
-        left: "auto",
-        top: "auto",
-        right: "0.75rem",
-        bottom: "0.75rem",
-        display: "flex",
-      }
+    ? arrowOverlayPosition === null
+      ? {
+          left: "auto",
+          top: "auto",
+          right: "0.75rem",
+          bottom: "0.75rem",
+          display: "flex",
+        }
+      : {
+          left: `${arrowOverlayPosition.left}px`,
+          top: `${arrowOverlayPosition.top}px`,
+          right: "auto",
+          bottom: "auto",
+          display: "flex",
+        }
     : undefined;
 
   return (
