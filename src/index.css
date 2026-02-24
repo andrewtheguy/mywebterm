@@ -304,6 +304,10 @@ body {
   background: rgba(8, 16, 28, 0.92);
 }
 
+.extra-keys-docked {
+  position: relative;
+}
+
 .extra-keys-floating {
   position: absolute;
   right: 0.75rem;
@@ -348,6 +352,10 @@ body {
   pointer-events: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+.compact-keypress-overlay {
+  z-index: 4;
 }
 
 .extra-keys-floating-toolbar {

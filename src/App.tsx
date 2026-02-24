@@ -210,6 +210,8 @@ function MobileSoftKeyboardGrid({
   toggleKeyboardScreen,
   startKeyRepeat,
   stopKeyRepeat,
+  onVisualPressStart,
+  onVisualPressEnd,
 }: {
   keyboardScreen: SoftKeyboardScreen;
   softKeyModifiers: SoftKeyModifiers;
@@ -217,6 +219,8 @@ function MobileSoftKeyboardGrid({
   toggleKeyboardScreen: () => void;
   startKeyRepeat: (key: SoftKeyDefinition) => void;
   stopKeyRepeat: () => void;
+  onVisualPressStart?: (key: SoftKeyDefinition, buttonEl: HTMLButtonElement) => void;
+  onVisualPressEnd?: () => void;
 }) {
   const screenRows = keyboardScreen === "primary" ? PRIMARY_SCREEN_ROWS : SECONDARY_SCREEN_ROWS;
 
@@ -231,6 +235,8 @@ function MobileSoftKeyboardGrid({
               className="extra-key-combo"
               startKeyRepeat={startKeyRepeat}
               stopKeyRepeat={stopKeyRepeat}
+              onVisualPressStart={onVisualPressStart}
+              onVisualPressEnd={onVisualPressEnd}
             >
               {combo.label}
             </ExtraKeyButton>
@@ -246,6 +252,8 @@ function MobileSoftKeyboardGrid({
               className="extra-key-fkey"
               startKeyRepeat={startKeyRepeat}
               stopKeyRepeat={stopKeyRepeat}
+              onVisualPressStart={onVisualPressStart}
+              onVisualPressEnd={onVisualPressEnd}
             >
               {fkey.label}
             </ExtraKeyButton>
@@ -298,6 +306,8 @@ function MobileSoftKeyboardGrid({
                 className="extra-key-button-space"
                 startKeyRepeat={startKeyRepeat}
                 stopKeyRepeat={stopKeyRepeat}
+                onVisualPressStart={onVisualPressStart}
+                onVisualPressEnd={onVisualPressEnd}
               >
                 Space
               </ExtraKeyButton>
@@ -324,6 +334,8 @@ function MobileSoftKeyboardGrid({
                   className={classes}
                   startKeyRepeat={startKeyRepeat}
                   stopKeyRepeat={stopKeyRepeat}
+                  onVisualPressStart={onVisualPressStart}
+                  onVisualPressEnd={onVisualPressEnd}
                 >
                   {label}
                   {hint && <span className="extra-key-shift-hint">{hint}</span>}
@@ -353,6 +365,8 @@ function MobileSoftKeyboardGrid({
               className="extra-key-wide-lg"
               startKeyRepeat={startKeyRepeat}
               stopKeyRepeat={stopKeyRepeat}
+              onVisualPressStart={onVisualPressStart}
+              onVisualPressEnd={onVisualPressEnd}
             >
               ⌫
             </ExtraKeyButton>
@@ -363,6 +377,8 @@ function MobileSoftKeyboardGrid({
               className="extra-key-wide-xl"
               startKeyRepeat={startKeyRepeat}
               stopKeyRepeat={stopKeyRepeat}
+              onVisualPressStart={onVisualPressStart}
+              onVisualPressEnd={onVisualPressEnd}
             >
               Enter
             </ExtraKeyButton>
@@ -738,6 +754,7 @@ export function App() {
 
   const appShellRef = useRef<HTMLDivElement>(null);
   const terminalStageRef = useRef<HTMLDivElement>(null);
+  const dockedKeyboardPanelRef = useRef<HTMLElement>(null);
   const scrollbarTrackRef = useRef<HTMLDivElement>(null);
   const scrollbarThumbRef = useRef<HTMLDivElement>(null);
   const scrollbarDraggingRef = useRef(false);
@@ -751,6 +768,7 @@ export function App() {
   const floatingKeyboardDragRef = useRef<DragRefBase | null>(null);
   const [floatingKeyboardPosition, setFloatingKeyboardPosition] = useState<{ left: number; top: number } | null>(null);
   const [floatingPressedOverlay, setFloatingPressedOverlay] = useState<FloatingPressedOverlay | null>(null);
+  const [dockedPressedOverlay, setDockedPressedOverlay] = useState<FloatingPressedOverlay | null>(null);
   const repeatTimerRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
   const repeatModifiersRef = useRef<SoftKeyModifiers | null>(null);
@@ -889,6 +907,13 @@ export function App() {
     setFloatingPressedOverlay(null);
   }, [softKeysOpen, isDesktopWide]);
 
+  useEffect(() => {
+    if (softKeysOpen && !isDesktopWide) {
+      return;
+    }
+    setDockedPressedOverlay(null);
+  }, [softKeysOpen, isDesktopWide]);
+
   const openCopyModePicker = useCallback(() => {
     setPasteHelperText(null);
     setSelectableText(null);
@@ -1022,6 +1047,24 @@ export function App() {
     return () => {
       window.removeEventListener("pointerup", clearFloatingPressedOverlay);
       window.removeEventListener("pointercancel", clearFloatingPressedOverlay);
+    };
+  }, [softKeysOpen, isDesktopWide, stopKeyRepeat]);
+
+  useEffect(() => {
+    if (!(softKeysOpen && !isDesktopWide)) {
+      return;
+    }
+
+    const clearDockedPressedOverlay = () => {
+      stopKeyRepeat();
+      setDockedPressedOverlay(null);
+    };
+
+    window.addEventListener("pointerup", clearDockedPressedOverlay);
+    window.addEventListener("pointercancel", clearDockedPressedOverlay);
+    return () => {
+      window.removeEventListener("pointerup", clearDockedPressedOverlay);
+      window.removeEventListener("pointercancel", clearDockedPressedOverlay);
     };
   }, [softKeysOpen, isDesktopWide, stopKeyRepeat]);
 
@@ -1492,6 +1535,33 @@ export function App() {
     setFloatingPressedOverlay(null);
   }, []);
 
+  const handleDockedVisualPressStart = useCallback(
+    (key: SoftKeyDefinition, buttonEl: HTMLButtonElement) => {
+      if (!(softKeysOpen && !isDesktopWide)) {
+        return;
+      }
+      const panel = dockedKeyboardPanelRef.current;
+      if (!panel) {
+        return;
+      }
+
+      const keyRect = buttonEl.getBoundingClientRect();
+      const panelRect = panel.getBoundingClientRect();
+      setDockedPressedOverlay({
+        left: keyRect.left - panelRect.left,
+        top: keyRect.top - panelRect.top,
+        width: keyRect.width,
+        height: keyRect.height,
+        text: softKeyLabel(key, softKeyModifiers.shift),
+      });
+    },
+    [softKeysOpen, isDesktopWide, softKeyModifiers.shift],
+  );
+
+  const handleDockedVisualPressEnd = useCallback(() => {
+    setDockedPressedOverlay(null);
+  }, []);
+
   const showFloatingSoftKeyboard = softKeysOpen && isDesktopWide;
   const showDockedSoftKeyboard = softKeysOpen && !isDesktopWide;
   const showArrowOverlay = !isDesktopWide;
@@ -1525,6 +1595,16 @@ export function App() {
           top: `${floatingPressedOverlay.top}px`,
           width: `${floatingPressedOverlay.width}px`,
           height: `${floatingPressedOverlay.height}px`,
+        };
+
+  const dockedPressedOverlayStyle =
+    dockedPressedOverlay === null
+      ? undefined
+      : {
+          left: `${dockedPressedOverlay.left}px`,
+          top: `${dockedPressedOverlay.top}px`,
+          width: `${dockedPressedOverlay.width}px`,
+          height: `${dockedPressedOverlay.height}px`,
         };
 
   const desktopSoftKeyboardToggleStyle = isDesktopWide
@@ -2063,7 +2143,11 @@ export function App() {
       </main>
 
       {showDockedSoftKeyboard && (
-        <section className="extra-keys-panel" aria-label="Extra key controls">
+        <section
+          className="extra-keys-panel extra-keys-docked"
+          aria-label="Extra key controls"
+          ref={dockedKeyboardPanelRef}
+        >
           <MobileSoftKeyboardGrid
             keyboardScreen={keyboardScreen}
             softKeyModifiers={softKeyModifiers}
@@ -2071,7 +2155,18 @@ export function App() {
             toggleKeyboardScreen={toggleKeyboardScreen}
             startKeyRepeat={startKeyRepeat}
             stopKeyRepeat={stopKeyRepeat}
+            onVisualPressStart={handleDockedVisualPressStart}
+            onVisualPressEnd={handleDockedVisualPressEnd}
           />
+          {dockedPressedOverlay && (
+            <div
+              className="floating-keypress-overlay compact-keypress-overlay"
+              style={dockedPressedOverlayStyle}
+              aria-hidden="true"
+            >
+              {dockedPressedOverlay.text}
+            </div>
+          )}
         </section>
       )}
 
