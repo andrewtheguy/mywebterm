@@ -59,6 +59,14 @@ interface ArrowOverlayDragRef extends DragRefBase {
   startY: number;
 }
 
+interface FloatingPressedOverlay {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  text: string;
+}
+
 const ROW_KEYS = ["num", "alpha1", "alpha2", "alpha3", "bottom"] as const;
 const DESKTOP_WIDTH_BREAKPOINT = 1024;
 const OVERLAY_DRAG_ACTIVATION_PX = 6;
@@ -128,12 +136,16 @@ function ExtraKeyButton({
   children,
   startKeyRepeat,
   stopKeyRepeat,
+  onVisualPressStart,
+  onVisualPressEnd,
 }: {
   softKey: SoftKeyDefinition;
   className?: string;
   children: React.ReactNode;
   startKeyRepeat: (key: SoftKeyDefinition) => void;
   stopKeyRepeat: () => void;
+  onVisualPressStart?: (key: SoftKeyDefinition, buttonEl: HTMLButtonElement) => void;
+  onVisualPressEnd?: () => void;
 }) {
   return (
     <button
@@ -141,11 +153,21 @@ function ExtraKeyButton({
       className={`toolbar-button extra-key-button ${className ?? ""}`}
       onPointerDown={(e) => {
         e.preventDefault();
+        onVisualPressStart?.(softKey, e.currentTarget);
         startKeyRepeat(softKey);
       }}
-      onPointerUp={stopKeyRepeat}
-      onPointerLeave={stopKeyRepeat}
-      onPointerCancel={stopKeyRepeat}
+      onPointerUp={() => {
+        stopKeyRepeat();
+        onVisualPressEnd?.();
+      }}
+      onPointerLeave={() => {
+        stopKeyRepeat();
+        onVisualPressEnd?.();
+      }}
+      onPointerCancel={() => {
+        stopKeyRepeat();
+        onVisualPressEnd?.();
+      }}
     >
       {children}
     </button>
@@ -356,11 +378,15 @@ function DesktopPcKeyboardGrid({
   toggleSoftModifier,
   startKeyRepeat,
   stopKeyRepeat,
+  onVisualPressStart,
+  onVisualPressEnd,
 }: {
   softKeyModifiers: SoftKeyModifiers;
   toggleSoftModifier: (modifier: SoftModifierName) => void;
   startKeyRepeat: (key: SoftKeyDefinition) => void;
   stopKeyRepeat: () => void;
+  onVisualPressStart?: (key: SoftKeyDefinition, buttonEl: HTMLButtonElement) => void;
+  onVisualPressEnd?: () => void;
 }) {
   const renderSoftKey = (key: SoftKeyDefinition, className?: string) => {
     const label = softKeyLabel(key, softKeyModifiers.shift);
@@ -373,6 +399,8 @@ function DesktopPcKeyboardGrid({
         className={classes}
         startKeyRepeat={startKeyRepeat}
         stopKeyRepeat={stopKeyRepeat}
+        onVisualPressStart={onVisualPressStart}
+        onVisualPressEnd={onVisualPressEnd}
       >
         {label}
         {hint && <span className="extra-key-shift-hint">{hint}</span>}
@@ -722,6 +750,7 @@ export function App() {
   const floatingKeyboardRef = useRef<HTMLElement>(null);
   const floatingKeyboardDragRef = useRef<DragRefBase | null>(null);
   const [floatingKeyboardPosition, setFloatingKeyboardPosition] = useState<{ left: number; top: number } | null>(null);
+  const [floatingPressedOverlay, setFloatingPressedOverlay] = useState<FloatingPressedOverlay | null>(null);
   const repeatTimerRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
   const repeatModifiersRef = useRef<SoftKeyModifiers | null>(null);
@@ -852,6 +881,30 @@ export function App() {
     }
     repeatModifiersRef.current = null;
   }, [softKeysOpen]);
+
+  useEffect(() => {
+    if (softKeysOpen && isDesktopWide) {
+      return;
+    }
+    setFloatingPressedOverlay(null);
+  }, [softKeysOpen, isDesktopWide]);
+
+  useEffect(() => {
+    if (!(softKeysOpen && isDesktopWide)) {
+      return;
+    }
+
+    const clearFloatingPressedOverlay = () => {
+      setFloatingPressedOverlay(null);
+    };
+
+    window.addEventListener("pointerup", clearFloatingPressedOverlay);
+    window.addEventListener("pointercancel", clearFloatingPressedOverlay);
+    return () => {
+      window.removeEventListener("pointerup", clearFloatingPressedOverlay);
+      window.removeEventListener("pointercancel", clearFloatingPressedOverlay);
+    };
+  }, [softKeysOpen, isDesktopWide]);
 
   const openCopyModePicker = useCallback(() => {
     setPasteHelperText(null);
@@ -1411,6 +1464,33 @@ export function App() {
     });
   }
 
+  const handleFloatingVisualPressStart = useCallback(
+    (key: SoftKeyDefinition, buttonEl: HTMLButtonElement) => {
+      if (!(softKeysOpen && isDesktopWide)) {
+        return;
+      }
+      const stage = terminalStageRef.current;
+      if (!stage) {
+        return;
+      }
+
+      const keyRect = buttonEl.getBoundingClientRect();
+      const stageRect = stage.getBoundingClientRect();
+      setFloatingPressedOverlay({
+        left: keyRect.left - stageRect.left,
+        top: keyRect.top - stageRect.top,
+        width: keyRect.width,
+        height: keyRect.height,
+        text: softKeyLabel(key, softKeyModifiers.shift),
+      });
+    },
+    [softKeysOpen, isDesktopWide, softKeyModifiers.shift],
+  );
+
+  const handleFloatingVisualPressEnd = useCallback(() => {
+    setFloatingPressedOverlay(null);
+  }, []);
+
   const showFloatingSoftKeyboard = softKeysOpen && isDesktopWide;
   const showDockedSoftKeyboard = softKeysOpen && !isDesktopWide;
   const showArrowOverlay = !isDesktopWide;
@@ -1434,6 +1514,16 @@ export function App() {
           top: `${floatingKeyboardPosition.top}px`,
           right: "auto",
           bottom: "auto",
+        };
+
+  const floatingPressedOverlayStyle =
+    floatingPressedOverlay === null
+      ? undefined
+      : {
+          left: `${floatingPressedOverlay.left}px`,
+          top: `${floatingPressedOverlay.top}px`,
+          width: `${floatingPressedOverlay.width}px`,
+          height: `${floatingPressedOverlay.height}px`,
         };
 
   const desktopSoftKeyboardToggleStyle = isDesktopWide
@@ -1855,8 +1945,16 @@ export function App() {
                 toggleSoftModifier={toggleSoftModifier}
                 startKeyRepeat={startKeyRepeat}
                 stopKeyRepeat={stopKeyRepeat}
+                onVisualPressStart={handleFloatingVisualPressStart}
+                onVisualPressEnd={handleFloatingVisualPressEnd}
               />
             </section>
+          )}
+
+          {showFloatingSoftKeyboard && floatingPressedOverlay && (
+            <div className="floating-keypress-overlay" style={floatingPressedOverlayStyle} aria-hidden="true">
+              {floatingPressedOverlay.text}
+            </div>
           )}
 
           {showDesktopSoftKeyboardCollapsedToggle && (
