@@ -856,6 +856,7 @@ export function App() {
   const appTitle = config?.appTitle ?? DEFAULT_APP_TITLE;
   const authEnabled = config?.authEnabled ?? true;
   const scrollbarRefreshToken = `${effectiveMinColumns}:${fontSize ?? "auto"}`;
+  const scrollbarRefreshTokenRef = useRef(scrollbarRefreshToken);
 
   useEffect(() => {
     document.title = remoteTitle ? `${remoteTitle} | ${appTitle}` : appTitle;
@@ -1206,10 +1207,15 @@ export function App() {
   }, [containerElement, horizontalOverflow, syncScrollbarThumb]);
 
   useEffect(() => {
-    if (!containerElement || !horizontalOverflow || scrollbarRefreshToken.length === 0) {
+    scrollbarRefreshTokenRef.current = scrollbarRefreshToken;
+    if (!containerElement || !horizontalOverflow) {
       return;
     }
+    const refreshToken = scrollbarRefreshToken;
     const raf = window.requestAnimationFrame(() => {
+      if (scrollbarRefreshTokenRef.current !== refreshToken) {
+        return;
+      }
       syncScrollbarThumb();
     });
     return () => window.cancelAnimationFrame(raf);
