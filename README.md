@@ -9,9 +9,11 @@ A web-based terminal that runs your shell in the browser. Built with React, xter
 
 When a browser connects, the server spawns `$SHELL` (falling back to `/bin/sh`) as a pseudo-terminal and bridges it to the frontend over WebSocket. Sessions are decoupled from connections — if a WebSocket drops, the PTY stays alive and the client automatically reconnects with scrollback replay.
 
-## Screenshot
+## Screenshots
+### Desktop
 <img width="1751" height="1019" alt="Screenshot 2026-02-24 at 1 27 16 PM" src="https://github.com/user-attachments/assets/af8c2165-de0a-427b-b6b0-8965c5a61207" />
-
+### Mobile
+<img width="590" height="1278" alt="IMG_5988" src="https://github.com/user-attachments/assets/5211b2cf-2988-4c3c-9b17-7f973389ef4e" />
 
 
 ## Usage
