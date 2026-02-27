@@ -43,6 +43,7 @@ Options:
   -h, --help          Show this help message
   -v, --version       Show version
   -p, --port <n>      Port to listen on (default: 8671)
+      --bind <addr>   Address to bind to (default: 127.0.0.1)
       --htpasswd-file <path>  Path to htpasswd file (default: .htpasswd)
       --no-auth       Disable authentication (localhost use only)
       --title <s>     Set the terminal title (default: "MyWebTerm")`;
@@ -52,6 +53,7 @@ const parseArgsOptions = {
     help: { type: "boolean", short: "h" },
     version: { type: "boolean", short: "v" },
     port: { type: "string", short: "p" },
+    bind: { type: "string" },
     "htpasswd-file": { type: "string" },
     "no-auth": { type: "boolean" },
     title: { type: "string" },
@@ -86,10 +88,10 @@ if (values.version) {
 }
 
 const noAuth = !!values["no-auth"];
-const hostname = "127.0.0.1";
+const hostname = values.bind ?? "127.0.0.1";
 
-// Guard for when hostname becomes configurable
-if (noAuth && hostname !== "127.0.0.1" && hostname !== "localhost") {
+// Prevent unauthenticated access on non-loopback interfaces
+if (noAuth && hostname !== "127.0.0.1" && hostname !== "::1" && hostname !== "localhost") {
   console.error("--no-auth is only allowed when binding to localhost.");
   process.exit(1);
 }
