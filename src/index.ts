@@ -91,7 +91,7 @@ const noAuth = !!values["no-auth"];
 const hostname = values.bind ?? "127.0.0.1";
 
 // Prevent unauthenticated access on non-loopback interfaces
-if (noAuth && hostname !== "127.0.0.1" && hostname !== "localhost") {
+if (noAuth && hostname !== "127.0.0.1" && hostname !== "::1" && hostname !== "localhost") {
   console.error("--no-auth is only allowed when binding to localhost.");
   process.exit(1);
 }

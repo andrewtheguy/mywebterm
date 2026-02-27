@@ -53,6 +53,7 @@ mywebterm --port 9090 --title Dev -- python3
 | `-h`, `--help` | | Show usage and exit |
 | `-v`, `--version` | | Show version and exit |
 | `-p`, `--port <n>` | `8671` | Port to listen on |
+| `--bind <addr>` | `127.0.0.1` | Address to bind to (requires auth for non-loopback) |
 | `--htpasswd-file <path>` | `.htpasswd` | Path to htpasswd credentials file |
 | `--daemonize` | off | Detach from the parent process and run in the background |
 | `--no-auth` | off | Disable authentication (localhost use only) |

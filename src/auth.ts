@@ -38,10 +38,12 @@ export function isValidSession(token: string): boolean {
     validTokens.delete(token);
     return false;
   }
-  // Refresh TTL on activity rather than rotating the token. Session fixation
-  // is not a practical concern here: the cookie is HttpOnly + SameSite=Strict,
-  // and when exposed on a network the server requires authentication, so an
-  // attacker cannot inject or observe cookie values on the wire.
+  // Refresh TTL on activity rather than rotating the token. createSession()
+  // issues a fresh token on each login, which prevents classic session fixation.
+  // The cookie is HttpOnly + SameSite=Strict, and getSessionCookie() adds the
+  // Secure flag when the connection is HTTPS, preventing observation/injection
+  // on the wire. Over plain HTTP (local-dev on loopback) wire protection is
+  // absent, but the loopback-only surface makes that acceptable.
   data.expiresAt = Date.now() + SESSION_TTL_MS;
   return true;
 }
