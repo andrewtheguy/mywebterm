@@ -74,7 +74,7 @@ Use `--no-auth` to disable authentication entirely (only allowed when binding to
 
 ### Exposing publicly
 
-MyWebTerm gives full shell access to anyone who can reach it — it is a highly privileged program. For this reason it only listens on the loopback interface (`127.0.0.1`) and cannot be configured to bind to other addresses. To make it accessible over a network, put it behind a reverse proxy, such as [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) or Caddy.
+MyWebTerm gives full shell access to anyone who can reach it — it is a highly privileged program. By default it only listens on the loopback interface (`127.0.0.1`). When authentication is enabled (the default), you can use `--bind <addr>` to listen on other interfaces, e.g. `--bind 0.0.0.0`. Alternatively, put it behind a reverse proxy such as [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) or Caddy.
 
 > [!NOTE]
 > Avoid using HTTP basic auth with Safari — Safari does not reliably send cached credentials for WebSocket upgrade requests and XHR/fetch calls, which will break the terminal connection. Use cookie/session-based auth (e.g. OAuth2 Proxy) instead.

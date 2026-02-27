@@ -39,9 +39,9 @@ export function isValidSession(token: string): boolean {
     return false;
   }
   // Refresh TTL on activity rather than rotating the token. Session fixation
-  // is not a practical concern here: the server binds to localhost only and is
-  // expected to sit behind an authenticating reverse proxy, so an attacker
-  // cannot inject or observe cookie values on the wire.
+  // is not a practical concern here: the cookie is HttpOnly + SameSite=Strict,
+  // and when exposed on a network the server requires authentication, so an
+  // attacker cannot inject or observe cookie values on the wire.
   data.expiresAt = Date.now() + SESSION_TTL_MS;
   return true;
 }
