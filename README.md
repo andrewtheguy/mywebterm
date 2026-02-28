@@ -1,6 +1,6 @@
 # MyWebTerm
 
-> [!WARNING]
+> [!IMPORTANT]
 > This program is meant for the original developer's personal use; no backward compatibility, user-friendliness, or multi-user security is required.
 > There is no limit on concurrent sessions; every browser tab spawns its own shell.
 > This project is still experimental: behavior may be unstable, features may change or be removed without notice, and updates may introduce regressions.
