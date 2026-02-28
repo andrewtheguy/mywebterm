@@ -132,6 +132,8 @@ const OVERLAY_ARROW_RIGHT: SoftKeyDefinition = {
   group: "main",
 };
 
+const SCROLL_DRAG_THRESHOLD_SQ = 64; // 8px squared
+
 function ExtraKeyButton({
   softKey,
   className,
@@ -140,6 +142,7 @@ function ExtraKeyButton({
   stopKeyRepeat,
   onVisualPressStart,
   onVisualPressEnd,
+  scrollable,
 }: {
   softKey: SoftKeyDefinition;
   className?: string;
@@ -148,7 +151,51 @@ function ExtraKeyButton({
   stopKeyRepeat: () => void;
   onVisualPressStart?: (key: SoftKeyDefinition, buttonEl: HTMLButtonElement, pointerId: number) => void;
   onVisualPressEnd?: () => void;
+  scrollable?: boolean;
 }) {
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const draggedRef = useRef(false);
+
+  if (scrollable) {
+    return (
+      <button
+        type="button"
+        className={`toolbar-button extra-key-button ${className ?? ""}`}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          pointerStartRef.current = { x: e.clientX, y: e.clientY };
+          draggedRef.current = false;
+        }}
+        onPointerMove={(e) => {
+          if (pointerStartRef.current && !draggedRef.current) {
+            const dx = e.clientX - pointerStartRef.current.x;
+            const dy = e.clientY - pointerStartRef.current.y;
+            if (dx * dx + dy * dy > SCROLL_DRAG_THRESHOLD_SQ) {
+              draggedRef.current = true;
+            }
+          }
+        }}
+        onPointerUp={(e) => {
+          if (!draggedRef.current && pointerStartRef.current) {
+            onVisualPressStart?.(softKey, e.currentTarget, e.pointerId);
+            startKeyRepeat(softKey);
+            stopKeyRepeat();
+            onVisualPressEnd?.();
+          }
+          pointerStartRef.current = null;
+        }}
+        onPointerLeave={() => {
+          pointerStartRef.current = null;
+        }}
+        onPointerCancel={() => {
+          pointerStartRef.current = null;
+        }}
+      >
+        {children}
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -239,6 +286,7 @@ function MobileSoftKeyboardGrid({
               stopKeyRepeat={stopKeyRepeat}
               onVisualPressStart={onVisualPressStart}
               onVisualPressEnd={onVisualPressEnd}
+              scrollable
             >
               {combo.label}
             </ExtraKeyButton>
@@ -256,6 +304,7 @@ function MobileSoftKeyboardGrid({
               stopKeyRepeat={stopKeyRepeat}
               onVisualPressStart={onVisualPressStart}
               onVisualPressEnd={onVisualPressEnd}
+              scrollable
             >
               {fkey.label}
             </ExtraKeyButton>
