@@ -225,10 +225,6 @@ function handleWsMessage(ws: ServerWebSocket<WsData>, message: string | Buffer):
   }
 }
 
-function isSecureRequest(req: Request): boolean {
-  return req.headers.get("x-forwarded-proto") === "https";
-}
-
 function handleLoginPage(): Response {
   return new Response(buildLoginPageHtml(appTitle), {
     headers: { "Content-Type": "text/html; charset=utf-8" },
@@ -283,7 +279,7 @@ async function handleLoginPost(req: Request): Promise<Response> {
   return Response.json(
     { ok: true },
     {
-      headers: { "Set-Cookie": getSessionCookie(token, isSecureRequest(req)) },
+      headers: { "Set-Cookie": getSessionCookie(token) },
     },
   );
 }
