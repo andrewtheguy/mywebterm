@@ -40,10 +40,7 @@ export function isValidSession(token: string): boolean {
   }
   // Refresh TTL on activity rather than rotating the token. createSession()
   // issues a fresh token on each login, which prevents classic session fixation.
-  // The cookie is HttpOnly + SameSite=Strict, and getSessionCookie() adds the
-  // Secure flag when the connection is HTTPS, preventing observation/injection
-  // on the wire. Over plain HTTP (local-dev on loopback) wire protection is
-  // absent, but the loopback-only surface makes that acceptable.
+  // The cookie is HttpOnly + SameSite=Strict + Secure.
   data.expiresAt = Date.now() + SESSION_TTL_MS;
   return true;
 }
@@ -56,16 +53,12 @@ export function invalidateAllSessions(): void {
   validTokens.clear();
 }
 
-export function getSessionCookie(token: string, secure: boolean): string {
-  let cookie = `${COOKIE_NAME}=${token}; HttpOnly; SameSite=Strict; Path=/`;
-  if (secure) {
-    cookie += "; Secure";
-  }
-  return cookie;
+export function getSessionCookie(token: string): string {
+  return `${COOKIE_NAME}=${token}; HttpOnly; SameSite=Strict; Secure; Path=/`;
 }
 
 export function clearSessionCookie(): string {
-  return `${COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`;
+  return `${COOKIE_NAME}=; HttpOnly; SameSite=Strict; Secure; Path=/; Max-Age=0`;
 }
 
 export function extractSessionToken(req: Request): string | null {
