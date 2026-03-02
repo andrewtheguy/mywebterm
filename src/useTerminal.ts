@@ -57,7 +57,6 @@ function resolveMinColumns(minColumns: number | undefined): number {
 function buildTerminalOptions(isMobileViewport: boolean, fontSize?: number): ITerminalOptions {
   return {
     cursorBlink: true,
-    convertEol: true,
     scrollback: 5000,
     fontSize: resolveFontSize(fontSize, isMobileViewport),
     fontFamily: "JetBrainsMono Nerd Font Mono, Symbols Nerd Font Mono, Menlo, monospace",
