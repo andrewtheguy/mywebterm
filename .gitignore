@@ -37,9 +37,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Bun build artifacts
 *.bun-build
 
-# Compiled tray helper binary
-src/tray/tray_darwin_*
-
 # htpasswd credentials
 .htpasswd
 
