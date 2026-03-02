@@ -60,30 +60,18 @@ jobs:
           mkdir -p dist
           bun build --compile --no-compile-autoload-dotenv src/index.ts --outfile dist/${{ matrix.artifact }} --define "BUILD_VERSION='\"${{ steps.version.outputs.version }}\"'"
 
-      - name: Build app bundle (macOS only)
-        if: runner.os == 'macOS'
-        run: |
-          MYWEBTERM_BIN=dist/${{ matrix.artifact }} VERSION=${{ steps.version.outputs.version }} scripts/build-app-bundle.sh
-          tar -czf dist/MyWebTerm-darwin-arm64.app.tar.gz -C dist MyWebTerm.app
-
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: |
-            dist/${{ matrix.artifact }}
-            dist/MyWebTerm-darwin-arm64.app.tar.gz
+          path: dist/${{ matrix.artifact }}
 
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'release'
         with:
-          files: |
-            dist/${{ matrix.artifact }}
-            dist/MyWebTerm-darwin-arm64.app.tar.gz
+          files: dist/${{ matrix.artifact }}
 
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'workflow_dispatch'
         with:
           tag_name: ${{ needs.create-prerelease.outputs.tag }}
-          files: |
-            dist/${{ matrix.artifact }}
-            dist/MyWebTerm-darwin-arm64.app.tar.gz
+          files: dist/${{ matrix.artifact }}
