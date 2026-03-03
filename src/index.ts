@@ -1,3 +1,4 @@
+import { statSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { type Server, type ServerWebSocket, serve } from "bun";
 import appleTouchIconPath from "./apple-touch-icon.png" with { type: "file" };
@@ -146,6 +147,18 @@ function createConnectionId(): string {
 }
 
 setShellCommand(command);
+if (values.cwd) {
+  try {
+    const stat = statSync(values.cwd);
+    if (!stat.isDirectory()) {
+      console.error(`Invalid --cwd: ${values.cwd} is not a directory`);
+      process.exit(1);
+    }
+  } catch {
+    console.error(`Invalid --cwd: ${values.cwd} does not exist`);
+    process.exit(1);
+  }
+}
 setCwd(values.cwd || process.env.HOME || undefined);
 registerShutdownHandlers();
 startStaleSweep();

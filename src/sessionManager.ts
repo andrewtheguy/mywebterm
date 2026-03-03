@@ -108,6 +108,9 @@ let shellCommand: string[] = ["/bin/sh"];
 let spawnCwd: string | undefined;
 
 export function setCwd(cwd: string | undefined): void {
+  if (cwd !== undefined && (typeof cwd !== "string" || cwd.length === 0)) {
+    throw new Error("Working directory must be a non-empty string or undefined");
+  }
   spawnCwd = cwd;
 }
 
