@@ -28,6 +28,7 @@ import {
   getSessionSummaries,
   handlePong,
   registerShutdownHandlers,
+  setCwd,
   setShellCommand,
   startStaleSweep,
   type WsData,
@@ -46,7 +47,8 @@ Options:
       --bind <addr>   Address to bind to (default: 127.0.0.1)
       --htpasswd-file <path>  Path to htpasswd file (default: .htpasswd)
       --no-auth       Disable authentication (localhost use only)
-      --title <s>     Set the terminal title (default: "MyWebTerm")`;
+      --title <s>     Set the terminal title (default: "MyWebTerm")
+      --cwd <path>    Set the working directory for the shell (default: $HOME)`;
 
 const parseArgsOptions = {
   options: {
@@ -57,6 +59,7 @@ const parseArgsOptions = {
     "htpasswd-file": { type: "string" },
     "no-auth": { type: "boolean" },
     title: { type: "string" },
+    cwd: { type: "string" },
   },
   strict: true,
   allowPositionals: true,
@@ -143,6 +146,7 @@ function createConnectionId(): string {
 }
 
 setShellCommand(command);
+setCwd(values.cwd || process.env.HOME || undefined);
 registerShutdownHandlers();
 startStaleSweep();
 

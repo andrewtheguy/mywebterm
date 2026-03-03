@@ -105,6 +105,11 @@ export class ScrollbackBuffer {
 const sessions = new Map<string, PtySession>();
 let staleSweepTimer: ReturnType<typeof setInterval> | null = null;
 let shellCommand: string[] = ["/bin/sh"];
+let spawnCwd: string | undefined;
+
+export function setCwd(cwd: string | undefined): void {
+  spawnCwd = cwd;
+}
 
 export function setShellCommand(cmd: string[]): void {
   if (!Array.isArray(cmd) || cmd.length === 0) {
@@ -207,6 +212,7 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
   let proc: ReturnType<typeof Bun.spawn>;
   try {
     proc = Bun.spawn(shellCommand, {
+      cwd: spawnCwd,
       terminal: {
         cols: clampedCols,
         rows: clampedRows,
