@@ -7,6 +7,7 @@ import {
   createSession as createAuthSession,
   extractSessionToken,
   getSessionCookie,
+  IS_PRODUCTION,
   initHtpasswd,
   invalidateSession,
   isRequestAuthenticated,
@@ -475,7 +476,7 @@ const server = serve<WsData>({
     return new Response("Not Found", { status: 404 });
   },
 
-  development: process.env.NODE_ENV !== "production" && {
+  development: !IS_PRODUCTION && {
     hmr: true,
     console: true,
   },
