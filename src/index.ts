@@ -10,6 +10,7 @@ import {
   initHtpasswd,
   invalidateSession,
   isRequestAuthenticated,
+  setDevMode,
   verifyCredentials,
 } from "./auth";
 import boldFont from "./fonts/JetBrainsMonoNerdFontMono-Bold.woff2" with { type: "file" };
@@ -48,6 +49,7 @@ Options:
       --bind <addr>   Address to bind to (default: 127.0.0.1)
       --htpasswd-file <path>  Path to htpasswd file (default: .htpasswd)
       --no-auth       Disable authentication (localhost use only)
+      --dev           Enable development mode (HMR, non-secure cookies)
       --title <s>     Set the terminal title (default: "MyWebTerm")
       --cwd <path>    Set the working directory for the shell (default: $HOME)`;
 
@@ -59,6 +61,7 @@ const parseArgsOptions = {
     bind: { type: "string" },
     "htpasswd-file": { type: "string" },
     "no-auth": { type: "boolean" },
+    dev: { type: "boolean" },
     title: { type: "string" },
     cwd: { type: "string" },
   },
@@ -89,6 +92,10 @@ if (values.help) {
 if (values.version) {
   console.log(`mywebterm ${VERSION}`);
   process.exit(0);
+}
+
+if (values.dev) {
+  setDevMode(true);
 }
 
 const noAuth = !!values["no-auth"];
@@ -475,7 +482,7 @@ const server = serve<WsData>({
     return new Response("Not Found", { status: 404 });
   },
 
-  development: process.env.NODE_ENV !== "production" && {
+  development: values.dev && {
     hmr: true,
     console: true,
   },

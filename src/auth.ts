@@ -12,6 +12,11 @@ interface SessionData {
 const validTokens = new Map<string, SessionData>();
 
 const COOKIE_NAME = "mywebterm_session";
+// Fail-closed: secure by default, disabled explicitly via setDevMode(true)
+let secureCookie = true;
+export function setDevMode(dev: boolean): void {
+  secureCookie = !dev;
+}
 
 function purgeExpiredTokens(): void {
   const now = Date.now();
@@ -54,11 +59,11 @@ export function invalidateAllSessions(): void {
 }
 
 export function getSessionCookie(token: string): string {
-  return `${COOKIE_NAME}=${token}; HttpOnly; SameSite=Strict; Secure; Path=/`;
+  return `${COOKIE_NAME}=${token}; HttpOnly; SameSite=Strict${secureCookie ? "; Secure" : ""}; Path=/`;
 }
 
 export function clearSessionCookie(): string {
-  return `${COOKIE_NAME}=; HttpOnly; SameSite=Strict; Secure; Path=/; Max-Age=0`;
+  return `${COOKIE_NAME}=; HttpOnly; SameSite=Strict${secureCookie ? "; Secure" : ""}; Path=/; Max-Age=0`;
 }
 
 export function extractSessionToken(req: Request): string | null {

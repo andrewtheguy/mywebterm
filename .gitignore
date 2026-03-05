@@ -40,6 +40,10 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # htpasswd credentials
 .htpasswd
 
+# test basic auth proxy
+test-basic-auth/caddy
+test-basic-auth/Caddyfile.run
+
 # Claude Code
 .claude/
 
