@@ -7,10 +7,10 @@ import {
   createSession as createAuthSession,
   extractSessionToken,
   getSessionCookie,
-  IS_PRODUCTION,
   initHtpasswd,
   invalidateSession,
   isRequestAuthenticated,
+  setDevMode,
   verifyCredentials,
 } from "./auth";
 import boldFont from "./fonts/JetBrainsMonoNerdFontMono-Bold.woff2" with { type: "file" };
@@ -60,6 +60,7 @@ const parseArgsOptions = {
     bind: { type: "string" },
     "htpasswd-file": { type: "string" },
     "no-auth": { type: "boolean" },
+    dev: { type: "boolean" },
     title: { type: "string" },
     cwd: { type: "string" },
   },
@@ -90,6 +91,10 @@ if (values.help) {
 if (values.version) {
   console.log(`mywebterm ${VERSION}`);
   process.exit(0);
+}
+
+if (values.dev) {
+  setDevMode(true);
 }
 
 const noAuth = !!values["no-auth"];
@@ -476,7 +481,7 @@ const server = serve<WsData>({
     return new Response("Not Found", { status: 404 });
   },
 
-  development: !IS_PRODUCTION && {
+  development: values.dev && {
     hmr: true,
     console: true,
   },

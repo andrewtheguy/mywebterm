@@ -58,7 +58,7 @@ jobs:
       - name: Compile standalone binary
         run: |
           mkdir -p dist
-          bun build --compile --no-compile-autoload-dotenv src/index.ts --outfile dist/${{ matrix.artifact }} --define "BUILD_VERSION='\"${{ steps.version.outputs.version }}\"'" --define "BUILD_PRODUCTION=true"
+          bun build --compile --no-compile-autoload-dotenv src/index.ts --outfile dist/${{ matrix.artifact }} --define "BUILD_VERSION='\"${{ steps.version.outputs.version }}\"'"
 
       - uses: actions/upload-artifact@v4
         with:
