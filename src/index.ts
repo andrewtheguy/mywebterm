@@ -49,6 +49,7 @@ Options:
       --bind <addr>   Address to bind to (default: 127.0.0.1)
       --htpasswd-file <path>  Path to htpasswd file (default: .htpasswd)
       --no-auth       Disable authentication (localhost use only)
+      --dev           Enable development mode (HMR, non-secure cookies)
       --title <s>     Set the terminal title (default: "MyWebTerm")
       --cwd <path>    Set the working directory for the shell (default: $HOME)`;
 
