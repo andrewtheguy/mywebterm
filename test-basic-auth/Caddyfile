@@ -1,8 +1,0 @@
-:8443 {
-	basicauth {
-		# user: test, password: test
-		# generated via: caddy hash-password --plaintext test
-		test {BASIC_AUTH_HASH}
-	}
-	reverse_proxy localhost:18671
-}
