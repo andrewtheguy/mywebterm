@@ -70,7 +70,7 @@ export function encodeServerControl(msg: ServerControlMessage): string {
   return JSON.stringify(msg);
 }
 
-function encodePrefixedPayload(command: string, payload: Uint8Array): Uint8Array {
+function encodePrefixedPayload(command: string, payload: Uint8Array): Uint8Array<ArrayBuffer> {
   const prefixed = new Uint8Array(payload.length + 1);
   prefixed[0] = command.charCodeAt(0);
   prefixed.set(payload, 1);
@@ -96,12 +96,12 @@ export function buildHandshake(columns: number, rows: number): string {
   return JSON.stringify({ type: "handshake", columns: normalizedColumns, rows: normalizedRows });
 }
 
-export function encodeInput(data: string | Uint8Array): Uint8Array {
+export function encodeInput(data: string | Uint8Array): Uint8Array<ArrayBuffer> {
   const payload = typeof data === "string" ? encoder.encode(data) : data;
   return encodePrefixedPayload(ClientCommand.INPUT, payload);
 }
 
-export function encodeResize(columns: number, rows: number): Uint8Array {
+export function encodeResize(columns: number, rows: number): Uint8Array<ArrayBuffer> {
   const normalizedColumns = normalizeHandshakeDimension("columns", columns);
   const normalizedRows = normalizeHandshakeDimension("rows", rows);
   const payload = encoder.encode(JSON.stringify({ columns: normalizedColumns, rows: normalizedRows }));

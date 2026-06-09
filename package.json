@@ -1,7 +1,7 @@
 {
   "//": "@xterm/xterm: beta chosen because stable has broken horizontal + vertical scrolling",
   "name": "mywebterm",
-  "version": "0.0.0",
+  "version": "0.0.61",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,8 +14,8 @@
     "htpasswd": "bun src/gen-htpasswd.ts"
   },
   "dependencies": {
-    "@xterm/addon-fit": "0.11.0",
-    "@xterm/xterm": "6.1.0-beta.167",
+    "@xterm/addon-fit": "0.12.0-beta.285",
+    "@xterm/xterm": "6.1.0-beta.285",
     "react": "^19",
     "react-dom": "^19",
     "sonner": "^2.0.7"
