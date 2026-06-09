@@ -1,34 +1,64 @@
-name: Build Standalone Binaries
+name: Release (Manual)
 
 on:
-  release:
-    types: [created]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  create-prerelease:
-    if: github.event_name == 'workflow_dispatch'
+  setup:
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.tag.outputs.tag }}
+      release_tag: ${{ steps.version.outputs.new }}
+      is_prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
 
-      - id: tag
-        run: echo "tag=dev-$(date -u +'%Y%m%d%H%M%S')" >> "$GITHUB_OUTPUT"
+      - name: Determine version
+        id: version
+        run: |
+          version=$(jq -r .version package.json)
+          if [ -z "$version" ] || [ "$version" = "null" ]; then
+            echo "::error::Could not parse version from package.json"
+            exit 1
+          fi
+          tag="v$version"
+          echo "new=$tag" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          prerelease: true
-          generate_release_notes: true
+      - name: Abort if tag already exists
+        run: |
+          if git ls-remote --tags origin "refs/tags/${{ steps.version.outputs.new }}" | grep -q .; then
+            echo "::error::Tag ${{ steps.version.outputs.new }} already exists on remote"
+            exit 1
+          fi
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # Clean up any leftover draft from a previous failed run with the same version.
+          # A draft release doesn't create the git tag on the remote, so a stale draft is the
+          # only thing that can collide here (real published tags are caught by the step above).
+          if gh release view "${{ steps.version.outputs.new }}" --json isDraft --jq '.isDraft' 2>/dev/null | grep -qx true; then
+            echo "Deleting stale draft release ${{ steps.version.outputs.new }}"
+            gh release delete "${{ steps.version.outputs.new }}" --yes
+          fi
+          gh release create "${{ steps.version.outputs.new }}" \
+            --draft \
+            --target "${{ github.sha }}" \
+            --title "Release ${{ steps.version.outputs.new }}" \
+            --generate-notes \
+            ${{ steps.version.outputs.prerelease == 'true' && '--prerelease' || '' }}
 
   build:
-    needs: [create-prerelease]
-    if: always() && (needs.create-prerelease.result == 'success' || (needs.create-prerelease.result == 'skipped' && startsWith(github.event.release.tag_name, 'v')))
+    needs: setup
     strategy:
       matrix:
         include:
@@ -46,32 +76,38 @@ jobs:
 
       - run: bun install
 
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "version=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=${{ needs.create-prerelease.outputs.tag }}" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Compile standalone binary
         run: |
           mkdir -p dist
-          bun build --compile --no-compile-autoload-dotenv src/index.ts --outfile dist/${{ matrix.artifact }} --define "BUILD_VERSION='\"${{ steps.version.outputs.version }}\"'"
+          bun build --compile --no-compile-autoload-dotenv src/index.ts --outfile dist/${{ matrix.artifact }} --define "BUILD_VERSION='\"${{ needs.setup.outputs.release_tag }}\"'"
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: dist/${{ matrix.artifact }}
+          if-no-files-found: error
 
-      - uses: softprops/action-gh-release@v2
-        if: github.event_name == 'release'
+  create-release:
+    needs: [setup, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
         with:
-          files: dist/${{ matrix.artifact }}
+          path: artifacts
+          merge-multiple: true
 
-      - uses: softprops/action-gh-release@v2
-        if: github.event_name == 'workflow_dispatch'
-        with:
-          tag_name: ${{ needs.create-prerelease.outputs.tag }}
-          files: dist/${{ matrix.artifact }}
+      - name: List artifacts
+        run: ls -la artifacts/
+
+      - name: Upload artifacts to draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "${{ needs.setup.outputs.release_tag }}" artifacts/* --clobber
+
+      - name: Publish release (remove draft, creates the tag)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release edit "${{ needs.setup.outputs.release_tag }}" --draft=false
