@@ -2372,7 +2372,7 @@ export function App() {
               </button>
             </div>
           </div>
-          <p className="copy-sheet-hint">Child processes of the server. Empty after restart = no leaks.</p>
+          <p className="copy-sheet-hint">Child processes of the server.</p>
           <textarea className="copy-sheet-textarea" value={processesText} readOnly />
         </section>
       )}
