@@ -1,4 +1,5 @@
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { type IDisposable, type ITerminalOptions, Terminal } from "@xterm/xterm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -6,7 +7,7 @@ import { toast } from "sonner";
 import "@xterm/xterm/css/xterm.css";
 
 import { isLikelyIOS, type Point } from "./mobileTouchSelection";
-import { extractVisibleTerminalRowsText } from "./terminalCopyText";
+import { extractVisibleTerminalRowsText, normalizeVisibleTerminalLines } from "./terminalCopyText";
 import type { ServerControlMessage } from "./ttyProtocol";
 import { decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttyProtocol";
 
@@ -20,6 +21,7 @@ interface UseTerminalOptions {
   onClipboardCopy?: (text: string) => void;
   fontSize?: number;
   minColumns?: number;
+  canvasMode?: boolean;
 }
 
 interface UseTerminalResult {
@@ -122,6 +124,20 @@ function collectRecentOutput(terminal: Terminal, maxLines = RECENT_OUTPUT_LINES)
   return outputLines.join("\n").trimEnd();
 }
 
+function collectVisibleOutput(terminal: Terminal): string {
+  const activeBuffer = terminal.buffer.active;
+  const startLine = activeBuffer.viewportY;
+  const endLine = startLine + terminal.rows - 1;
+  const visibleLines: string[] = [];
+
+  for (let lineIndex = startLine; lineIndex <= endLine; lineIndex += 1) {
+    const bufferLine = activeBuffer.getLine(lineIndex);
+    visibleLines.push(bufferLine ? bufferLine.translateToString(true) : "");
+  }
+
+  return normalizeVisibleTerminalLines(visibleLines);
+}
+
 async function writeClipboardText(text: string): Promise<boolean> {
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
     try {
@@ -173,6 +189,7 @@ export function useTerminal({
   onClipboardCopy,
   fontSize,
   minColumns,
+  canvasMode,
 }: UseTerminalOptions): UseTerminalResult {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
@@ -221,6 +238,25 @@ export function useTerminal({
   const customFitRef = useRef<(() => void) | null>(null);
   const fitSuppressedRef = useRef(false);
   const minColumnsRef = useRef(resolveMinColumns(minColumns));
+  const webglAddonRef = useRef<WebglAddon | null>(null);
+  const canvasModeRef = useRef(canvasMode ?? false);
+
+  const enableWebglRenderer = useCallback((terminal: Terminal) => {
+    if (webglAddonRef.current) {
+      return;
+    }
+    try {
+      const webglAddon = new WebglAddon();
+      webglAddon.onContextLoss(() => {
+        webglAddon.dispose();
+        webglAddonRef.current = null;
+      });
+      terminal.loadAddon(webglAddon);
+      webglAddonRef.current = webglAddon;
+    } catch {
+      toast.error("WebGL renderer unavailable; using default renderer.");
+    }
+  }, []);
 
   const getTerminalLayout = useCallback((): TerminalLayout | null => {
     const terminal = terminalRef.current;
@@ -363,6 +399,10 @@ export function useTerminal({
 
     terminal.loadAddon(fitAddon);
     terminal.open(container);
+
+    if (canvasModeRef.current) {
+      enableWebglRenderer(terminal);
+    }
 
     const textarea = terminal.textarea;
     if (textarea) {
@@ -560,6 +600,8 @@ export function useTerminal({
         disposable.dispose();
       }
       terminalDisposablesRef.current = [];
+      webglAddonRef.current?.dispose();
+      webglAddonRef.current = null;
       fitAddon.dispose();
       terminal.dispose();
       fitAddonRef.current = null;
@@ -580,6 +622,21 @@ export function useTerminal({
       customFitRef.current?.();
     }
   }, [fontSize, isMobileViewport]);
+
+  useEffect(() => {
+    canvasModeRef.current = canvasMode ?? false;
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      return;
+    }
+    if (canvasMode) {
+      enableWebglRenderer(terminal);
+    } else if (webglAddonRef.current) {
+      webglAddonRef.current.dispose();
+      webglAddonRef.current = null;
+    }
+    customFitRef.current?.();
+  }, [canvasMode, enableWebglRenderer]);
 
   useEffect(() => {
     const resolved = resolveMinColumns(minColumns);
@@ -1148,7 +1205,12 @@ export function useTerminal({
 
   const getVisibleTerminalText = useCallback((): string => {
     const rowsElement = container?.querySelector(".xterm-rows") ?? null;
-    return extractVisibleTerminalRowsText(rowsElement);
+    const domText = extractVisibleTerminalRowsText(rowsElement);
+    if (domText.length > 0) {
+      return domText;
+    }
+    const terminal = terminalRef.current;
+    return terminal ? collectVisibleOutput(terminal) : "";
   }, [container]);
 
   const copyTextToClipboard = useCallback(async (text: string): Promise<boolean> => {

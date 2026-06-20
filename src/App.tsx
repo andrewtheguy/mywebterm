@@ -632,8 +632,10 @@ export function App() {
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [arrowOverlayEnabled, setArrowOverlayEnabled] = useState(true);
   const [awaitingStart, setAwaitingStart] = useState(true);
+  const [canvasMode, setCanvasMode] = useState(false);
   const effectiveMinColumns = minColumns ?? DEFAULT_MIN_COLUMNS;
-  const startOverlayRef = useCallback((el: HTMLDivElement | null) => {
+  const hasStoredSession = sessionStorage.getItem(SESSION_STORAGE_KEY) !== null;
+  const startOverlayRef = useCallback((el: HTMLButtonElement | null) => {
     if (el) el.focus();
   }, []);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
@@ -822,6 +824,7 @@ export function App() {
     onClipboardCopy: handleClipboardCopy,
     fontSize,
     minColumns: effectiveMinColumns,
+    canvasMode,
   });
 
   const appShellRef = useRef<HTMLDivElement>(null);
@@ -2028,35 +2031,34 @@ export function App() {
           />
 
           {awaitingStart ? (
-            <div
-              className="disconnect-overlay"
-              role="button"
-              tabIndex={0}
-              ref={startOverlayRef}
-              onClick={() => setAwaitingStart(false)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  setAwaitingStart(false);
-                }
-              }}
-            >
-              {sessionStorage.getItem(SESSION_STORAGE_KEY) !== null ? (
-                <div className="disconnect-overlay-text start-overlay-text start-overlay-resume">
-                  <span>
-                    <span className="pointer-only">Click or press Enter to</span>
-                    <span className="touch-only">Tap to</span> resume
-                  </span>
+            <div className="disconnect-overlay startup-screen">
+              <div className="startup-screen-panel">
+                {hasStoredSession ? (
+                  <p className="disconnect-overlay-text start-overlay-text startup-screen-note">
+                    Resume previous session
+                  </p>
+                ) : (
+                  <div className="disconnect-overlay-text start-overlay-text">
+                    <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
+                  </div>
+                )}
+
+                <div className="startup-screen-options" role="group" aria-label="Startup options">
+                  <label className="startup-screen-option">
+                    <input type="checkbox" checked={canvasMode} onChange={(e) => setCanvasMode(e.target.checked)} />
+                    <span>Canvas mode (WebGL renderer)</span>
+                  </label>
                 </div>
-              ) : (
-                <div className="disconnect-overlay-text start-overlay-text">
-                  <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
-                  <span>
-                    <span className="pointer-only">Click or press Enter to</span>
-                    <span className="touch-only">Tap to</span> start
-                  </span>
-                </div>
-              )}
+
+                <button
+                  type="button"
+                  ref={startOverlayRef}
+                  className="toolbar-button startup-screen-start-button"
+                  onClick={() => setAwaitingStart(false)}
+                >
+                  {hasStoredSession ? "Resume" : "Start"}
+                </button>
+              </div>
             </div>
           ) : (
             connectionStatus !== "connected" &&
