@@ -1,7 +1,7 @@
 {
   "//": "@xterm/xterm: beta chosen because stable has broken horizontal + vertical scrolling",
   "name": "mywebterm",
-  "version": "0.0.62",
+  "version": "0.0.63",
   "private": true,
   "type": "module",
   "scripts": {
