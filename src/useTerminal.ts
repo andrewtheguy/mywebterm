@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import "@xterm/xterm/css/xterm.css";
 
 import { isLikelyIOS, type Point } from "./mobileTouchSelection";
-import { extractVisibleTerminalRowsText, normalizeVisibleTerminalLines } from "./terminalCopyText";
+import { normalizeVisibleTerminalLines } from "./terminalCopyText";
 import type { ServerControlMessage } from "./ttyProtocol";
 import { decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttyProtocol";
 
@@ -1204,14 +1204,11 @@ export function useTerminal({
   }, []);
 
   const getVisibleTerminalText = useCallback((): string => {
-    const rowsElement = container?.querySelector(".xterm-rows") ?? null;
-    const domText = extractVisibleTerminalRowsText(rowsElement);
-    if (domText.length > 0) {
-      return domText;
-    }
+    // Read the visible viewport from the xterm buffer (the renderer-independent source of truth),
+    // so this works the same under the DOM and WebGL renderers.
     const terminal = terminalRef.current;
     return terminal ? collectVisibleOutput(terminal) : "";
-  }, [container]);
+  }, []);
 
   const copyTextToClipboard = useCallback(async (text: string): Promise<boolean> => {
     return writeClipboardText(text);
