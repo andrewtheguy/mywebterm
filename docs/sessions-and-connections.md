@@ -101,17 +101,28 @@ These act on different concepts — this is the key distinction.
 
 ### Logout flow (current behavior)
 
-Logout deliberately tears down everything so the next login can never resume a
-stale shell — which previously made the UI say "resume" right after a logout.
+Logout is a deliberate **whole-browser / whole-account sign-out**, not a
+per-tab action. The auth token is invalidated and the cookie is cleared
+origin-wide, so *every* tab and device immediately loses access. To match that,
+logout also destroys **all** PTY sessions — not just the current tab's. This is
+intentional for the single-user model: if the same user forgot to log out on
+another device, logging out anywhere guarantees no live shell is left behind,
+which makes logout robust and unambiguous.
 
 - **Server** (`handleLogout`, `index.ts:311`): invalidates the token, then calls
-  `destroyAllSessions()` (`sessionManager.ts:360`), killing each shell and
+  `destroyAllSessions()` (`sessionManager.ts:360`), killing every shell and
   closing its socket. Responds with a cleared cookie.
 - **Client** (`handleLogout`, `App.tsx:1616`): removes `mywebterm-session-id`
   from `sessionStorage`, then navigates to `/login`.
 
 Because the stored id is gone and the PTY is destroyed, logging back in always
 sends a **handshake** (fresh shell), never a **reconnect**.
+
+> Cross-tab effect (by design): other open tabs have their sockets closed with
+> code `4000` and will briefly try to reconnect, but the cleared cookie makes
+> those upgrades `401` — so they end up signed out too, as intended. This is
+> distinct from the per-`sessionId` eviction (4002) above: logout ends *all*
+> sessions globally; 4002 only swaps the viewer of a *single* shell.
 
 ### Restart flow
 
