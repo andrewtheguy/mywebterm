@@ -58,14 +58,25 @@ if (session.attachedWs && session.attachedWs !== ws) {
 }
 ```
 
-**Why this exists:** MyWebTerm is single-user and designed to be picked up from a
-new device without logging out the old one first. Single-viewer-per-terminal
-prevents two live connections from driving the same shell and clobbering each
-other's input/output.
+**Why this exists:** it prevents two live connections from driving the *same*
+shell at once and clobbering each other's input/output (the classic split-brain
+when a reconnect races a still-open socket).
 
-This is **per-PTY**, not per-user. Two *different* shells (two fresh starts) get
-different `sessionId`s and coexist happily — nobody is evicted. Eviction only
-happens when the same `sessionId` is attached twice.
+This is **per-`sessionId`**, not per-tab or per-user. The `sessionId` lives in
+`sessionStorage`, which is scoped to a single tab and is **not** shared across
+tabs, browsers, or devices. So opening MyWebTerm in a new tab/browser/device
+sends a fresh **handshake** and spawns its own independent shell — these coexist
+and nobody is evicted. You can run as many concurrent shells as you like.
+
+Eviction (4002) only fires when a second live connection attaches to the **same**
+`sessionId`, which requires that id to be reused — in practice:
+
+- **Reload** of a tab (it reconnects to its own session; the old socket has
+  usually already closed, so normally no overlap, but a brief race is possible).
+- **Duplicating a tab** — browsers copy `sessionStorage` into the duplicate, so
+  it reconnects to the original's shell and takes it over.
+- A **reconnect race** where a stale/zombie socket on that session is still
+  attached when the new one arrives.
 
 ## Heartbeat & stale cleanup
 

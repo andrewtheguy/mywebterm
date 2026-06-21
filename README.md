@@ -2,7 +2,7 @@
 
 > [!IMPORTANT]
 > MyWebTerm is a single-user tool: it is built for one operator (who may connect from multiple devices), and provides no multi-user isolation or security. Don't expose it to multiple distinct users.
-> Each browser tab spawns its own shell, with no limit on how many run at once. A given shell can only be open in one place at a time — reopening it from another tab or device disconnects the previous one.
+> Each browser tab spawns its own independent shell, so you can run many at once across tabs and devices. A single shell stays attached to one connection at a time, so reconnecting to that same shell (e.g. after a reload, or from a duplicated tab) takes over and drops the previous connection.
 > This project is still experimental: behavior may be unstable, features may change or be removed without notice, and updates may introduce regressions.
 
 A web-based terminal that runs your shell in the browser. Built with React, xterm.js, and Bun's built-in PTY.
