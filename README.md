@@ -94,6 +94,14 @@ curl -fsSL https://andrewtheguy.github.io/mywebterm/install.sh | bash -s v0.0.4
 
 Pre-built binaries are available for Linux (amd64, arm64) and macOS (arm64).
 
+## Documentation
+
+Internal architecture and protocol docs live in [`docs/`](docs/):
+
+- [Architecture](docs/architecture.md) — component map, routes, and data flow
+- [Sessions & Connections](docs/sessions-and-connections.md) — auth session vs. PTY session vs. WebSocket connection, start/resume, and logout vs. restart
+- [WebSocket Protocol](docs/websocket-protocol.md) — control messages and binary tty frame format
+
 ## Development
 
 ### Requirements
