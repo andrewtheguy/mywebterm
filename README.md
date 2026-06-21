@@ -1,8 +1,8 @@
 # MyWebTerm
 
 > [!IMPORTANT]
-> This program is meant for the original developer's personal use; no backward compatibility, user-friendliness, or multi-user security is required.
-> There is no limit on concurrent sessions; every browser tab spawns its own shell.
+> MyWebTerm is a single-user tool: it is built for one operator (who may connect from multiple devices), and provides no multi-user isolation or security. Don't expose it to multiple distinct users.
+> Each browser tab spawns its own independent shell, so you can run many at once across tabs and devices. A single shell stays attached to one connection at a time, so reconnecting to that same shell (e.g. after a reload, or from a duplicated tab) takes over and drops the previous connection.
 > This project is still experimental: behavior may be unstable, features may change or be removed without notice, and updates may introduce regressions.
 
 A web-based terminal that runs your shell in the browser. Built with React, xterm.js, and Bun's built-in PTY.
@@ -93,6 +93,14 @@ curl -fsSL https://andrewtheguy.github.io/mywebterm/install.sh | bash -s v0.0.4
 ```
 
 Pre-built binaries are available for Linux (amd64, arm64) and macOS (arm64).
+
+## Documentation
+
+Internal architecture and protocol docs live in [`docs/`](docs/):
+
+- [Architecture](docs/architecture.md) — component map, routes, and data flow
+- [Sessions & Connections](docs/sessions-and-connections.md) — auth session vs. PTY session vs. WebSocket connection, start/resume, and logout vs. restart
+- [WebSocket Protocol](docs/websocket-protocol.md) — control messages and binary tty frame format
 
 ## Development
 
