@@ -314,6 +314,7 @@ function handleLogout(req: Request): Response {
   }
   const token = extractSessionToken(req);
   if (token) invalidateSession(token);
+  destroyAllSessions(); // tear down PTYs so next login starts fresh
   return Response.json(
     { ok: true },
     {

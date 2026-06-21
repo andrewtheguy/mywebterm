@@ -1614,6 +1614,7 @@ export function App() {
   }, []);
 
   function handleLogout() {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
     fetch("/api/auth/logout", { method: "POST" }).finally(() => {
       window.location.href = "/login";
     });
