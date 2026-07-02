@@ -76,8 +76,9 @@ returns the rest as the payload. An empty buffer is rejected.
 
 1. Client opens WS → server starts a 30s handshake timer (`index.ts:408`).
 2. Client sends `handshake` (start) or `reconnect` (resume); the timer is cleared.
-3. Server replies `session_info`; for resume it then replays scrollback as an
-   `OUTPUT` frame.
+3. Server replies `session_info`; for resume it then sends a serialized
+   snapshot of the shadow terminal (screen, scrollback, and terminal modes) as
+   an `OUTPUT` frame.
 4. Steady state: `INPUT`/`RESIZE_TERMINAL` frames up, `OUTPUT` frames down,
    `ping`/`pong` keeping the link alive.
 5. On socket close the PTY is **detached** (kept alive), not destroyed

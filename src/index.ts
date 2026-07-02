@@ -30,6 +30,7 @@ import {
   getSessionSummaries,
   handlePong,
   registerShutdownHandlers,
+  resizeSession,
   setCwd,
   setShellCommand,
   startStaleSweep,
@@ -140,12 +141,6 @@ const port = (() => {
   return n;
 })();
 const appTitle = values.title ?? "MyWebTerm";
-const MAX_COLS = 500;
-const MAX_ROWS = 200;
-
-function clampDimension(value: number | undefined, fallback: number, max: number): number {
-  return Math.max(1, Math.min(max, Math.floor(value ?? fallback)));
-}
 
 let nextConnectionId = 0;
 function createConnectionId(): string {
@@ -236,11 +231,7 @@ function handleWsMessage(ws: ServerWebSocket<WsData>, message: string | Buffer):
         break;
       }
 
-      const newCols = clampDimension(resize.columns, 80, MAX_COLS);
-      const newRows = clampDimension(resize.rows, 24, MAX_ROWS);
-      session.cols = newCols;
-      session.rows = newRows;
-      terminal.resize(newCols, newRows);
+      resizeSession(session, resize.columns, resize.rows);
       break;
     }
 

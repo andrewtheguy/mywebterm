@@ -1,3 +1,5 @@
+import { SerializeAddon } from "@xterm/addon-serialize";
+import { Terminal as ShadowTerminal } from "@xterm/headless";
 import type { ServerWebSocket } from "bun";
 import { encodeServerControl } from "./ttyProtocol";
 
@@ -14,7 +16,11 @@ export interface PtySession {
   proc: ReturnType<typeof Bun.spawn> | null;
   cols: number;
   rows: number;
-  scrollbackBuffer: ScrollbackBuffer;
+  shadowTerm: ShadowTerminal;
+  serializeAddon: SerializeAddon;
+  // Non-null while an attach snapshot is being prepared: live PTY output is
+  // queued here so it reaches the client only after the snapshot.
+  attachPending: Uint8Array[] | null;
   attachedWs: ServerWebSocket<WsData> | null;
   createdAt: number;
   lastActivityAt: number;
@@ -26,7 +32,7 @@ export interface PtySession {
 
 // --- Constants ---
 
-const SCROLLBACK_CAPACITY = 100 * 1024; // 100KB
+const SHADOW_SCROLLBACK_LINES = 5000; // matches the client terminal's scrollback
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const HEARTBEAT_TIMEOUT_MS = 10_000;
 const STALE_SWEEP_INTERVAL_MS = 60_000;
@@ -39,65 +45,39 @@ const HEARTBEAT_CLOSE_CODE = 4001;
 
 export { RESTART_CLOSE_CODE };
 
-// --- ScrollbackBuffer ---
+// --- Shadow terminal ---
 
-export class ScrollbackBuffer {
-  private buffer: Uint8Array;
-  private head = 0;
-  private length = 0;
+// Server-side headless terminal that mirrors all PTY output. On reattach the
+// client receives a serialized snapshot of its full state (buffers, cursor,
+// and DEC private modes such as alt-screen and mouse tracking) instead of a
+// raw byte replay, so apps like zellij keep working across reconnects.
+function createShadowTerminal(cols: number, rows: number): { term: ShadowTerminal; addon: SerializeAddon } {
+  const term = new ShadowTerminal({
+    cols,
+    rows,
+    scrollback: SHADOW_SCROLLBACK_LINES,
+    allowProposedApi: true,
+  });
+  const addon = new SerializeAddon();
+  term.loadAddon(addon);
+  return { term, addon };
+}
 
-  constructor(private capacity = SCROLLBACK_CAPACITY) {
-    this.buffer = new Uint8Array(capacity);
+function buildSnapshot(session: PtySession): Uint8Array {
+  let snapshot = session.serializeAddon.serialize();
+
+  // The serialize addon restores mouse *tracking* modes but not the mouse
+  // *encoding* protocol (DECSET 1006/1016), which zellij and friends rely on.
+  // Read it off the core and append it ourselves.
+  const core = (session.shadowTerm as unknown as { _core?: { mouseStateService?: { activeEncoding?: string } } })._core;
+  const activeEncoding = core?.mouseStateService?.activeEncoding;
+  if (activeEncoding === "SGR") {
+    snapshot += "\x1b[?1006h";
+  } else if (activeEncoding === "SGR_PIXELS") {
+    snapshot += "\x1b[?1016h";
   }
 
-  write(data: Uint8Array): void {
-    if (data.length === 0) return;
-
-    if (data.length >= this.capacity) {
-      // Data larger than buffer: keep only the last `capacity` bytes
-      this.buffer.set(data.subarray(data.length - this.capacity));
-      this.head = 0;
-      this.length = this.capacity;
-      return;
-    }
-
-    const writeStart = (this.head + this.length) % this.capacity;
-    const firstChunk = Math.min(data.length, this.capacity - writeStart);
-    this.buffer.set(data.subarray(0, firstChunk), writeStart);
-    if (firstChunk < data.length) {
-      this.buffer.set(data.subarray(firstChunk), 0);
-    }
-
-    const newLength = this.length + data.length;
-    if (newLength > this.capacity) {
-      const overflow = newLength - this.capacity;
-      this.head = (this.head + overflow) % this.capacity;
-      this.length = this.capacity;
-    } else {
-      this.length = newLength;
-    }
-  }
-
-  read(): Uint8Array {
-    if (this.length === 0) return new Uint8Array(0);
-
-    const result = new Uint8Array(this.length);
-    const firstChunk = Math.min(this.length, this.capacity - this.head);
-    result.set(this.buffer.subarray(this.head, this.head + firstChunk));
-    if (firstChunk < this.length) {
-      result.set(this.buffer.subarray(0, this.length - firstChunk), firstChunk);
-    }
-    return result;
-  }
-
-  clear(): void {
-    this.head = 0;
-    this.length = 0;
-  }
-
-  get size(): number {
-    return this.length;
-  }
+  return new TextEncoder().encode(snapshot);
 }
 
 // --- Module state ---
@@ -194,12 +174,16 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
   const clampedCols = clampDimension(cols, 80, MAX_COLS);
   const clampedRows = clampDimension(rows, 24, MAX_ROWS);
 
+  const shadow = createShadowTerminal(clampedCols, clampedRows);
+
   const session: PtySession = {
     sessionId,
     proc: null,
     cols: clampedCols,
     rows: clampedRows,
-    scrollbackBuffer: new ScrollbackBuffer(),
+    shadowTerm: shadow.term,
+    serializeAddon: shadow.addon,
+    attachPending: null,
     attachedWs: ws,
     createdAt: Date.now(),
     lastActivityAt: Date.now(),
@@ -224,9 +208,13 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
           if (!current) return;
 
           current.lastActivityAt = Date.now();
-          current.scrollbackBuffer.write(data);
+          // Copy: xterm queues writes without copying, and Bun may reuse `data`'s buffer.
+          const chunk = data.slice();
+          current.shadowTerm.write(chunk);
 
-          if (current.attachedWs && current.state === "attached") {
+          if (current.attachPending) {
+            current.attachPending.push(chunk);
+          } else if (current.attachedWs && current.state === "attached") {
             sendOutputFrame(current.attachedWs, data);
           }
         },
@@ -237,6 +225,8 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
           console.log(`[session ${sessionId}] PTY exited (code=${exitCode}, signal=${signal})`);
           current.state = "dead";
           current.proc = null;
+          current.attachPending = null;
+          current.shadowTerm.dispose();
           stopHeartbeat(current);
 
           if (current.attachedWs) {
@@ -254,6 +244,7 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
     });
   } catch (error) {
     console.error(`[session ${sessionId}] Failed to spawn PTY:`, error);
+    session.shadowTerm.dispose();
     sessions.delete(sessionId);
     ws.data.sessionId = null;
     closeClientSocket(ws, 1011, "Failed to spawn shell");
@@ -280,40 +271,61 @@ export function attachSession(sessionId: string, ws: ServerWebSocket<WsData>, co
     closeClientSocket(session.attachedWs, 4002, "Replaced by new connection");
   }
 
-  const clampedCols = clampDimension(cols, 80, MAX_COLS);
-  const clampedRows = clampDimension(rows, 24, MAX_ROWS);
-
   session.attachedWs = ws;
   session.state = "attached";
   session.lastDetachedAt = null;
   session.lastActivityAt = Date.now();
   ws.data.sessionId = sessionId;
 
-  // Resize PTY if dimensions changed
-  if (session.proc?.terminal && (session.cols !== clampedCols || session.rows !== clampedRows)) {
-    session.cols = clampedCols;
-    session.rows = clampedRows;
-    try {
-      session.proc.terminal.resize(clampedCols, clampedRows);
-    } catch {
-      // Terminal may be in an odd state
-    }
-  }
+  resizeSession(session, cols, rows);
 
   // Send session info
   ws.send(encodeServerControl({ type: "session_info", sessionId }));
 
-  // Replay scrollback buffer
-  const scrollback = session.scrollbackBuffer.read();
-  if (scrollback.length > 0) {
-    sendOutputFrame(ws, scrollback);
-  }
+  // Send a full-state snapshot once the shadow terminal has parsed all PTY
+  // output received so far. Live output arriving in the meantime is queued in
+  // attachPending and flushed after the snapshot, preserving byte order.
+  const pending: Uint8Array[] = [];
+  session.attachPending = pending;
+  session.shadowTerm.write("", () => {
+    if (session.attachPending !== pending) return; // superseded by a newer attach, detach, or destroy
+    session.attachPending = null;
+    if (session.attachedWs !== ws) return;
+
+    const snapshot = buildSnapshot(session);
+    if (snapshot.length > 0) {
+      sendOutputFrame(ws, snapshot);
+    }
+    for (const chunk of pending) {
+      sendOutputFrame(ws, chunk);
+    }
+  });
 
   startHeartbeat(session);
 }
 
+export function resizeSession(session: PtySession, cols: number | undefined, rows: number | undefined): void {
+  const clampedCols = clampDimension(cols, 80, MAX_COLS);
+  const clampedRows = clampDimension(rows, 24, MAX_ROWS);
+  if (session.cols === clampedCols && session.rows === clampedRows) return;
+
+  session.cols = clampedCols;
+  session.rows = clampedRows;
+  try {
+    session.proc?.terminal?.resize(clampedCols, clampedRows);
+  } catch {
+    // Terminal may be in an odd state
+  }
+  try {
+    session.shadowTerm.resize(clampedCols, clampedRows);
+  } catch {
+    // Shadow terminal may already be disposed
+  }
+}
+
 export function detachSession(session: PtySession, closeCode?: number, closeReason?: string): void {
   stopHeartbeat(session);
+  session.attachPending = null;
 
   if (session.attachedWs) {
     closeClientSocket(session.attachedWs, closeCode, closeReason);
@@ -334,6 +346,8 @@ export function destroySession(sessionId: string): void {
   console.log(`[session ${sessionId}] destroying`);
   stopHeartbeat(session);
   session.state = "dead";
+  session.attachPending = null;
+  session.shadowTerm.dispose();
 
   if (session.proc) {
     try {
@@ -379,14 +393,12 @@ export function getSessionSummaries(): {
   state: string;
   pid: number | undefined;
   lastActivityAt: number;
-  scrollbackSize: number;
 }[] {
   return [...sessions.values()].map((s) => ({
     sessionId: s.sessionId,
     state: s.state,
     pid: s.proc?.pid,
     lastActivityAt: s.lastActivityAt,
-    scrollbackSize: s.scrollbackBuffer.size,
   }));
 }
 

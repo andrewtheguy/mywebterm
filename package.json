@@ -15,7 +15,9 @@
   },
   "dependencies": {
     "@xterm/addon-fit": "0.12.0-beta.285",
+    "@xterm/addon-serialize": "0.15.0-beta.285",
     "@xterm/addon-webgl": "0.20.0-beta.285",
+    "@xterm/headless": "6.1.0-beta.285",
     "@xterm/xterm": "6.1.0-beta.285",
     "react": "^19",
     "react-dom": "^19",

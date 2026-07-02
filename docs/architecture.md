@@ -18,7 +18,7 @@ terminal daemon (e.g. ttyd); the PTY comes from `Bun.spawn(..., { terminal })`.
                                      │  ├─ sessions: Map<sessionId, PtySession>
                                      │  ├─ createSession / attachSession     │
                                      │  ├─ heartbeat + stale sweep           │
-                                     │  └─ ScrollbackBuffer (100KB ring)     │
+                                     │  └─ shadow terminal (@xterm/headless) │
                                      │        │ Bun.spawn terminal           │
                                      │        ▼                              │
                                      │     $SHELL (PTY process)              │
@@ -33,7 +33,7 @@ Key files:
 | File | Responsibility |
 |---|---|
 | `src/index.ts` | `Bun.serve` setup, HTTP routes, auth gate, WebSocket lifecycle, message router |
-| `src/sessionManager.ts` | PTY session map, spawn/attach/detach/destroy, heartbeat, stale sweep, scrollback |
+| `src/sessionManager.ts` | PTY session map, spawn/attach/detach/destroy, heartbeat, stale sweep, shadow terminal + resume snapshot |
 | `src/auth.ts` | Cookie-based auth sessions (token map, TTL, `Set-Cookie` helpers) |
 | `src/ttyProtocol.ts` | Encode/decode of control messages and binary tty frames |
 | `src/App.tsx` | React UI shell, toolbar, logout/restart buttons |
@@ -70,19 +70,26 @@ for what the cookie represents.
 ```
 keypress ──► useTerminal encodes INPUT frame ──► WS ──► handleWsMessage
                                                           └─► proc.terminal.write()
-shell output ──► Bun terminal data() callback ──► scrollbackBuffer.write()
+shell output ──► Bun terminal data() callback ──► shadowTerm.write()
                                               └─► sendOutputFrame(attachedWs)
                                                      │
 output frame ◄────────────────────────── WS ◄───────┘
    └─► useTerminal writes bytes into xterm.js ──► rendered to canvas/DOM
 ```
 
-- Output is **always** appended to the session's 100KB `ScrollbackBuffer` ring
-  (`sessionManager.ts:44`) even while detached, then forwarded to the attached
-  WebSocket if one is present. On reconnect the buffer is replayed so the screen
-  is restored. See `attachSession` (`sessionManager.ts:270`).
+- Output is **always** parsed into the session's server-side **shadow terminal**
+  (`@xterm/headless`, see `createShadowTerminal` in `sessionManager.ts`) even
+  while detached, then forwarded to the attached WebSocket if one is present.
+- On reconnect, `attachSession` sends a **serialized snapshot** of the shadow
+  terminal (`@xterm/addon-serialize`) instead of replaying raw bytes. The
+  snapshot restores scrollback, the alternate screen, cursor state, and DEC
+  private modes (mouse tracking, bracketed paste, etc.), so full-screen apps
+  like zellij keep working across reconnects. The serialize addon does not emit
+  the mouse *encoding* mode, so `buildSnapshot` appends `?1006h`/`?1016h`
+  manually. Live output that arrives while the snapshot is being prepared is
+  queued (`attachPending`) and flushed afterwards to preserve byte order.
 - Terminal resize travels as a `RESIZE_TERMINAL` frame and calls
-  `proc.terminal.resize()` (`index.ts:231`).
+  `resizeSession`, which resizes both the PTY and the shadow terminal.
 
 For the exact frame and message formats, see
 [WebSocket Protocol](./websocket-protocol.md).
