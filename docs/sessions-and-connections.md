@@ -31,7 +31,9 @@ the server closes it with code **4003** (`index.ts:408`). That message is one of
   (`sessionManager.ts`). Re-attaches to the existing PTY, resizes it if the
   viewport changed, and sends a **serialized snapshot** of the server-side
   shadow terminal (buffers, cursor, and terminal modes — see
-  [Architecture](./architecture.md)) so the screen and app state are restored.
+  [Architecture](./architecture.md)). The snapshot restores only the terminal's
+  screen state; the shell process itself was never interrupted and continues
+  running unchanged.
 
 On page load the client tries **resume** first using the stored id. If the
 server replies `{ type: "error", message: "Session not found or already dead" }`
