@@ -6,7 +6,9 @@
       "name": "bun-react-template",
       "dependencies": {
         "@xterm/addon-fit": "0.12.0-beta.285",
+        "@xterm/addon-serialize": "0.15.0-beta.285",
         "@xterm/addon-webgl": "0.20.0-beta.285",
+        "@xterm/headless": "6.1.0-beta.285",
         "@xterm/xterm": "6.1.0-beta.285",
         "react": "^19",
         "react-dom": "^19",
@@ -49,7 +51,11 @@
 
     "@xterm/addon-fit": ["@xterm/addon-fit@0.12.0-beta.285", "", { "peerDependencies": { "@xterm/xterm": "^6.1.0-beta.285" } }, "sha512-rSVi0nMbK+9sgL1QXmJlv3nWvktj0AZeRd52yVzyNhl5mxxEkvxiwFJZlcEBRg27ipeWVAs1PeuCz0A9QnNnAQ=="],
 
+    "@xterm/addon-serialize": ["@xterm/addon-serialize@0.15.0-beta.285", "", { "peerDependencies": { "@xterm/xterm": "^6.1.0-beta.285" } }, "sha512-ae1Fi0Rceby+Ctf39aCjVlJ5+K3OJMEdeU3LIw0Su4z58k6Yz577laM4OJ7CIAUQTCp7K7WliYaTo29vNVCdBw=="],
+
     "@xterm/addon-webgl": ["@xterm/addon-webgl@0.20.0-beta.285", "", { "peerDependencies": { "@xterm/xterm": "^6.1.0-beta.286" } }, "sha512-xKvneeAgve0rHMaxWm7OecCS97fxuH7sM+vt1BmCj+jUsDBBZz2+O5cyvx/CpBXu7C2avsAUdV6NsKllmbyBKQ=="],
+
+    "@xterm/headless": ["@xterm/headless@6.1.0-beta.285", "", {}, "sha512-NJud+XEUjKMT2LwPqcIh/gazktV+R2AHjEPMQsn/l6+53rgFusuifmJjVkWLwZ228YYsUaN5+lJELeExS26q4A=="],
 
     "@xterm/xterm": ["@xterm/xterm@6.1.0-beta.285", "", {}, "sha512-S3K58tepMkbpWRBzOGKd0In6AVvt9QPAnNs8DJ8rPUPODYtsCYWAtINHKYtC2OpXcE5EBKM35dl+Dgv03OoE/w=="],
 

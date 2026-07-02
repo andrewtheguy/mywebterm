@@ -13,7 +13,7 @@ and resume each act on a different subset of them.
 | **WebSocket connection** | `src/index.ts` `websocket{}` handlers | `connectionId` (per socket) | from upgrade until the socket closes |
 
 The PTY session is **decoupled** from the WebSocket: if the socket drops, the
-shell keeps running and the client reconnects later (replaying scrollback). The
+shell keeps running and the client reconnects later (restoring a snapshot). The
 auth session is decoupled from both: it is just "are you allowed to talk to the
 server at all."
 
@@ -28,9 +28,12 @@ the server closes it with code **4003** (`index.ts:408`). That message is one of
   `sessionStorage` under `mywebterm-session-id` (`useTerminal.ts:80`).
 
 - **Resume** → `{ type: "reconnect", sessionId, columns, rows }` → `attachSession`
-  (`sessionManager.ts:270`). Re-attaches to the existing PTY, resizes it if the
-  viewport changed, and **replays the scrollback buffer** so the screen is
-  restored.
+  (`sessionManager.ts`). Re-attaches to the existing PTY, resizes it if the
+  viewport changed, and sends a **serialized snapshot** of the server-side
+  shadow terminal (buffers, cursor, and terminal modes — see
+  [Architecture](./architecture.md)). The snapshot restores only the terminal's
+  screen state; the shell process itself was never interrupted and continues
+  running unchanged.
 
 On page load the client tries **resume** first using the stored id. If the
 server replies `{ type: "error", message: "Session not found or already dead" }`
@@ -38,7 +41,7 @@ server replies `{ type: "error", message: "Session not found or already dead" }`
 fresh **start**.
 
 ```
-page load ─► stored sessionId? ─yes─► send "reconnect" ─► exists?─yes─► attach + replay
+page load ─► stored sessionId? ─yes─► send "reconnect" ─► exists?─yes─► attach + snapshot
                   │                                          │
                   no                                         no ─► error ─► clear id
                   ▼                                                          │

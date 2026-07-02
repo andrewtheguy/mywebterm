@@ -7,7 +7,7 @@
 
 A web-based terminal that runs your shell in the browser. Built with React, xterm.js, and Bun's built-in PTY.
 
-When a browser connects, the server spawns `$SHELL` (falling back to `/bin/sh`) as a pseudo-terminal and bridges it to the frontend over WebSocket. Sessions are decoupled from connections — if a WebSocket drops, the PTY stays alive and the client automatically reconnects with scrollback replay.
+When a browser connects, the server spawns `$SHELL` (falling back to `/bin/sh`) as a pseudo-terminal and bridges it to the frontend over WebSocket. Sessions are decoupled from connections — if a WebSocket drops, the PTY stays alive and the client automatically reconnects and restores the screen from a server-side snapshot.
 
 ## Screenshots
 
@@ -39,7 +39,7 @@ mywebterm --port 9090 --title Dev -- python3
 ## Features
 
 - Direct PTY via Bun — spawns shell processes but does not require external terminal daemons (e.g., ttyd)
-- Session persistence — PTY survives connection drops, auto-reconnect with scrollback replay
+- Session persistence — PTY survives connection drops, auto-reconnect restoring screen, scrollback, and terminal modes (full-screen apps like zellij survive reconnects)
 - Heartbeat — server-initiated ping/pong detects stale connections; detached sessions are cleaned up after 5 minutes
 - Graceful shutdown — SIGTERM/SIGINT kill all PTY processes for fast systemd restarts
 - Mobile support — soft keyboard, touch selection, long-press word select, paste helper for iOS
