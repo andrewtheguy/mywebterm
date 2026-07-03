@@ -632,10 +632,9 @@ export function App() {
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [arrowOverlayEnabled, setArrowOverlayEnabled] = useState(true);
   const [awaitingStart, setAwaitingStart] = useState(true);
-  const [canvasMode, setCanvasMode] = useState(true);
   const effectiveMinColumns = minColumns ?? DEFAULT_MIN_COLUMNS;
   const hasStoredSession = sessionStorage.getItem(SESSION_STORAGE_KEY) !== null;
-  const startOverlayRef = useCallback((el: HTMLButtonElement | null) => {
+  const startOverlayRef = useCallback((el: HTMLDivElement | null) => {
     if (el) el.focus();
   }, []);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
@@ -824,7 +823,6 @@ export function App() {
     onClipboardCopy: handleClipboardCopy,
     fontSize,
     minColumns: effectiveMinColumns,
-    canvasMode,
   });
 
   const appShellRef = useRef<HTMLDivElement>(null);
@@ -2032,40 +2030,35 @@ export function App() {
           />
 
           {awaitingStart ? (
-            <div className="disconnect-overlay startup-screen">
-              <div className="startup-screen-panel">
-                {hasStoredSession ? (
-                  <p className="disconnect-overlay-text start-overlay-text startup-screen-note">
-                    Resume previous session
-                  </p>
-                ) : (
-                  <div className="disconnect-overlay-text start-overlay-text">
-                    <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
-                  </div>
-                )}
-
-                <div className="startup-screen-options" role="group" aria-label="Startup options">
-                  <label className="startup-screen-option">
-                    <input type="checkbox" checked={canvasMode} onChange={(e) => setCanvasMode(e.target.checked)} />
-                    <span>Canvas mode (WebGL renderer)</span>
-                  </label>
-                  <p className="startup-screen-option-hint">
-                    Draws the terminal on a GPU canvas via WebGL instead of DOM nodes — faster, lower-CPU redraws on
-                    heavy output, with automatic fallback to the DOM renderer if WebGL is unavailable. Drag-to-select
-                    and copy still work; only the Visible Screen copy differs, reading from the scrollback buffer since
-                    the rendered text no longer lives in the DOM.
-                  </p>
+            <div
+              className="disconnect-overlay"
+              role="button"
+              tabIndex={0}
+              ref={startOverlayRef}
+              onClick={() => setAwaitingStart(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  setAwaitingStart(false);
+                }
+              }}
+            >
+              {hasStoredSession ? (
+                <div className="disconnect-overlay-text start-overlay-text start-overlay-resume">
+                  <span>
+                    <span className="pointer-only">Click or press Enter to</span>
+                    <span className="touch-only">Tap to</span> resume
+                  </span>
                 </div>
-
-                <button
-                  type="button"
-                  ref={startOverlayRef}
-                  className="toolbar-button startup-screen-start-button"
-                  onClick={() => setAwaitingStart(false)}
-                >
-                  {hasStoredSession ? "Resume" : "Start"}
-                </button>
-              </div>
+              ) : (
+                <div className="disconnect-overlay-text start-overlay-text">
+                  <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
+                  <span>
+                    <span className="pointer-only">Click or press Enter to</span>
+                    <span className="touch-only">Tap to</span> start
+                  </span>
+                </div>
+              )}
             </div>
           ) : (
             connectionStatus !== "connected" &&

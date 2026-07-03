@@ -6,6 +6,7 @@
       "name": "bun-react-template",
       "dependencies": {
         "@xterm/addon-fit": "0.12.0-beta.285",
+        "@xterm/addon-image": "0.10.0-beta.285",
         "@xterm/addon-serialize": "0.15.0-beta.285",
         "@xterm/addon-webgl": "0.20.0-beta.285",
         "@xterm/headless": "6.1.0-beta.285",
@@ -50,6 +51,8 @@
     "@types/react-dom": ["@types/react-dom@19.2.3", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ=="],
 
     "@xterm/addon-fit": ["@xterm/addon-fit@0.12.0-beta.285", "", { "peerDependencies": { "@xterm/xterm": "^6.1.0-beta.285" } }, "sha512-rSVi0nMbK+9sgL1QXmJlv3nWvktj0AZeRd52yVzyNhl5mxxEkvxiwFJZlcEBRg27ipeWVAs1PeuCz0A9QnNnAQ=="],
+
+    "@xterm/addon-image": ["@xterm/addon-image@0.10.0-beta.285", "", { "peerDependencies": { "@xterm/xterm": "^6.1.0-beta.285" } }, "sha512-ffpIrUlFj88FVBLdZCThdbwDOAeuKadHNpaJdXbDo5O0ObYyfnXYTL1JmVQxqusJToROnogTPL/MMoqP2oA49g=="],
 
     "@xterm/addon-serialize": ["@xterm/addon-serialize@0.15.0-beta.285", "", { "peerDependencies": { "@xterm/xterm": "^6.1.0-beta.285" } }, "sha512-ae1Fi0Rceby+Ctf39aCjVlJ5+K3OJMEdeU3LIw0Su4z58k6Yz577laM4OJ7CIAUQTCp7K7WliYaTo29vNVCdBw=="],
 

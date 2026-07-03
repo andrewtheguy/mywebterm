@@ -9,8 +9,8 @@ independent things with independent lifetimes.
 
 ## Contents
 
-- **[Architecture](./architecture.md)** — component map, HTTP routes, and the
-  end-to-end data flow from keystroke to screen.
+- **[Architecture](./architecture.md)** — component map, HTTP routes, the
+  end-to-end data flow from keystroke to screen, and inline image support.
 - **[Sessions & Connections](./sessions-and-connections.md)** — the core
   reference: auth session vs. PTY session vs. WebSocket connection, start vs.
   resume, the one-viewer-per-terminal rule, heartbeat, stale cleanup, and how
