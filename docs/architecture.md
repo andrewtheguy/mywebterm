@@ -97,3 +97,45 @@ output frame ◄─────────────────────�
 
 For the exact frame and message formats, see
 [WebSocket Protocol](./websocket-protocol.md).
+
+## Inline images
+
+Image sequences are handled entirely on the client by `@xterm/addon-image`,
+loaded in `useTerminal.ts` next to the fit and WebGL addons (it requires
+`allowProposedApi: true` on the xterm `Terminal`). The server plays no part in
+image handling — sixel/IIP/kitty payloads travel through the WebSocket as
+ordinary output bytes and are decoded in the browser (the addon ships an
+inlined WASM sixel decoder), so a headless server without a GPU is fully
+sufficient.
+
+Supported protocols:
+
+| Protocol | Encoding | Status |
+|---|---|---|
+| Sixel | `DCS q ... ST` | Full |
+| iTerm2 inline images (IIP) | `OSC 1337 ; File=... ST` | Full (PNG/JPEG/GIF/QOI, no animation) |
+| Kitty graphics (TGP) | `APC G ... ST` | Partial (WIP upstream) |
+
+How applications detect support:
+
+- The addon rewrites the DA1 (primary Device Attributes) response to
+  `CSI ? 62 ; 4 ; 9 ; 22 c` — the `4` advertises sixel, which is how tools like
+  `chafa`, `img2sixel`, and `yazi` auto-select a graphics protocol.
+- It also enables the `windowOptions` pixel-size reports (`CSI 14 t` window
+  size, `CSI 16 t` cell size, `CSI 18 t` size in chars) that image tools use to
+  scale output to the character grid. `TERM` stays `xterm-256color`; detection
+  works via these runtime queries, not terminfo.
+
+Constraints and lifecycle:
+
+- Image storage is a 32 MB FIFO cache (`storageLimit` in `useTerminal.ts`);
+  evicted images show a placeholder.
+- Images exist only in the attached browser tab. The server-side shadow
+  terminal (`@xterm/headless`) discards image sequences, and
+  `@xterm/addon-serialize` cannot emit them, so the resume snapshot is
+  text-only and images do not survive reconnects.
+- `Terminal.reset()` does **not** clear the addon's image storage (the API
+  reset bypasses the RIS sequence handler the addon listens to), so every
+  `terminal.reset()` call site in `useTerminal.ts` is paired with an explicit
+  `imageAddon.reset()` — otherwise stale images would composite over the
+  replayed snapshot after a reconnect.

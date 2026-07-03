@@ -47,6 +47,31 @@ mywebterm --port 9090 --title Dev -- python3
 - Copy tools — copy selection, copy recent output, selectable text panel
 - Inline images — sixel, iTerm2 inline images (IIP), and kitty graphics via `@xterm/addon-image`; decoded in the browser, so no GPU is needed on the server. Images are not restored after a reconnect (the resume snapshot is text-only)
 
+### Inline images
+
+Programs that output terminal graphics render real pixel images in the browser.
+Detection is automatic — the terminal advertises sixel in its Device Attributes
+(DA1) response and answers pixel-size reports (`CSI 14 t` / `CSI 16 t`), so
+well-behaved tools pick sixel without any flags:
+
+```bash
+chafa photo.jpg          # auto-detects sixel
+img2sixel photo.png
+yazi                     # image preview works out of the box
+```
+
+Notes:
+
+- Decoding happens client-side in `@xterm/addon-image`; the server just passes
+  bytes through, so a headless server without a GPU works fine.
+- Sixel and iTerm2 IIP are fully supported; kitty graphics support is partial
+  (still work-in-progress upstream in the addon).
+- Images live only in the browser: they are dropped on reconnect because the
+  resume snapshot is text-only (see
+  [Architecture — Inline images](docs/architecture.md#inline-images)).
+- Image storage is capped at 32 MB (FIFO); oldest images are evicted first and
+  replaced with a placeholder.
+
 ## Options
 
 | Flag | Default | Description |
