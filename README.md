@@ -45,6 +45,7 @@ mywebterm --port 9090 --title Dev -- python3
 - Mobile support — soft keyboard, touch selection, long-press word select, paste helper for iOS
 - Terminal resize — automatic reflow on browser window resize
 - Copy tools — copy selection, copy recent output, selectable text panel
+- Inline images — sixel, iTerm2 inline images (IIP), and kitty graphics via `@xterm/addon-image`; decoded in the browser, so no GPU is needed on the server. Images are not restored after a reconnect (the resume snapshot is text-only)
 
 ## Options
 

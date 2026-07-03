@@ -632,7 +632,6 @@ export function App() {
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [arrowOverlayEnabled, setArrowOverlayEnabled] = useState(true);
   const [awaitingStart, setAwaitingStart] = useState(true);
-  const [canvasMode, setCanvasMode] = useState(true);
   const effectiveMinColumns = minColumns ?? DEFAULT_MIN_COLUMNS;
   const hasStoredSession = sessionStorage.getItem(SESSION_STORAGE_KEY) !== null;
   const startOverlayRef = useCallback((el: HTMLButtonElement | null) => {
@@ -824,7 +823,6 @@ export function App() {
     onClipboardCopy: handleClipboardCopy,
     fontSize,
     minColumns: effectiveMinColumns,
-    canvasMode,
   });
 
   const appShellRef = useRef<HTMLDivElement>(null);
@@ -2043,19 +2041,6 @@ export function App() {
                     <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
                   </div>
                 )}
-
-                <div className="startup-screen-options" role="group" aria-label="Startup options">
-                  <label className="startup-screen-option">
-                    <input type="checkbox" checked={canvasMode} onChange={(e) => setCanvasMode(e.target.checked)} />
-                    <span>Canvas mode (WebGL renderer)</span>
-                  </label>
-                  <p className="startup-screen-option-hint">
-                    Draws the terminal on a GPU canvas via WebGL instead of DOM nodes — faster, lower-CPU redraws on
-                    heavy output, with automatic fallback to the DOM renderer if WebGL is unavailable. Drag-to-select
-                    and copy still work; only the Visible Screen copy differs, reading from the scrollback buffer since
-                    the rendered text no longer lives in the DOM.
-                  </p>
-                </div>
 
                 <button
                   type="button"

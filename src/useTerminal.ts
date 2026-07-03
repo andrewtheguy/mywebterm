@@ -1,4 +1,5 @@
 import { FitAddon } from "@xterm/addon-fit";
+import { ImageAddon } from "@xterm/addon-image";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { type IDisposable, type ITerminalOptions, Terminal } from "@xterm/xterm";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -21,7 +22,6 @@ interface UseTerminalOptions {
   onClipboardCopy?: (text: string) => void;
   fontSize?: number;
   minColumns?: number;
-  canvasMode?: boolean;
 }
 
 interface UseTerminalResult {
@@ -58,6 +58,8 @@ function resolveMinColumns(minColumns: number | undefined): number {
 
 function buildTerminalOptions(isMobileViewport: boolean, fontSize?: number): ITerminalOptions {
   return {
+    // Required by @xterm/addon-image (registers proposed parser/buffer APIs).
+    allowProposedApi: true,
     cursorBlink: true,
     scrollback: 5000,
     fontSize: resolveFontSize(fontSize, isMobileViewport),
@@ -189,7 +191,6 @@ export function useTerminal({
   onClipboardCopy,
   fontSize,
   minColumns,
-  canvasMode,
 }: UseTerminalOptions): UseTerminalResult {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
@@ -239,7 +240,7 @@ export function useTerminal({
   const fitSuppressedRef = useRef(false);
   const minColumnsRef = useRef(resolveMinColumns(minColumns));
   const webglAddonRef = useRef<WebglAddon | null>(null);
-  const canvasModeRef = useRef(canvasMode ?? false);
+  const imageAddonRef = useRef<ImageAddon | null>(null);
 
   const enableWebglRenderer = useCallback((terminal: Terminal) => {
     if (webglAddonRef.current) {
@@ -400,9 +401,10 @@ export function useTerminal({
     terminal.loadAddon(fitAddon);
     terminal.open(container);
 
-    if (canvasModeRef.current) {
-      enableWebglRenderer(terminal);
-    }
+    const imageAddon = new ImageAddon({ storageLimit: 32 });
+    terminal.loadAddon(imageAddon);
+    imageAddonRef.current = imageAddon;
+    enableWebglRenderer(terminal);
 
     const textarea = terminal.textarea;
     if (textarea) {
@@ -602,6 +604,8 @@ export function useTerminal({
       terminalDisposablesRef.current = [];
       webglAddonRef.current?.dispose();
       webglAddonRef.current = null;
+      imageAddonRef.current?.dispose();
+      imageAddonRef.current = null;
       fitAddon.dispose();
       terminal.dispose();
       fitAddonRef.current = null;
@@ -622,21 +626,6 @@ export function useTerminal({
       customFitRef.current?.();
     }
   }, [fontSize, isMobileViewport]);
-
-  useEffect(() => {
-    canvasModeRef.current = canvasMode ?? false;
-    const terminal = terminalRef.current;
-    if (!terminal) {
-      return;
-    }
-    if (canvasMode) {
-      enableWebglRenderer(terminal);
-    } else if (webglAddonRef.current) {
-      webglAddonRef.current.dispose();
-      webglAddonRef.current = null;
-    }
-    customFitRef.current?.();
-  }, [canvasMode, enableWebglRenderer]);
 
   useEffect(() => {
     const resolved = resolveMinColumns(minColumns);
@@ -910,6 +899,7 @@ export function useTerminal({
           sessionIdRef.current = null;
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
           terminal.reset();
+          imageAddonRef.current?.reset();
           socket.send(JSON.stringify({ type: "handshake", columns: terminal.cols, rows: terminal.rows }));
           break;
       }
@@ -923,6 +913,7 @@ export function useTerminal({
       if (sessionIdRef.current) {
         // Reconnecting to existing session — reset terminal for scrollback replay
         terminal.reset();
+        imageAddonRef.current?.reset();
         socket.send(
           JSON.stringify({
             type: "reconnect",
@@ -989,6 +980,7 @@ export function useTerminal({
           sessionIdRef.current = null;
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
           terminal.reset();
+          imageAddonRef.current?.reset();
           toast.info("Restarting...", { id: "connection-status" });
           reconnectAttemptRef.current = 0;
           setReconnectToken((prev) => prev + 1);

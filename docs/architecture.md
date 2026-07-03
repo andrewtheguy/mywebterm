@@ -88,6 +88,10 @@ output frame ◄─────────────────────�
   the mouse *encoding* mode, so `buildSnapshot` appends `?1006h`/`?1016h`
   manually. Live output that arrives while the snapshot is being prepared is
   queued (`attachPending`) and flushed afterwards to preserve byte order.
+  The snapshot is text-only: inline images rendered by the client's
+  `@xterm/addon-image` (sixel/IIP/kitty) are dropped on reconnect — the
+  headless shadow terminal discards image sequences and the serialize addon
+  cannot emit them.
 - Terminal resize travels as a `RESIZE_TERMINAL` frame and calls
   `resizeSession`, which resizes both the PTY and the shadow terminal.
 
