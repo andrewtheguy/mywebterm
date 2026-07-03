@@ -634,7 +634,7 @@ export function App() {
   const [awaitingStart, setAwaitingStart] = useState(true);
   const effectiveMinColumns = minColumns ?? DEFAULT_MIN_COLUMNS;
   const hasStoredSession = sessionStorage.getItem(SESSION_STORAGE_KEY) !== null;
-  const startOverlayRef = useCallback((el: HTMLButtonElement | null) => {
+  const startOverlayRef = useCallback((el: HTMLDivElement | null) => {
     if (el) el.focus();
   }, []);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
@@ -2030,27 +2030,35 @@ export function App() {
           />
 
           {awaitingStart ? (
-            <div className="disconnect-overlay startup-screen">
-              <div className="startup-screen-panel">
-                {hasStoredSession ? (
-                  <p className="disconnect-overlay-text start-overlay-text startup-screen-note">
-                    Resume previous session
-                  </p>
-                ) : (
-                  <div className="disconnect-overlay-text start-overlay-text">
-                    <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  ref={startOverlayRef}
-                  className="toolbar-button startup-screen-start-button"
-                  onClick={() => setAwaitingStart(false)}
-                >
-                  {hasStoredSession ? "Resume" : "Start"}
-                </button>
-              </div>
+            <div
+              className="disconnect-overlay"
+              role="button"
+              tabIndex={0}
+              ref={startOverlayRef}
+              onClick={() => setAwaitingStart(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  setAwaitingStart(false);
+                }
+              }}
+            >
+              {hasStoredSession ? (
+                <div className="disconnect-overlay-text start-overlay-text start-overlay-resume">
+                  <span>
+                    <span className="pointer-only">Click or press Enter to</span>
+                    <span className="touch-only">Tap to</span> resume
+                  </span>
+                </div>
+              ) : (
+                <div className="disconnect-overlay-text start-overlay-text">
+                  <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
+                  <span>
+                    <span className="pointer-only">Click or press Enter to</span>
+                    <span className="touch-only">Tap to</span> start
+                  </span>
+                </div>
+              )}
             </div>
           ) : (
             connectionStatus !== "connected" &&
