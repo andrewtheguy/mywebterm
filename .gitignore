@@ -40,6 +40,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # htpasswd credentials
 .htpasswd
 
+# local ssh client config for --ssh-config (private infrastructure)
+ssh_config
+
 # test basic auth proxy
 test-basic-auth/caddy
 test-basic-auth/Caddyfile.run

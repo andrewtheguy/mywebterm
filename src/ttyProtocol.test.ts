@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
-import { buildHandshake, decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttyProtocol";
+import {
+  buildHandshake,
+  decodeFrame,
+  encodeInput,
+  encodeResize,
+  parseClientControl,
+  parseSshTarget,
+  ServerCommand,
+} from "./ttyProtocol";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -68,6 +76,40 @@ describe("ttyProtocol", () => {
       columns: 100,
       rows: 33,
     });
+  });
+
+  test("parses valid ssh targets", () => {
+    expect(parseSshTarget("myhost")).toEqual({ destination: "myhost", port: undefined });
+    expect(parseSshTarget("user@myhost")).toEqual({ destination: "user@myhost", port: undefined });
+    expect(parseSshTarget("user@myhost:2222")).toEqual({ destination: "user@myhost", port: 2222 });
+    expect(parseSshTarget("10.0.0.5:22")).toEqual({ destination: "10.0.0.5", port: 22 });
+    expect(parseSshTarget("dev.example.com")).toEqual({ destination: "dev.example.com", port: undefined });
+  });
+
+  test("rejects invalid ssh targets", () => {
+    expect(parseSshTarget("")).toBeNull();
+    expect(parseSshTarget("-oProxyCommand=evil")).toBeNull(); // option injection
+    expect(parseSshTarget("user@-badhost")).toBeNull();
+    expect(parseSshTarget("host name")).toBeNull();
+    expect(parseSshTarget("host:0")).toBeNull();
+    expect(parseSshTarget("host:70000")).toBeNull();
+    expect(parseSshTarget("host;rm -rf /")).toBeNull();
+    expect(parseSshTarget(`a${"b".repeat(300)}`)).toBeNull();
+  });
+
+  test("parses handshake with and without sshTarget", () => {
+    expect(parseClientControl(JSON.stringify({ type: "handshake", columns: 80, rows: 24 }))).toEqual({
+      type: "handshake",
+      columns: 80,
+      rows: 24,
+    });
+    expect(
+      parseClientControl(JSON.stringify({ type: "handshake", columns: 80, rows: 24, sshTarget: "user@host" })),
+    ).toEqual({ type: "handshake", columns: 80, rows: 24, sshTarget: "user@host" });
+    expect(
+      parseClientControl(JSON.stringify({ type: "handshake", columns: 80, rows: 24, sshTarget: "-oBad" })),
+    ).toBeNull();
+    expect(parseClientControl(JSON.stringify({ type: "handshake", columns: 80, rows: 24, sshTarget: 5 }))).toBeNull();
   });
 
   test("throws when handshake dimensions are not finite positive numbers", () => {

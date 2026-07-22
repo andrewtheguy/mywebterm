@@ -17,6 +17,11 @@ export type PasteResult = "pasted" | "empty" | "fallback-required" | "terminal-u
 
 interface UseTerminalOptions {
   wsUrl?: string;
+  // "[user@]host[:port]" — new sessions run `ssh` to this target instead of the shell
+  sshTarget?: string;
+  // Called when the session was ended deliberately (endSession); the app
+  // should return to its start screen instead of reconnecting.
+  onSessionEnd?: () => void;
   onTitleChange?: (title: string) => void;
   onClipboardFallback?: (text: string) => void;
   onClipboardCopy?: (text: string) => void;
@@ -28,7 +33,7 @@ interface UseTerminalResult {
   containerRef: (node: HTMLDivElement | null) => void;
   connectionStatus: ConnectionStatus;
   sysKeyActive: boolean;
-  restart: () => void;
+  endSession: () => void;
   reconnect: () => void;
   focusSysKeyboard: () => void;
   focusTerminalInput: () => boolean;
@@ -86,6 +91,7 @@ const BASE_RECONNECT_DELAY_MS = 1_000;
 // Close codes from server
 const CLOSE_CODE_RESTART = 4000;
 const CLOSE_CODE_HEARTBEAT = 4001;
+const CLOSE_CODE_ENDED = 4004;
 
 type TerminalLayout = {
   containerRect: DOMRect;
@@ -186,6 +192,8 @@ function computeReconnectDelay(attempt: number): number {
 
 export function useTerminal({
   wsUrl,
+  sshTarget,
+  onSessionEnd,
   onTitleChange,
   onClipboardFallback,
   onClipboardCopy,
@@ -221,6 +229,10 @@ export function useTerminal({
   const onTitleChangeRef = useRef(onTitleChange);
   const onClipboardFallbackRef = useRef(onClipboardFallback);
   const onClipboardCopyRef = useRef(onClipboardCopy);
+  const sshTargetRef = useRef(sshTarget);
+  sshTargetRef.current = sshTarget;
+  const onSessionEndRef = useRef(onSessionEnd);
+  onSessionEndRef.current = onSessionEnd;
   const connectionEpochRef = useRef(0);
 
   const sessionIdRef = useRef<string | null>(null);
@@ -864,6 +876,14 @@ export function useTerminal({
       }
     };
 
+    const buildHandshakeMessage = () =>
+      JSON.stringify({
+        type: "handshake",
+        columns: terminal.cols,
+        rows: terminal.rows,
+        ...(sshTargetRef.current ? { sshTarget: sshTargetRef.current } : {}),
+      });
+
     const handleControlMessage = (text: string) => {
       if (!isCurrentConnection()) return;
 
@@ -900,7 +920,7 @@ export function useTerminal({
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
           terminal.reset();
           imageAddonRef.current?.reset();
-          socket.send(JSON.stringify({ type: "handshake", columns: terminal.cols, rows: terminal.rows }));
+          socket.send(buildHandshakeMessage());
           break;
       }
     };
@@ -923,7 +943,7 @@ export function useTerminal({
           }),
         );
       } else {
-        socket.send(JSON.stringify({ type: "handshake", columns: terminal.cols, rows: terminal.rows }));
+        socket.send(buildHandshakeMessage());
       }
 
       customFitRef.current?.();
@@ -986,6 +1006,16 @@ export function useTerminal({
           setReconnectToken((prev) => prev + 1);
           return;
 
+        case CLOSE_CODE_ENDED:
+          // Deliberate end: clear session, reset terminal, back to the start screen
+          sessionIdRef.current = null;
+          sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          terminal.reset();
+          imageAddonRef.current?.reset();
+          toast.dismiss("connection-status");
+          onSessionEndRef.current?.();
+          return;
+
         case CLOSE_CODE_HEARTBEAT:
           // Heartbeat timeout: keep session ID, auto-reconnect with backoff
           toast.info("Connection lost. Reconnecting...", { id: "connection-status" });
@@ -1032,27 +1062,28 @@ export function useTerminal({
     setReconnectToken((prev) => prev + 1);
   }, [clearReconnectTimer]);
 
-  const restart = useCallback(() => {
-    if (!wsUrl) return;
-
-    // Clear session ID so we get a fresh session
-    sessionIdRef.current = null;
-    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  // Kill the current PTY and return to the start screen (no auth change).
+  const endSession = useCallback(() => {
     clearReconnectTimer();
     reconnectAttemptRef.current = 0;
+    sessionIdRef.current = null;
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
 
-    fetch("/api/restart", { method: "POST" }).catch((error: unknown) => {
-      console.error("Failed to POST /api/restart:", error);
-      toast.error("Restart request failed. Reconnecting locally.", { id: "restart" });
-    });
-
-    // If already disconnected, the server can't close our socket with code 4000,
-    // so trigger the reconnect directly.
-    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
-      terminalRef.current?.reset();
-      setReconnectToken((prev) => prev + 1);
+    const socket = socketRef.current;
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      // Server destroys the session and closes with CLOSE_CODE_ENDED, which
+      // drives the start-screen transition via onSessionEnd.
+      socket.send(JSON.stringify({ type: "terminate" }));
+      return;
     }
-  }, [clearReconnectTimer, wsUrl]);
+
+    // Disconnected: the detached server session gets reaped by the stale
+    // sweep; just reset locally and go to the start screen.
+    terminalRef.current?.reset();
+    imageAddonRef.current?.reset();
+    toast.dismiss("connection-status");
+    onSessionEndRef.current?.();
+  }, [clearReconnectTimer]);
 
   const focusTerminalInput = useCallback((): boolean => {
     const terminal = terminalRef.current;
@@ -1210,7 +1241,7 @@ export function useTerminal({
     containerRef,
     connectionStatus,
     sysKeyActive,
-    restart,
+    endSession,
     reconnect,
     focusSysKeyboard,
     focusTerminalInput,

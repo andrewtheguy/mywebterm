@@ -1,4 +1,5 @@
 import { statSync } from "node:fs";
+import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { type Server, type ServerWebSocket, serve } from "bun";
 import appleTouchIconPath from "./apple-touch-icon.png" with { type: "file" };
@@ -25,7 +26,9 @@ import {
   attachSession,
   createSession,
   destroyAllSessions,
+  destroySession,
   detachSession,
+  ENDED_CLOSE_CODE,
   getSession,
   getSessionSummaries,
   handlePong,
@@ -33,9 +36,11 @@ import {
   resizeSession,
   setCwd,
   setShellCommand,
+  setSshConfigPath,
   startStaleSweep,
   type WsData,
 } from "./sessionManager";
+import { parseSshConfigHosts } from "./sshConfig";
 import { ClientCommand, decodeFrame, parseClientControl } from "./ttyProtocol";
 
 declare const BUILD_VERSION: string;
@@ -52,7 +57,9 @@ Options:
       --no-auth       Disable authentication (localhost use only)
       --dev           Enable development mode (HMR, non-secure cookies)
       --title <s>     Set the terminal title (default: "MyWebTerm")
-      --cwd <path>    Set the working directory for the shell (default: $HOME)`;
+      --cwd <path>    Set the working directory for the shell (default: $HOME)
+      --ssh-config <path>  OpenSSH client config for ssh sessions (passed to ssh -F);
+                           its Host aliases are offered on the start screen`;
 
 const parseArgsOptions = {
   options: {
@@ -65,6 +72,7 @@ const parseArgsOptions = {
     dev: { type: "boolean" },
     title: { type: "string" },
     cwd: { type: "string" },
+    "ssh-config": { type: "string" },
   },
   strict: true,
   allowPositionals: true,
@@ -162,6 +170,21 @@ if (values.cwd) {
   }
 }
 setCwd(values.cwd || process.env.HOME || undefined);
+
+let sshHosts: string[] = [];
+if (values["ssh-config"]) {
+  // Absolute path: the PTY spawns with its own cwd, so a relative -F would
+  // resolve against the wrong directory.
+  const sshConfigPath = resolve(values["ssh-config"]);
+  const sshConfigFile = Bun.file(sshConfigPath);
+  if (!(await sshConfigFile.exists())) {
+    console.error(`Invalid --ssh-config: ${values["ssh-config"]} does not exist`);
+    process.exit(1);
+  }
+  setSshConfigPath(sshConfigPath);
+  sshHosts = parseSshConfigHosts(await sshConfigFile.text());
+}
+
 registerShutdownHandlers();
 startStaleSweep();
 
@@ -181,7 +204,7 @@ function handleWsMessage(ws: ServerWebSocket<WsData>, message: string | Buffer):
 
     switch (ctrl.type) {
       case "handshake":
-        createSession(ws, ctrl.columns, ctrl.rows);
+        createSession(ws, ctrl.columns, ctrl.rows, ctrl.sshTarget);
         return;
       case "reconnect":
         attachSession(ctrl.sessionId, ws, ctrl.columns, ctrl.rows);
@@ -189,6 +212,11 @@ function handleWsMessage(ws: ServerWebSocket<WsData>, message: string | Buffer):
       case "pong":
         if (ws.data.sessionId) {
           handlePong(ws.data.sessionId);
+        }
+        return;
+      case "terminate":
+        if (ws.data.sessionId) {
+          destroySession(ws.data.sessionId, ENDED_CLOSE_CODE);
         }
         return;
     }
@@ -344,6 +372,7 @@ function handleConfig(): Response {
     appTitle,
     shellCommand: command,
     authEnabled: !noAuth,
+    sshHosts,
   });
 }
 

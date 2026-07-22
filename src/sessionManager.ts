@@ -1,7 +1,7 @@
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { Terminal as ShadowTerminal } from "@xterm/headless";
 import type { ServerWebSocket } from "bun";
-import { encodeServerControl } from "./ttyProtocol";
+import { encodeServerControl, parseSshTarget } from "./ttyProtocol";
 
 // --- Types ---
 
@@ -37,13 +37,17 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 const HEARTBEAT_TIMEOUT_MS = 10_000;
 const STALE_SWEEP_INTERVAL_MS = 60_000;
 const SESSION_IDLE_TIMEOUT_MS = 5 * 60_000; // 5 minutes
+const KILL_ESCALATION_MS = 5_000;
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
 const OUTPUT_PREFIX = 0x30; // "0" — ServerCommand.OUTPUT
 const RESTART_CLOSE_CODE = 4000;
 const HEARTBEAT_CLOSE_CODE = 4001;
+// Session ended deliberately by the user — the client returns to the start
+// screen instead of auto-reconnecting.
+const ENDED_CLOSE_CODE = 4004;
 
-export { RESTART_CLOSE_CODE };
+export { RESTART_CLOSE_CODE, ENDED_CLOSE_CODE };
 
 // --- Shadow terminal ---
 
@@ -86,6 +90,14 @@ const sessions = new Map<string, PtySession>();
 let staleSweepTimer: ReturnType<typeof setInterval> | null = null;
 let shellCommand: string[] = ["/bin/sh"];
 let spawnCwd: string | undefined;
+let sshConfigPath: string | undefined;
+
+export function setSshConfigPath(path: string | undefined): void {
+  if (path !== undefined && (typeof path !== "string" || path.length === 0)) {
+    throw new Error("ssh config path must be a non-empty string or undefined");
+  }
+  sshConfigPath = path;
+}
 
 export function setCwd(cwd: string | undefined): void {
   if (cwd !== undefined && (typeof cwd !== "string" || cwd.length === 0)) {
@@ -107,6 +119,46 @@ export function setShellCommand(cmd: string[]): void {
     }
   }
   shellCommand = cmd;
+}
+
+// Resolve the argv for a new session: ssh to a remote host when a target is
+// given, the configured shell command otherwise. The keepalive options make a
+// hung ssh (dead network, unreachable host) exit on its own instead of
+// lingering until the stale sweep kills it.
+export function buildSessionCommand(sshTarget: string | undefined): string[] {
+  if (sshTarget === undefined) return shellCommand;
+  const parsed = parseSshTarget(sshTarget);
+  if (!parsed) {
+    throw new Error(`Invalid ssh target: ${sshTarget}`);
+  }
+  return [
+    "ssh",
+    // -F replaces ~/.ssh/config entirely (native OpenSSH mechanism), so
+    // targets can be Host aliases defined in the custom config.
+    ...(sshConfigPath !== undefined ? ["-F", sshConfigPath] : []),
+    "-o",
+    "ServerAliveInterval=30",
+    "-o",
+    "ServerAliveCountMax=3",
+    ...(parsed.port !== undefined ? ["-p", String(parsed.port)] : []),
+    parsed.destination,
+  ];
+}
+
+// ssh forwards LANG/LC_* to the remote host (SendEnv in the default
+// ssh_config), and the remote side may not have this machine's locale
+// generated — producing setlocale warnings on every login. Strip them for ssh
+// sessions so the remote host falls back to its own default locale.
+export function buildSpawnEnv(isSsh: boolean): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = { ...process.env, TERM: "xterm-256color" };
+  if (isSsh) {
+    for (const key of Object.keys(env)) {
+      if (key === "LANG" || key === "LANGUAGE" || key.startsWith("LC_")) {
+        delete env[key];
+      }
+    }
+  }
+  return env;
 }
 
 // --- Helpers ---
@@ -169,7 +221,16 @@ function startHeartbeat(session: PtySession): void {
 
 // --- Session lifecycle ---
 
-export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: number): void {
+export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: number, sshTarget?: string): void {
+  let command: string[];
+  try {
+    command = buildSessionCommand(sshTarget);
+  } catch {
+    ws.send(encodeServerControl({ type: "error", message: "Invalid ssh target" }));
+    closeClientSocket(ws, 1008, "Invalid ssh target");
+    return;
+  }
+
   const sessionId = crypto.randomUUID();
   const clampedCols = clampDimension(cols, 80, MAX_COLS);
   const clampedRows = clampDimension(rows, 24, MAX_ROWS);
@@ -198,7 +259,7 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
 
   let proc: ReturnType<typeof Bun.spawn>;
   try {
-    proc = Bun.spawn(shellCommand, {
+    proc = Bun.spawn(command, {
       cwd: spawnCwd,
       terminal: {
         cols: clampedCols,
@@ -240,7 +301,7 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
           sessions.delete(sessionId);
         },
       },
-      env: { ...process.env, TERM: "xterm-256color" },
+      env: buildSpawnEnv(sshTarget !== undefined),
     });
   } catch (error) {
     console.error(`[session ${sessionId}] Failed to spawn PTY:`, error);
@@ -253,6 +314,7 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
 
   session.proc = proc;
   session.state = "attached";
+  console.log(`[session ${sessionId}] spawned pid=${proc.pid} (${JSON.stringify(command)})`);
 
   ws.send(encodeServerControl({ type: "session_info", sessionId }));
   startHeartbeat(session);
@@ -339,36 +401,50 @@ export function detachSession(session: PtySession, closeCode?: number, closeReas
   }
 }
 
-export function destroySession(sessionId: string): void {
+export function destroySession(sessionId: string, closeCode: number = RESTART_CLOSE_CODE): void {
   const session = sessions.get(sessionId);
   if (!session) return;
 
   console.log(`[session ${sessionId}] destroying`);
+  // Deregister and close the client socket before touching the process:
+  // terminal.close() invokes the PTY exit callback synchronously, which would
+  // otherwise find the session still registered and close the socket itself
+  // with code 1000, clobbering `closeCode`.
+  sessions.delete(sessionId);
   stopHeartbeat(session);
   session.state = "dead";
   session.attachPending = null;
   session.shadowTerm.dispose();
 
+  if (session.attachedWs) {
+    closeClientSocket(session.attachedWs, closeCode, closeCode === ENDED_CLOSE_CODE ? "Session ended" : "Restart");
+    session.attachedWs = null;
+  }
+
   if (session.proc) {
+    const proc = session.proc;
     try {
-      session.proc.terminal?.close();
+      proc.terminal?.close();
     } catch {
       // Terminal may already be closed
     }
     try {
-      session.proc.kill();
+      proc.kill();
     } catch {
       // Process may already be dead
     }
+    // Escalate if SIGHUP/SIGTERM is ignored (e.g. an ssh wedged on a dead
+    // network) so no process outlives its session.
+    const killTimer = setTimeout(() => {
+      try {
+        proc.kill("SIGKILL");
+      } catch {
+        // Process may already be dead
+      }
+    }, KILL_ESCALATION_MS);
+    void proc.exited.finally(() => clearTimeout(killTimer));
     session.proc = null;
   }
-
-  if (session.attachedWs) {
-    closeClientSocket(session.attachedWs, RESTART_CLOSE_CODE, "Restart");
-    session.attachedWs = null;
-  }
-
-  sessions.delete(sessionId);
 }
 
 export function destroyAllSessions(): void {
