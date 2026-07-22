@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { parseSshConfigHosts } from "./sshConfig";
 
 describe("parseSshConfigHosts", () => {
-  test("lists concrete host aliases, skipping patterns and comments", () => {
+  test("lists one alias per Host entry, skipping patterns and comments", () => {
     const config = `
 # comment
 Host nas nas.local.priv.example.com
@@ -18,12 +18,15 @@ Host *
 
 Host !bastion web-*
   User nobody
+
+Host web-* fallbackname
+  User www
 `;
-    expect(parseSshConfigHosts(config)).toEqual(["nas", "nas.local.priv.example.com", "pbs"]);
+    expect(parseSshConfigHosts(config)).toEqual(["nas", "pbs", "fallbackname"]);
   });
 
   test("deduplicates and handles empty content", () => {
     expect(parseSshConfigHosts("")).toEqual([]);
-    expect(parseSshConfigHosts("Host a\nHost a b\n")).toEqual(["a", "b"]);
+    expect(parseSshConfigHosts("Host a\nHost a b\n")).toEqual(["a"]);
   });
 });
