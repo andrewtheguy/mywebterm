@@ -19,7 +19,7 @@ message type: `string` → control message, otherwise → binary tty frame.
 
 | `type` | Fields | Meaning |
 |---|---|---|
-| `handshake` | `columns`, `rows` | Start a new session (spawn a shell) |
+| `handshake` | `columns`, `rows`, `sshTarget?` | Start a new session (spawn a shell, or `ssh` when `sshTarget` — `[user@]host[:port]` — is given) |
 | `reconnect` | `sessionId`, `columns`, `rows` | Resume an existing session |
 | `pong` | `timestamp` | Reply to a server `ping` |
 

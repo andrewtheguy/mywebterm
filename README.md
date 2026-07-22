@@ -36,6 +36,16 @@ mywebterm -- bash --norc
 mywebterm --port 9090 --title Dev -- python3
 ```
 
+### SSH sessions
+
+Instead of starting the local shell, the start screen accepts an ssh
+destination (`user@host[:port]`); that session runs `ssh` to the target
+(spawned with `ServerAliveInterval=30` keepalives so a dead network can't
+leave it hanging). Lifecycle is identical to shell sessions: the ssh process
+survives reconnects, and is killed — with SIGKILL escalation if it ignores
+SIGTERM — when the session is destroyed or has been detached for 5 minutes,
+so disconnected pages never leave dangling ssh processes behind.
+
 ## Features
 
 - Direct PTY via Bun — spawns shell processes but does not require external terminal daemons (e.g., ttyd)

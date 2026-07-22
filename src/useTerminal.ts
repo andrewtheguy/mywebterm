@@ -17,6 +17,8 @@ export type PasteResult = "pasted" | "empty" | "fallback-required" | "terminal-u
 
 interface UseTerminalOptions {
   wsUrl?: string;
+  // "[user@]host[:port]" — new sessions run `ssh` to this target instead of the shell
+  sshTarget?: string;
   onTitleChange?: (title: string) => void;
   onClipboardFallback?: (text: string) => void;
   onClipboardCopy?: (text: string) => void;
@@ -186,6 +188,7 @@ function computeReconnectDelay(attempt: number): number {
 
 export function useTerminal({
   wsUrl,
+  sshTarget,
   onTitleChange,
   onClipboardFallback,
   onClipboardCopy,
@@ -221,6 +224,8 @@ export function useTerminal({
   const onTitleChangeRef = useRef(onTitleChange);
   const onClipboardFallbackRef = useRef(onClipboardFallback);
   const onClipboardCopyRef = useRef(onClipboardCopy);
+  const sshTargetRef = useRef(sshTarget);
+  sshTargetRef.current = sshTarget;
   const connectionEpochRef = useRef(0);
 
   const sessionIdRef = useRef<string | null>(null);
@@ -864,6 +869,14 @@ export function useTerminal({
       }
     };
 
+    const buildHandshakeMessage = () =>
+      JSON.stringify({
+        type: "handshake",
+        columns: terminal.cols,
+        rows: terminal.rows,
+        ...(sshTargetRef.current ? { sshTarget: sshTargetRef.current } : {}),
+      });
+
     const handleControlMessage = (text: string) => {
       if (!isCurrentConnection()) return;
 
@@ -900,7 +913,7 @@ export function useTerminal({
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
           terminal.reset();
           imageAddonRef.current?.reset();
-          socket.send(JSON.stringify({ type: "handshake", columns: terminal.cols, rows: terminal.rows }));
+          socket.send(buildHandshakeMessage());
           break;
       }
     };
@@ -923,7 +936,7 @@ export function useTerminal({
           }),
         );
       } else {
-        socket.send(JSON.stringify({ type: "handshake", columns: terminal.cols, rows: terminal.rows }));
+        socket.send(buildHandshakeMessage());
       }
 
       customFitRef.current?.();

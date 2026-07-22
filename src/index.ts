@@ -181,7 +181,7 @@ function handleWsMessage(ws: ServerWebSocket<WsData>, message: string | Buffer):
 
     switch (ctrl.type) {
       case "handshake":
-        createSession(ws, ctrl.columns, ctrl.rows);
+        createSession(ws, ctrl.columns, ctrl.rows, ctrl.sshTarget);
         return;
       case "reconnect":
         attachSession(ctrl.sessionId, ws, ctrl.columns, ctrl.rows);

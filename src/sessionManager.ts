@@ -1,7 +1,7 @@
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { Terminal as ShadowTerminal } from "@xterm/headless";
 import type { ServerWebSocket } from "bun";
-import { encodeServerControl } from "./ttyProtocol";
+import { encodeServerControl, parseSshTarget } from "./ttyProtocol";
 
 // --- Types ---
 
@@ -37,6 +37,7 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 const HEARTBEAT_TIMEOUT_MS = 10_000;
 const STALE_SWEEP_INTERVAL_MS = 60_000;
 const SESSION_IDLE_TIMEOUT_MS = 5 * 60_000; // 5 minutes
+const KILL_ESCALATION_MS = 5_000;
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
 const OUTPUT_PREFIX = 0x30; // "0" — ServerCommand.OUTPUT
@@ -109,6 +110,27 @@ export function setShellCommand(cmd: string[]): void {
   shellCommand = cmd;
 }
 
+// Resolve the argv for a new session: ssh to a remote host when a target is
+// given, the configured shell command otherwise. The keepalive options make a
+// hung ssh (dead network, unreachable host) exit on its own instead of
+// lingering until the stale sweep kills it.
+export function buildSessionCommand(sshTarget: string | undefined): string[] {
+  if (sshTarget === undefined) return shellCommand;
+  const parsed = parseSshTarget(sshTarget);
+  if (!parsed) {
+    throw new Error(`Invalid ssh target: ${sshTarget}`);
+  }
+  return [
+    "ssh",
+    "-o",
+    "ServerAliveInterval=30",
+    "-o",
+    "ServerAliveCountMax=3",
+    ...(parsed.port !== undefined ? ["-p", String(parsed.port)] : []),
+    parsed.destination,
+  ];
+}
+
 // --- Helpers ---
 
 function clampDimension(value: number | undefined, fallback: number, max: number): number {
@@ -169,7 +191,16 @@ function startHeartbeat(session: PtySession): void {
 
 // --- Session lifecycle ---
 
-export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: number): void {
+export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: number, sshTarget?: string): void {
+  let command: string[];
+  try {
+    command = buildSessionCommand(sshTarget);
+  } catch {
+    ws.send(encodeServerControl({ type: "error", message: "Invalid ssh target" }));
+    closeClientSocket(ws, 1008, "Invalid ssh target");
+    return;
+  }
+
   const sessionId = crypto.randomUUID();
   const clampedCols = clampDimension(cols, 80, MAX_COLS);
   const clampedRows = clampDimension(rows, 24, MAX_ROWS);
@@ -198,7 +229,7 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
 
   let proc: ReturnType<typeof Bun.spawn>;
   try {
-    proc = Bun.spawn(shellCommand, {
+    proc = Bun.spawn(command, {
       cwd: spawnCwd,
       terminal: {
         cols: clampedCols,
@@ -253,6 +284,7 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
 
   session.proc = proc;
   session.state = "attached";
+  console.log(`[session ${sessionId}] spawned pid=${proc.pid} (${JSON.stringify(command)})`);
 
   ws.send(encodeServerControl({ type: "session_info", sessionId }));
   startHeartbeat(session);
@@ -350,16 +382,27 @@ export function destroySession(sessionId: string): void {
   session.shadowTerm.dispose();
 
   if (session.proc) {
+    const proc = session.proc;
     try {
-      session.proc.terminal?.close();
+      proc.terminal?.close();
     } catch {
       // Terminal may already be closed
     }
     try {
-      session.proc.kill();
+      proc.kill();
     } catch {
       // Process may already be dead
     }
+    // Escalate if SIGHUP/SIGTERM is ignored (e.g. an ssh wedged on a dead
+    // network) so no process outlives its session.
+    const killTimer = setTimeout(() => {
+      try {
+        proc.kill("SIGKILL");
+      } catch {
+        // Process may already be dead
+      }
+    }, KILL_ESCALATION_MS);
+    void proc.exited.finally(() => clearTimeout(killTimer));
     session.proc = null;
   }
 

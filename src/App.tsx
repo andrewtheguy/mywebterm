@@ -18,7 +18,10 @@ import {
   type SoftKeyDefinition,
   type SoftModifierName,
 } from "./softKeyboard";
+import { parseSshTarget } from "./ttyProtocol";
 import { SESSION_STORAGE_KEY, useTerminal } from "./useTerminal";
+
+const SSH_TARGET_STORAGE_KEY = "mywebterm-ssh-target";
 
 function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
   if (key.kind === "printable") {
@@ -632,6 +635,12 @@ export function App() {
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [arrowOverlayEnabled, setArrowOverlayEnabled] = useState(true);
   const [awaitingStart, setAwaitingStart] = useState(true);
+  // Survives reloads (per tab) so a resume that falls back to a fresh
+  // handshake restarts ssh instead of silently opening a local shell.
+  const [sshTarget, setSshTarget] = useState<string | undefined>(
+    () => sessionStorage.getItem(SSH_TARGET_STORAGE_KEY) ?? undefined,
+  );
+  const [sshInput, setSshInput] = useState("");
   const effectiveMinColumns = minColumns ?? DEFAULT_MIN_COLUMNS;
   const hasStoredSession = sessionStorage.getItem(SESSION_STORAGE_KEY) !== null;
   const startOverlayRef = useCallback((el: HTMLDivElement | null) => {
@@ -818,6 +827,7 @@ export function App() {
     containerElement,
   } = useTerminal({
     wsUrl: awaitingStart ? undefined : config?.wsUrl,
+    sshTarget,
     onTitleChange: handleTitleChange,
     onClipboardFallback: handleClipboardFallback,
     onClipboardCopy: handleClipboardCopy,
@@ -997,6 +1007,28 @@ export function App() {
     setDockedPressedOverlay(null);
     activeSoftKeyPointerIdRef.current = null;
   }, [softKeysOpen, isDesktopWide]);
+
+  const startDefault = useCallback(() => {
+    // Resuming keeps the stored target (the session may be an ssh one and its
+    // fallback fresh-handshake should stay ssh); a brand-new default start is
+    // always the local shell.
+    if (sessionStorage.getItem(SESSION_STORAGE_KEY) === null) {
+      sessionStorage.removeItem(SSH_TARGET_STORAGE_KEY);
+      setSshTarget(undefined);
+    }
+    setAwaitingStart(false);
+  }, []);
+
+  const startSsh = useCallback(() => {
+    const target = sshInput.trim();
+    if (parseSshTarget(target) === null) {
+      toast.error("Invalid ssh target — expected [user@]host[:port].", { id: "ssh-target" });
+      return;
+    }
+    sessionStorage.setItem(SSH_TARGET_STORAGE_KEY, target);
+    setSshTarget(target);
+    setAwaitingStart(false);
+  }, [sshInput]);
 
   const openCopyModePicker = useCallback(() => {
     setPasteHelperText(null);
@@ -2035,11 +2067,11 @@ export function App() {
               role="button"
               tabIndex={0}
               ref={startOverlayRef}
-              onClick={() => setAwaitingStart(false)}
+              onClick={startDefault}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  setAwaitingStart(false);
+                  startDefault();
                 }
               }}
             >
@@ -2057,6 +2089,35 @@ export function App() {
                     <span className="pointer-only">Click or press Enter to</span>
                     <span className="touch-only">Tap to</span> start
                   </span>
+                  <form
+                    className="start-overlay-ssh"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      startSsh();
+                    }}
+                  >
+                    <span className="start-overlay-ssh-label">or ssh to</span>
+                    <input
+                      type="text"
+                      className="start-overlay-ssh-input"
+                      placeholder="user@host[:port]"
+                      aria-label="SSH destination"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      value={sshInput}
+                      onChange={(e) => setSshInput(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className="toolbar-button start-overlay-ssh-button"
+                      disabled={sshInput.trim().length === 0}
+                    >
+                      SSH
+                    </button>
+                  </form>
                 </div>
               )}
             </div>

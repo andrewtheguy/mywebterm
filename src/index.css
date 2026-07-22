@@ -918,6 +918,42 @@ body {
   font-size: 1.1rem;
 }
 
+.start-overlay-ssh {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  cursor: default;
+}
+
+.start-overlay-ssh-label {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: color-mix(in srgb, var(--status-connected) 70%, white);
+}
+
+.start-overlay-ssh-input {
+  font-family: var(--mono-font);
+  font-size: 0.9rem;
+  width: 14rem;
+  max-width: 45vw;
+  padding: 0.35rem 0.5rem;
+  color: inherit;
+  background: rgba(4, 20, 37, 0.85);
+  border: 1px solid color-mix(in srgb, var(--status-connected) 40%, transparent);
+  border-radius: 8px;
+}
+
+.start-overlay-ssh-input:focus-visible {
+  outline: 2px solid #8fffcb;
+  outline-offset: -1px;
+}
+
+.start-overlay-ssh-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .mobile-selection-overlay {
   position: absolute;
   inset: 0;

@@ -22,7 +22,7 @@ server at all."
 When a WebSocket opens, the client must send one control message within 30s or
 the server closes it with code **4003** (`index.ts:408`). That message is one of:
 
-- **Start** → `{ type: "handshake", columns, rows }` → `createSession`
+- **Start** → `{ type: "handshake", columns, rows, sshTarget? }` → `createSession`
   (`sessionManager.ts:192`). Mints a new `sessionId`, spawns a fresh shell,
   replies `{ type: "session_info", sessionId }`. The client saves the id in
   `sessionStorage` under `mywebterm-session-id` (`useTerminal.ts:80`).
