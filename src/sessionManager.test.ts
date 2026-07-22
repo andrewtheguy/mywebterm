@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { buildSessionCommand, buildSpawnEnv, setShellCommand } from "./sessionManager";
+import { buildSessionCommand, buildSpawnEnv, setShellCommand, setSshConfigPath } from "./sessionManager";
 
 describe("buildSessionCommand", () => {
   test("returns the configured shell command when no ssh target is given", () => {
@@ -30,6 +30,24 @@ describe("buildSessionCommand", () => {
       "2222",
       "user@host",
     ]);
+  });
+
+  test("inserts -F when a custom ssh config is set", () => {
+    setSshConfigPath("/etc/mywebterm/ssh_config");
+    try {
+      expect(buildSessionCommand("nas")).toEqual([
+        "ssh",
+        "-F",
+        "/etc/mywebterm/ssh_config",
+        "-o",
+        "ServerAliveInterval=30",
+        "-o",
+        "ServerAliveCountMax=3",
+        "nas",
+      ]);
+    } finally {
+      setSshConfigPath(undefined);
+    }
   });
 
   test("throws on invalid targets", () => {

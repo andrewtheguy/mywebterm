@@ -641,9 +641,10 @@ export function App() {
     () => sessionStorage.getItem(SSH_TARGET_STORAGE_KEY) ?? undefined,
   );
   const [sshInput, setSshInput] = useState("");
+  const [startStep, setStartStep] = useState<"choice" | "ssh">("choice");
   const effectiveMinColumns = minColumns ?? DEFAULT_MIN_COLUMNS;
   const hasStoredSession = sessionStorage.getItem(SESSION_STORAGE_KEY) !== null;
-  const startOverlayRef = useCallback((el: HTMLDivElement | null) => {
+  const startOverlayRef = useCallback((el: HTMLElement | null) => {
     if (el) el.focus();
   }, []);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
@@ -1008,19 +1009,33 @@ export function App() {
     activeSoftKeyPointerIdRef.current = null;
   }, [softKeysOpen, isDesktopWide]);
 
-  const startDefault = useCallback(() => {
-    // Resuming keeps the stored target (the session may be an ssh one and its
-    // fallback fresh-handshake should stay ssh); a brand-new default start is
-    // always the local shell.
-    if (sessionStorage.getItem(SESSION_STORAGE_KEY) === null) {
-      sessionStorage.removeItem(SSH_TARGET_STORAGE_KEY);
-      setSshTarget(undefined);
-    }
+  // Escape backs out of the ssh host picker to the session-type choice.
+  useEffect(() => {
+    if (!awaitingStart || startStep !== "ssh") return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setStartStep("choice");
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [awaitingStart, startStep]);
+
+  // Resuming keeps the stored target: the session may be an ssh one, and its
+  // fallback fresh-handshake should stay ssh.
+  const resumeSession = useCallback(() => {
     setAwaitingStart(false);
   }, []);
 
-  const startSsh = useCallback(() => {
-    const target = sshInput.trim();
+  const startLocalShell = useCallback(() => {
+    sessionStorage.removeItem(SSH_TARGET_STORAGE_KEY);
+    setSshTarget(undefined);
+    setAwaitingStart(false);
+  }, []);
+
+  const startSshTo = useCallback((rawTarget: string) => {
+    const target = rawTarget.trim();
     if (parseSshTarget(target) === null) {
       toast.error("Invalid ssh target — expected [user@]host[:port].", { id: "ssh-target" });
       return;
@@ -1028,7 +1043,7 @@ export function App() {
     sessionStorage.setItem(SSH_TARGET_STORAGE_KEY, target);
     setSshTarget(target);
     setAwaitingStart(false);
-  }, [sshInput]);
+  }, []);
 
   const openCopyModePicker = useCallback(() => {
     setPasteHelperText(null);
@@ -2062,65 +2077,101 @@ export function App() {
           />
 
           {awaitingStart ? (
-            <div
-              className="disconnect-overlay"
-              role="button"
-              tabIndex={0}
-              ref={startOverlayRef}
-              onClick={startDefault}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  startDefault();
-                }
-              }}
-            >
-              {hasStoredSession ? (
+            hasStoredSession ? (
+              <div
+                className="disconnect-overlay"
+                role="button"
+                tabIndex={0}
+                ref={startOverlayRef}
+                onClick={resumeSession}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    resumeSession();
+                  }
+                }}
+              >
                 <div className="disconnect-overlay-text start-overlay-text start-overlay-resume">
                   <span>
                     <span className="pointer-only">Click or press Enter to</span>
                     <span className="touch-only">Tap to</span> resume
                   </span>
                 </div>
-              ) : (
-                <div className="disconnect-overlay-text start-overlay-text">
-                  <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
-                  <span>
-                    <span className="pointer-only">Click or press Enter to</span>
-                    <span className="touch-only">Tap to</span> start
-                  </span>
-                  <form
-                    className="start-overlay-ssh"
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      startSsh();
-                    }}
-                  >
-                    <span className="start-overlay-ssh-label">or ssh to</span>
-                    <input
-                      type="text"
-                      className="start-overlay-ssh-input"
-                      placeholder="user@host[:port]"
-                      aria-label="SSH destination"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      value={sshInput}
-                      onChange={(e) => setSshInput(e.target.value)}
-                    />
-                    <button
-                      type="submit"
-                      className="toolbar-button start-overlay-ssh-button"
-                      disabled={sshInput.trim().length === 0}
-                    >
-                      SSH
-                    </button>
-                  </form>
+              </div>
+            ) : (
+              <div className="disconnect-overlay start-overlay-static">
+                <div className="disconnect-overlay-text start-overlay-text start-overlay-menu">
+                  {startStep === "choice" ? (
+                    <>
+                      <span className="start-overlay-heading">Start a session</span>
+                      <button
+                        type="button"
+                        className="toolbar-button start-overlay-choice"
+                        ref={startOverlayRef}
+                        onClick={startLocalShell}
+                      >
+                        Local shell
+                        <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
+                      </button>
+                      <button
+                        type="button"
+                        className="toolbar-button start-overlay-choice"
+                        onClick={() => setStartStep("ssh")}
+                      >
+                        SSH to another host…
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="start-overlay-heading">SSH to</span>
+                      {(config?.sshHosts ?? []).map((host) => (
+                        <button
+                          key={host}
+                          type="button"
+                          className="toolbar-button start-overlay-choice start-overlay-host"
+                          onClick={() => startSshTo(host)}
+                        >
+                          {host}
+                        </button>
+                      ))}
+                      <form
+                        className="start-overlay-ssh"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          startSshTo(sshInput);
+                        }}
+                      >
+                        <input
+                          type="text"
+                          className="start-overlay-ssh-input"
+                          placeholder="user@host[:port]"
+                          aria-label="SSH destination"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          value={sshInput}
+                          onChange={(e) => setSshInput(e.target.value)}
+                        />
+                        <button
+                          type="submit"
+                          className="toolbar-button start-overlay-ssh-button"
+                          disabled={sshInput.trim().length === 0}
+                        >
+                          Connect
+                        </button>
+                      </form>
+                      <button
+                        type="button"
+                        className="toolbar-button start-overlay-back"
+                        onClick={() => setStartStep("choice")}
+                      >
+                        ← Back
+                      </button>
+                    </>
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            )
           ) : (
             connectionStatus !== "connected" &&
             (connectionStatus === "connecting" ? (

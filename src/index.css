@@ -918,25 +918,67 @@ body {
   font-size: 1.1rem;
 }
 
+.start-overlay-static {
+  cursor: default;
+}
+
+.start-overlay-menu {
+  min-width: min(22rem, 80vw);
+  max-height: 80%;
+  overflow-y: auto;
+}
+
+.start-overlay-heading {
+  font-size: 0.85rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--status-connected) 70%, white);
+}
+
+.start-overlay-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  font-size: 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--status-connected) 40%, transparent);
+  border-radius: 10px;
+}
+
+.start-overlay-choice .start-overlay-command {
+  font-size: 0.85rem;
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+.start-overlay-host {
+  font-family: var(--mono-font);
+  font-size: 0.9rem;
+  padding: 0.45rem 1rem;
+}
+
+.start-overlay-back {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.9rem;
+}
+
 .start-overlay-ssh {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
   margin-top: 0.4rem;
   cursor: default;
-}
-
-.start-overlay-ssh-label {
-  font-size: 0.85rem;
-  font-weight: 400;
-  color: color-mix(in srgb, var(--status-connected) 70%, white);
 }
 
 .start-overlay-ssh-input {
   font-family: var(--mono-font);
   font-size: 0.9rem;
-  width: 14rem;
-  max-width: 45vw;
+  flex: 1;
+  min-width: 0;
   padding: 0.35rem 0.5rem;
   color: inherit;
   background: rgba(4, 20, 37, 0.85);

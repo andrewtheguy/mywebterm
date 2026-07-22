@@ -87,6 +87,14 @@ const sessions = new Map<string, PtySession>();
 let staleSweepTimer: ReturnType<typeof setInterval> | null = null;
 let shellCommand: string[] = ["/bin/sh"];
 let spawnCwd: string | undefined;
+let sshConfigPath: string | undefined;
+
+export function setSshConfigPath(path: string | undefined): void {
+  if (path !== undefined && (typeof path !== "string" || path.length === 0)) {
+    throw new Error("ssh config path must be a non-empty string or undefined");
+  }
+  sshConfigPath = path;
+}
 
 export function setCwd(cwd: string | undefined): void {
   if (cwd !== undefined && (typeof cwd !== "string" || cwd.length === 0)) {
@@ -122,6 +130,9 @@ export function buildSessionCommand(sshTarget: string | undefined): string[] {
   }
   return [
     "ssh",
+    // -F replaces ~/.ssh/config entirely (native OpenSSH mechanism), so
+    // targets can be Host aliases defined in the custom config.
+    ...(sshConfigPath !== undefined ? ["-F", sshConfigPath] : []),
     "-o",
     "ServerAliveInterval=30",
     "-o",
