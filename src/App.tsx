@@ -809,11 +809,21 @@ export function App() {
     return () => clearTimeout(timer);
   }, [pendingClipboardPayload, clipboardSeq]);
 
+  // After a deliberate session end: back to the start screen with a clean slate.
+  const returnToStartScreen = useCallback(() => {
+    sessionStorage.removeItem(SSH_TARGET_STORAGE_KEY);
+    setSshTarget(undefined);
+    setSshInput("");
+    setStartStep("choice");
+    setRemoteTitle(null);
+    setAwaitingStart(true);
+  }, []);
+
   const {
     containerRef,
     connectionStatus,
     sysKeyActive,
-    restart,
+    endSession,
     reconnect,
     focusSysKeyboard,
     focusTerminalInput,
@@ -829,6 +839,7 @@ export function App() {
   } = useTerminal({
     wsUrl: awaitingStart ? undefined : config?.wsUrl,
     sshTarget,
+    onSessionEnd: returnToStartScreen,
     onTitleChange: handleTitleChange,
     onClipboardFallback: handleClipboardFallback,
     onClipboardCopy: handleClipboardCopy,
@@ -1989,14 +2000,14 @@ export function App() {
                       className="toolbar-button overflow-menu-item touch-only"
                       onClick={() =>
                         overflowAction(() => {
-                          if (window.confirm("Restart terminal session?")) {
+                          if (window.confirm("End this session and return to the start screen?")) {
                             setProcessesText(null);
-                            restart();
+                            endSession();
                           }
                         })
                       }
                     >
-                      Restart
+                      End Session
                     </button>
                   ) : (
                     <button
@@ -2042,13 +2053,13 @@ export function App() {
                 type="button"
                 className="toolbar-button pointer-only"
                 onClick={() => {
-                  if (window.confirm("Restart terminal session?")) {
+                  if (window.confirm("End this session and return to the start screen?")) {
                     setProcessesText(null);
-                    restart();
+                    endSession();
                   }
                 }}
               >
-                Restart
+                End Session
               </button>
             ) : (
               <button

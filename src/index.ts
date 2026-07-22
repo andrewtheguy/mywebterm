@@ -26,7 +26,9 @@ import {
   attachSession,
   createSession,
   destroyAllSessions,
+  destroySession,
   detachSession,
+  ENDED_CLOSE_CODE,
   getSession,
   getSessionSummaries,
   handlePong,
@@ -210,6 +212,11 @@ function handleWsMessage(ws: ServerWebSocket<WsData>, message: string | Buffer):
       case "pong":
         if (ws.data.sessionId) {
           handlePong(ws.data.sessionId);
+        }
+        return;
+      case "terminate":
+        if (ws.data.sessionId) {
+          destroySession(ws.data.sessionId, ENDED_CLOSE_CODE);
         }
         return;
     }

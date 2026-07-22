@@ -43,8 +43,11 @@ const MAX_ROWS = 200;
 const OUTPUT_PREFIX = 0x30; // "0" — ServerCommand.OUTPUT
 const RESTART_CLOSE_CODE = 4000;
 const HEARTBEAT_CLOSE_CODE = 4001;
+// Session ended deliberately by the user — the client returns to the start
+// screen instead of auto-reconnecting.
+const ENDED_CLOSE_CODE = 4004;
 
-export { RESTART_CLOSE_CODE };
+export { RESTART_CLOSE_CODE, ENDED_CLOSE_CODE };
 
 // --- Shadow terminal ---
 
@@ -398,15 +401,25 @@ export function detachSession(session: PtySession, closeCode?: number, closeReas
   }
 }
 
-export function destroySession(sessionId: string): void {
+export function destroySession(sessionId: string, closeCode: number = RESTART_CLOSE_CODE): void {
   const session = sessions.get(sessionId);
   if (!session) return;
 
   console.log(`[session ${sessionId}] destroying`);
+  // Deregister and close the client socket before touching the process:
+  // terminal.close() invokes the PTY exit callback synchronously, which would
+  // otherwise find the session still registered and close the socket itself
+  // with code 1000, clobbering `closeCode`.
+  sessions.delete(sessionId);
   stopHeartbeat(session);
   session.state = "dead";
   session.attachPending = null;
   session.shadowTerm.dispose();
+
+  if (session.attachedWs) {
+    closeClientSocket(session.attachedWs, closeCode, closeCode === ENDED_CLOSE_CODE ? "Session ended" : "Restart");
+    session.attachedWs = null;
+  }
 
   if (session.proc) {
     const proc = session.proc;
@@ -432,13 +445,6 @@ export function destroySession(sessionId: string): void {
     void proc.exited.finally(() => clearTimeout(killTimer));
     session.proc = null;
   }
-
-  if (session.attachedWs) {
-    closeClientSocket(session.attachedWs, RESTART_CLOSE_CODE, "Restart");
-    session.attachedWs = null;
-  }
-
-  sessions.delete(sessionId);
 }
 
 export function destroyAllSessions(): void {

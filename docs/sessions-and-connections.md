@@ -144,6 +144,7 @@ it to clear a wedged shell or stale process.
 | `4001` | Heartbeat timeout | No pong in time (`HEARTBEAT_CLOSE_CODE`) | Keep id, backoff reconnect ("Connection lost") |
 | `4002` | Replaced | Another connection attached to the same `sessionId` | Default: backoff reconnect |
 | `4003` | Handshake timeout | No handshake/reconnect within 30s of open | Default: backoff reconnect |
+| `4004` | Ended | Session ended deliberately via `terminate` (`ENDED_CLOSE_CODE`) | Clear id, reset terminal, return to the start screen |
 
 > Note on logout: server-side `destroyAllSessions()` closes the live socket with
 > code `4000`, which the client would normally treat as "Restart" and reconnect.

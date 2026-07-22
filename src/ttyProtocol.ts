@@ -21,7 +21,9 @@ export interface DecodedFrame {
 export type ClientControlMessage =
   | { type: "handshake"; columns: number; rows: number; sshTarget?: string }
   | { type: "reconnect"; sessionId: string; columns: number; rows: number }
-  | { type: "pong"; timestamp: number };
+  | { type: "pong"; timestamp: number }
+  // End the current session deliberately (kill the PTY, return to the start screen)
+  | { type: "terminate" };
 
 // --- SSH destinations ---
 
@@ -95,6 +97,8 @@ export function parseClientControl(text: string): ClientControlMessage | null {
         return { type: "pong", timestamp: msg.timestamp };
       }
       return null;
+    case "terminate":
+      return { type: "terminate" };
     default:
       return null;
   }
