@@ -131,6 +131,22 @@ export function buildSessionCommand(sshTarget: string | undefined): string[] {
   ];
 }
 
+// ssh forwards LANG/LC_* to the remote host (SendEnv in the default
+// ssh_config), and the remote side may not have this machine's locale
+// generated — producing setlocale warnings on every login. Strip them for ssh
+// sessions so the remote host falls back to its own default locale.
+export function buildSpawnEnv(isSsh: boolean): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = { ...process.env, TERM: "xterm-256color" };
+  if (isSsh) {
+    for (const key of Object.keys(env)) {
+      if (key === "LANG" || key === "LANGUAGE" || key.startsWith("LC_")) {
+        delete env[key];
+      }
+    }
+  }
+  return env;
+}
+
 // --- Helpers ---
 
 function clampDimension(value: number | undefined, fallback: number, max: number): number {
@@ -271,7 +287,7 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
           sessions.delete(sessionId);
         },
       },
-      env: { ...process.env, TERM: "xterm-256color" },
+      env: buildSpawnEnv(sshTarget !== undefined),
     });
   } catch (error) {
     console.error(`[session ${sessionId}] Failed to spawn PTY:`, error);

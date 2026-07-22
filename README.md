@@ -46,6 +46,11 @@ survives reconnects, and is killed — with SIGKILL escalation if it ignores
 SIGTERM — when the session is destroyed or has been detached for 5 minutes,
 so disconnected pages never leave dangling ssh processes behind.
 
+`LANG`/`LC_*` are stripped from ssh sessions' environment (ssh would otherwise
+forward this machine's locale to remote hosts that may not have it generated,
+causing setlocale warnings on login); the remote host's default locale is used
+instead.
+
 ## Features
 
 - Direct PTY via Bun — spawns shell processes but does not require external terminal daemons (e.g., ttyd)
