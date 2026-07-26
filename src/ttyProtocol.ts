@@ -32,23 +32,100 @@ export interface SshTarget {
   port?: number;
 }
 
-// Accepts "[user@]host[:port]". The leading character of user and host must be
-// alphanumeric so a destination can never be mistaken for an ssh option
-// (e.g. "-oProxyCommand=..."). IPv6 literals are not supported.
-const SSH_TARGET_RE = /^(?:([A-Za-z0-9][A-Za-z0-9._-]*)@)?([A-Za-z0-9][A-Za-z0-9._-]*)(?::(\d{1,5}))?$/;
+// The leading character of a user or hostname must be alphanumeric so a
+// destination can never be mistaken for an ssh option (e.g.
+// "-oProxyCommand=..."). IPv6 literals are handled separately below.
+const SSH_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const IPV6_ZONE_RE = /^[A-Za-z0-9._-]+$/;
 
+function isIpv4Address(text: string): boolean {
+  const parts = text.split(".");
+  if (parts.length !== 4) return false;
+  return parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255);
+}
+
+// IPv6 literal, optionally with a "%zone" scope suffix (link-local addresses).
+// Written out rather than done with one regex so the group count and the
+// IPv4-mapped tail stay readable.
+function isIpv6Address(text: string): boolean {
+  const percent = text.indexOf("%");
+  let addr = text;
+  if (percent !== -1) {
+    addr = text.slice(0, percent);
+    if (!IPV6_ZONE_RE.test(text.slice(percent + 1))) return false;
+  }
+  if (!addr.includes(":") || !/^[0-9A-Fa-f:.]+$/.test(addr)) return false;
+
+  const halves = addr.split("::");
+  if (halves.length > 2) return false;
+  const compressed = halves.length === 2;
+
+  let groups = 0;
+  for (const [i, half] of halves.entries()) {
+    if (half === "") continue;
+    const parts = half.split(":");
+    for (const [j, part] of parts.entries()) {
+      if (part.includes(".")) {
+        // An IPv4-mapped tail is only valid as the very last group.
+        if (i !== halves.length - 1 || j !== parts.length - 1) return false;
+        if (!isIpv4Address(part)) return false;
+        groups += 2;
+      } else {
+        if (!/^[0-9A-Fa-f]{1,4}$/.test(part)) return false;
+        groups += 1;
+      }
+    }
+  }
+  return compressed ? groups <= 7 : groups === 8;
+}
+
+// Accepts "[user@]host[:port]", where host is a hostname, an IPv4 address, a
+// bracketed IPv6 literal ("[fdb8::1]", the only form that can carry a port) or
+// a bare IPv6 literal ("fdb8::1"). Brackets are stripped from the returned
+// destination: ssh resolves "user@fdb8::1" but not "user@[fdb8::1]".
 export function parseSshTarget(raw: string): SshTarget | null {
   if (raw.length === 0 || raw.length > 256) return null;
-  const match = raw.match(SSH_TARGET_RE);
-  if (!match) return null;
+
+  let rest = raw;
+  let user: string | undefined;
+  const at = rest.indexOf("@");
+  if (at !== -1) {
+    user = rest.slice(0, at);
+    if (!SSH_NAME_RE.test(user)) return null;
+    rest = rest.slice(at + 1);
+  }
+
+  let host: string;
+  let portText: string | undefined;
+  if (rest.startsWith("[")) {
+    const end = rest.indexOf("]");
+    if (end === -1) return null;
+    host = rest.slice(1, end);
+    if (!isIpv6Address(host)) return null;
+    const tail = rest.slice(end + 1);
+    if (tail !== "") {
+      if (!tail.startsWith(":")) return null;
+      portText = tail.slice(1);
+    }
+  } else if (isIpv6Address(rest)) {
+    // Unbracketed: a trailing ":port" would be indistinguishable from another
+    // address group, so the whole string is the address.
+    host = rest;
+  } else {
+    const colon = rest.indexOf(":");
+    host = colon === -1 ? rest : rest.slice(0, colon);
+    if (colon !== -1) portText = rest.slice(colon + 1);
+    if (!SSH_NAME_RE.test(host)) return null;
+  }
 
   let port: number | undefined;
-  if (match[3] !== undefined) {
-    port = Number(match[3]);
+  if (portText !== undefined) {
+    if (!/^\d{1,5}$/.test(portText)) return null;
+    port = Number(portText);
     if (port < 1 || port > 65535) return null;
   }
 
-  const destination = match[1] ? `${match[1]}@${match[2]}` : (match[2] as string);
+  const destination = user !== undefined ? `${user}@${host}` : host;
   return { destination, port };
 }
 

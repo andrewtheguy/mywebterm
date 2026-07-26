@@ -86,6 +86,23 @@ describe("ttyProtocol", () => {
     expect(parseSshTarget("dev.example.com")).toEqual({ destination: "dev.example.com", port: undefined });
   });
 
+  test("parses ipv6 ssh targets, stripping brackets", () => {
+    // ssh resolves "user@fdb8::1" but not "user@[fdb8::1]"
+    expect(parseSshTarget("it3@[fdb8:d92a:f690:3d7f:97a4:120a:1:10]")).toEqual({
+      destination: "it3@fdb8:d92a:f690:3d7f:97a4:120a:1:10",
+      port: undefined,
+    });
+    expect(parseSshTarget("it3@fdb8:d92a:f690:3d7f:97a4:120a:1:10")).toEqual({
+      destination: "it3@fdb8:d92a:f690:3d7f:97a4:120a:1:10",
+      port: undefined,
+    });
+    expect(parseSshTarget("[fdb8::1]:2222")).toEqual({ destination: "fdb8::1", port: 2222 });
+    expect(parseSshTarget("user@[::1]")).toEqual({ destination: "user@::1", port: undefined });
+    expect(parseSshTarget("::1")).toEqual({ destination: "::1", port: undefined });
+    expect(parseSshTarget("[fe80::1%eth0]:22")).toEqual({ destination: "fe80::1%eth0", port: 22 });
+    expect(parseSshTarget("[::ffff:10.0.0.5]")).toEqual({ destination: "::ffff:10.0.0.5", port: undefined });
+  });
+
   test("rejects invalid ssh targets", () => {
     expect(parseSshTarget("")).toBeNull();
     expect(parseSshTarget("-oProxyCommand=evil")).toBeNull(); // option injection
@@ -95,6 +112,24 @@ describe("ttyProtocol", () => {
     expect(parseSshTarget("host:70000")).toBeNull();
     expect(parseSshTarget("host;rm -rf /")).toBeNull();
     expect(parseSshTarget(`a${"b".repeat(300)}`)).toBeNull();
+  });
+
+  test("rejects malformed ipv6 ssh targets", () => {
+    expect(parseSshTarget("[fdb8::1")).toBeNull(); // unclosed bracket
+    expect(parseSshTarget("[fdb8::1]junk")).toBeNull();
+    expect(parseSshTarget("[fdb8::1]:0")).toBeNull();
+    expect(parseSshTarget("[fdb8::1%eth 0]")).toBeNull();
+    expect(parseSshTarget("[fdb8:::1]")).toBeNull();
+    expect(parseSshTarget("[fdb8::1::2]")).toBeNull(); // two compressions
+    expect(parseSshTarget("[fdb8::gggg]")).toBeNull();
+    expect(parseSshTarget("[fdb8::12345]")).toBeNull();
+    expect(parseSshTarget("[1:2:3:4:5:6:7]")).toBeNull(); // too few groups, no "::"
+    expect(parseSshTarget("[1:2:3:4:5:6:7:8:9]")).toBeNull(); // too many groups
+    expect(parseSshTarget("[::ffff:10.0.0.5:1]")).toBeNull(); // ipv4 tail not last
+    expect(parseSshTarget("[::ffff:10.0.0.256]")).toBeNull();
+    expect(parseSshTarget("[:1:2:3:4:5:6:7]")).toBeNull();
+    expect(parseSshTarget("[]")).toBeNull();
+    expect(parseSshTarget("[-oProxyCommand=evil]")).toBeNull();
   });
 
   test("parses handshake with and without sshTarget", () => {

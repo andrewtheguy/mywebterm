@@ -1048,7 +1048,9 @@ export function App() {
   const startSshTo = useCallback((rawTarget: string) => {
     const target = rawTarget.trim();
     if (parseSshTarget(target) === null) {
-      toast.error("Invalid ssh target — expected [user@]host[:port].", { id: "ssh-target" });
+      toast.error("Invalid ssh target — expected [user@]host[:port] (IPv6: [addr] or [addr]:port).", {
+        id: "ssh-target",
+      });
       return;
     }
     sessionStorage.setItem(SSH_TARGET_STORAGE_KEY, target);
@@ -2155,7 +2157,7 @@ export function App() {
                         <input
                           type="text"
                           className="start-overlay-ssh-input"
-                          placeholder="user@host[:port]"
+                          placeholder="user@host[:port] or user@[ipv6]"
                           aria-label="SSH destination"
                           autoCapitalize="none"
                           autoCorrect="off"

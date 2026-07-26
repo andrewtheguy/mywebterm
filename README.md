@@ -41,7 +41,8 @@ mywebterm --port 9090 --title Dev -- python3
 The start screen offers an explicit choice: start the local shell, or SSH to
 another host. Choosing SSH shows the `Host` aliases from the `--ssh-config`
 file (if configured) as one-click choices, plus a free-form
-`user@host[:port]` field. SSH sessions run the system `ssh` client (spawned
+`user@host[:port]` field (IPv6 literals work too: `user@[fdb8::1]` or
+`user@[fdb8::1]:2222`). SSH sessions run the system `ssh` client (spawned
 with `ServerAliveInterval=30` keepalives so a dead network can't leave it
 hanging). Lifecycle is identical to shell sessions: the ssh process survives
 reconnects, and is killed — with SIGKILL escalation if it ignores SIGTERM —
