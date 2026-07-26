@@ -1470,6 +1470,12 @@ dialog.settings-dialog-backdrop {
   font-size: 0.85rem;
 }
 
+/* Prose-carrying variant: keep the sentence from stretching past a phone screen. */
+.confirm-dialog {
+  max-width: min(92vw, 22rem);
+  text-align: center;
+}
+
 .brand-title {
   white-space: nowrap;
 }

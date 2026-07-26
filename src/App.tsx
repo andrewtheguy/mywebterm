@@ -633,6 +633,7 @@ export function App() {
   const [minColumns, setMinColumns] = useState<number | undefined>(undefined);
   const [minColumnsMenuOpen, setMinColumnsMenuOpen] = useState(false);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
+  const [endSessionConfirmOpen, setEndSessionConfirmOpen] = useState(false);
   const [arrowOverlayEnabled, setArrowOverlayEnabled] = useState(true);
   const [awaitingStart, setAwaitingStart] = useState(true);
   // Survives reloads (per tab) so a resume that falls back to a fresh
@@ -644,7 +645,7 @@ export function App() {
   const [startStep, setStartStep] = useState<"choice" | "ssh">("choice");
   const effectiveMinColumns = minColumns ?? DEFAULT_MIN_COLUMNS;
   const hasStoredSession = sessionStorage.getItem(SESSION_STORAGE_KEY) !== null;
-  const startOverlayRef = useCallback((el: HTMLElement | null) => {
+  const focusOnMountRef = useCallback((el: HTMLElement | null) => {
     if (el) el.focus();
   }, []);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
@@ -1038,6 +1039,15 @@ export function App() {
   const resumeSession = useCallback(() => {
     setAwaitingStart(false);
   }, []);
+
+  // In-app confirmation rather than window.confirm(), which iOS Safari
+  // suppresses (it returns false without showing a dialog), making End Session
+  // look like a dead button on mobile.
+  const confirmEndSession = useCallback(() => {
+    setEndSessionConfirmOpen(false);
+    setProcessesText(null);
+    endSession();
+  }, [endSession]);
 
   const startLocalShell = useCallback(() => {
     sessionStorage.removeItem(SSH_TARGET_STORAGE_KEY);
@@ -2000,14 +2010,7 @@ export function App() {
                     <button
                       type="button"
                       className="toolbar-button overflow-menu-item touch-only"
-                      onClick={() =>
-                        overflowAction(() => {
-                          if (window.confirm("End this session and return to the start screen?")) {
-                            setProcessesText(null);
-                            endSession();
-                          }
-                        })
-                      }
+                      onClick={() => overflowAction(() => setEndSessionConfirmOpen(true))}
                     >
                       End Session
                     </button>
@@ -2054,12 +2057,7 @@ export function App() {
               <button
                 type="button"
                 className="toolbar-button pointer-only"
-                onClick={() => {
-                  if (window.confirm("End this session and return to the start screen?")) {
-                    setProcessesText(null);
-                    endSession();
-                  }
-                }}
+                onClick={() => setEndSessionConfirmOpen(true)}
               >
                 End Session
               </button>
@@ -2095,7 +2093,7 @@ export function App() {
                 className="disconnect-overlay"
                 role="button"
                 tabIndex={0}
-                ref={startOverlayRef}
+                ref={focusOnMountRef}
                 onClick={resumeSession}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -2120,7 +2118,7 @@ export function App() {
                       <button
                         type="button"
                         className="toolbar-button start-overlay-choice"
-                        ref={startOverlayRef}
+                        ref={focusOnMountRef}
                         onClick={startLocalShell}
                       >
                         Local shell
@@ -2502,6 +2500,36 @@ export function App() {
           <p className="copy-sheet-hint">Child processes of the server.</p>
           <textarea className="copy-sheet-textarea" value={processesText} readOnly />
         </section>
+      )}
+      {endSessionConfirmOpen && (
+        <dialog
+          className="settings-dialog-backdrop"
+          open
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEndSessionConfirmOpen(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setEndSessionConfirmOpen(false);
+          }}
+        >
+          <div className="settings-dialog confirm-dialog">
+            <p className="settings-dialog-label">End this session?</p>
+            <p className="copy-sheet-hint">The shell is killed and you return to the start screen.</p>
+            <div className="settings-dialog-options">
+              <button
+                type="button"
+                className="toolbar-button settings-dialog-option"
+                ref={focusOnMountRef}
+                onClick={() => setEndSessionConfirmOpen(false)}
+              >
+                Cancel
+              </button>
+              <button type="button" className="toolbar-button settings-dialog-option" onClick={confirmEndSession}>
+                End Session
+              </button>
+            </div>
+          </div>
+        </dialog>
       )}
       {infoDialogOpen && (
         <dialog

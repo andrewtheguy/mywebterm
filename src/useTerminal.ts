@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import "@xterm/xterm/css/xterm.css";
 
 import { isLikelyIOS, type Point } from "./mobileTouchSelection";
+import { createMouseReportRepairer } from "./mouseReports";
 import { normalizeVisibleTerminalLines } from "./terminalCopyText";
 import type { ServerControlMessage } from "./ttyProtocol";
 import { decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttyProtocol";
@@ -486,9 +487,13 @@ export function useTerminal({
     }
     terminalMountedRef.current = true;
 
+    // Per terminal instance: touch-inertia scrolling makes xterm emit mouse
+    // reports with NaN coordinates, which mouse-tracking apps print as garbage.
+    const repairMouseReports = createMouseReportRepairer(() => ({ cols: terminal.cols, rows: terminal.rows }));
+
     const terminalDisposables: IDisposable[] = [
       terminal.onData((data) => {
-        sendInputFrame(data);
+        sendInputFrame(repairMouseReports(data));
       }),
       terminal.onResize(({ cols, rows }) => {
         const socket = socketRef.current;
