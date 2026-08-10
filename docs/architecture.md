@@ -40,6 +40,7 @@ Key files:
 | `src/useTerminal.ts` | xterm.js wiring, WebSocket connection, reconnect/backoff, sessionStorage |
 | `src/loginPage.ts` | Standalone `/login` page HTML |
 | `src/openUrl.ts` | URL validation and new-tab opening for terminal links and OSC 1338 |
+| `src/listenTarget.ts` | Parsing of `--listen` (port, host:port, or `unix:<path>[,mode=NNN]`) |
 
 ## HTTP routes
 
