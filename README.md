@@ -33,7 +33,7 @@ By default each session runs `$SHELL`. Pass a command after `--` to override:
 ```bash
 mywebterm -- fish
 mywebterm -- bash --norc
-mywebterm --port 9090 --title Dev -- python3
+mywebterm --listen 9090 --title Dev -- python3
 ```
 
 ### SSH sessions
@@ -69,6 +69,7 @@ instead.
 - Terminal resize — automatic reflow on browser window resize
 - Copy tools — copy selection, copy recent output, selectable text panel
 - Inline images — sixel, iTerm2 inline images (IIP), and kitty graphics via `@xterm/addon-image`; decoded in the browser, so no GPU is needed on the server. Images are not restored after a reconnect (the resume snapshot is text-only)
+- Flexible binding — a single `--listen` option takes a port, a host:port, or a unix domain socket (with an explicit mode) for reverse-proxy setups
 - Link opening — URLs in the output are clickable and open in the browser viewing the terminal; programs on the far side can request an open with `webterm-open`
 
 ### Opening links
@@ -137,8 +138,7 @@ Notes:
 |---|---|---|
 | `-h`, `--help` | | Show usage and exit |
 | `-v`, `--version` | | Show version and exit |
-| `-p`, `--port <n>` | `8671` | Port to listen on |
-| `--bind <addr>` | `127.0.0.1` | Address to bind to (requires auth for non-loopback) |
+| `-l`, `--listen <target>` | `127.0.0.1:8671` | Where to bind — see [Listen targets](#listen-targets) |
 | `--htpasswd-file <path>` | `.htpasswd` | Path to htpasswd credentials file |
 | `--daemonize` | off | Detach from the parent process and run in the background |
 | `--no-auth` | off | Disable authentication (localhost use only) |
@@ -146,6 +146,38 @@ Notes:
 | `--ssh-config <path>` | | OpenSSH client config for ssh sessions (`ssh -F`); its `Host` aliases appear on the start screen |
 
 A shell command can be specified after `--` (e.g. `mywebterm -- /bin/bash`). When omitted, the `SHELL` environment variable is used (falling back to `/bin/sh`). `SHELL` is set by your OS/login shell — do not set it manually; use `-- command` to override instead.
+
+### Listen targets
+
+`--listen` is the only binding option; it takes one of these forms:
+
+| Value | Meaning |
+|---|---|
+| `8671` | That port on `127.0.0.1` |
+| `0.0.0.0:8671` | Host and port; any interface |
+| `[::1]:8671` | IPv6 literal — brackets are required so the port is unambiguous |
+| `unix:/run/mywebterm.sock` | Unix domain socket, created with mode `600` |
+| `unix:/run/mywebterm.sock,mode=660` | Unix socket with explicit permissions |
+
+A unix socket is not reachable over the network, so its file permissions are
+the access control: `600` (the default) is owner-only, and `660` with a shared
+group is the usual choice when the reverse proxy in front runs as another user.
+`--no-auth` is allowed there for the same reason it is allowed on loopback.
+
+A socket left behind by a crash is reclaimed at startup; if a live server is
+already listening on it, the new one refuses to start rather than stealing the
+path. The socket is removed on exit.
+
+```bash
+mywebterm --listen unix:/run/mywebterm.sock,mode=660 --no-auth
+```
+
+```caddyfile
+# Caddy in front of it
+webterm.example.com {
+    reverse_proxy unix//run/mywebterm.sock
+}
+```
 
 ### Authentication
 
@@ -161,7 +193,7 @@ Use `--no-auth` to disable authentication entirely (only allowed when binding to
 
 ### Exposing publicly
 
-MyWebTerm gives full shell access to anyone who can reach it — it is a highly privileged program. By default it only listens on the loopback interface (`127.0.0.1`). When authentication is enabled (the default), you can use `--bind <addr>` to listen on other interfaces, e.g. `--bind 0.0.0.0`. Alternatively, put it behind a reverse proxy such as [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) or Caddy.
+MyWebTerm gives full shell access to anyone who can reach it — it is a highly privileged program. By default it only listens on the loopback interface (`127.0.0.1:8671`). When authentication is enabled (the default), you can use `--listen` to bind elsewhere, e.g. `--listen 0.0.0.0:8671`. Alternatively, put it behind a reverse proxy such as [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) or Caddy — a unix socket (`--listen unix:/run/mywebterm.sock`) is the tidiest way to do that, since the server is then unreachable except through the proxy.
 
 > [!NOTE]
 > Avoid using HTTP basic auth with Safari — Safari does not reliably send cached credentials for WebSocket upgrade requests and XHR/fetch calls, which will break the terminal connection. Use cookie/session-based auth (e.g. OAuth2 Proxy) instead.

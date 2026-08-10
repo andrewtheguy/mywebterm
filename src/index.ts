@@ -1,4 +1,4 @@
-import { statSync } from "node:fs";
+import { chmodSync, statSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { type Server, type ServerWebSocket, serve } from "bun";
@@ -18,6 +18,7 @@ import boldFont from "./fonts/JetBrainsMonoNerdFontMono-Bold.woff2" with { type:
 import regularFont from "./fonts/JetBrainsMonoNerdFontMono-Regular.woff2" with { type: "file" };
 import symbolsFont from "./fonts/SymbolsNerdFontMono-Regular.woff2" with { type: "file" };
 import index from "./index.html";
+import { DEFAULT_LISTEN, describeListenTarget, parseListenTarget } from "./listenTarget";
 import { buildLoginPageHtml } from "./loginPage";
 import manifestJson from "./manifest.json";
 import pwaIcon192Path from "./pwa-icon-192.png" with { type: "file" };
@@ -51,8 +52,12 @@ const USAGE = `Usage: bun src/index.ts [options] [-- shell command...]
 Options:
   -h, --help          Show this help message
   -v, --version       Show version
-  -p, --port <n>      Port to listen on (default: 8671)
-      --bind <addr>   Address to bind to (default: 127.0.0.1)
+  -l, --listen <target>   Where to bind (default: ${DEFAULT_LISTEN}). One of:
+                            8671                       port on 127.0.0.1
+                            0.0.0.0:8671               host and port
+                            [::1]:8671                 IPv6, brackets required
+                            unix:/run/wt.sock          unix socket, mode 600
+                            unix:/run/wt.sock,mode=660 unix socket, given mode
       --htpasswd-file <path>  Path to htpasswd file (default: .htpasswd)
       --no-auth       Disable authentication (localhost use only)
       --dev           Enable development mode (HMR, non-secure cookies)
@@ -65,8 +70,7 @@ const parseArgsOptions = {
   options: {
     help: { type: "boolean", short: "h" },
     version: { type: "boolean", short: "v" },
-    port: { type: "string", short: "p" },
-    bind: { type: "string" },
+    listen: { type: "string", short: "l" },
     "htpasswd-file": { type: "string" },
     "no-auth": { type: "boolean" },
     dev: { type: "boolean" },
@@ -108,11 +112,26 @@ if (values.dev) {
 }
 
 const noAuth = !!values["no-auth"];
-const hostname = values.bind ?? "127.0.0.1";
 
-// Prevent unauthenticated access on non-loopback interfaces
-if (noAuth && hostname !== "127.0.0.1" && hostname !== "::1" && hostname !== "localhost") {
-  console.error("--no-auth is only allowed when binding to localhost.");
+const listenTarget = (() => {
+  try {
+    const target = parseListenTarget(values.listen ?? DEFAULT_LISTEN);
+    // Resolve here rather than in the parser so the parser stays pure and the
+    // socket path in errors and in the startup line is the one actually bound.
+    return target.kind === "unix" ? { ...target, path: resolve(target.path) } : target;
+  } catch (err) {
+    console.error(`Invalid --listen value: ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  }
+})();
+
+const unixSocket = listenTarget.kind === "unix" ? listenTarget : null;
+
+// Prevent unauthenticated access on non-loopback interfaces. A unix socket is
+// not reachable over the network at all, so filesystem permissions are the
+// access control there and --no-auth is fine.
+if (noAuth && listenTarget.kind === "tcp" && !listenTarget.isLoopback) {
+  console.error("--no-auth is only allowed when listening on loopback or a unix socket.");
   process.exit(1);
 }
 
@@ -138,16 +157,6 @@ const pwaIcon512 = await Bun.file(pwaIcon512Path).arrayBuffer();
 const appleTouchIcon = await Bun.file(appleTouchIconPath).arrayBuffer();
 
 const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh", "-l"];
-const DEFAULT_PORT = 8671;
-const port = (() => {
-  if (!values.port) return DEFAULT_PORT;
-  const n = parseInt(values.port, 10);
-  if (!Number.isInteger(n) || n < 1 || n > 65535) {
-    console.error(`Invalid port: ${values.port} (must be an integer 1–65535)`);
-    process.exit(1);
-  }
-  return n;
-})();
 const appTitle = values.title ?? "MyWebTerm";
 
 let nextConnectionId = 0;
@@ -405,7 +414,36 @@ function handleRestart(): Response {
   return Response.json({ ok: true });
 }
 
-const server = serve<WsData>({
+// A socket file left behind by a crash is indistinguishable from a live one on
+// disk, so the only honest check is to try connecting to it.
+async function clearStaleSocket(path: string): Promise<void> {
+  let info: ReturnType<typeof statSync>;
+  try {
+    info = statSync(path);
+  } catch {
+    return; // Nothing in the way.
+  }
+
+  if (!info.isSocket()) {
+    console.error(`Refusing to bind: ${path} exists and is not a socket.`);
+    process.exit(1);
+  }
+
+  try {
+    const probe = await Bun.connect({ unix: path, socket: { data() {} } });
+    probe.end();
+    console.error(`Another server is already listening on ${path}.`);
+    process.exit(1);
+  } catch {
+    unlinkSync(path);
+  }
+}
+
+if (unixSocket) {
+  await clearStaleSocket(unixSocket.path);
+}
+
+serve<WsData>({
   routes: {
     "/": index,
     "/login": handleLoginPage,
@@ -453,8 +491,9 @@ const server = serve<WsData>({
     },
   },
 
-  hostname,
-  port,
+  ...(listenTarget.kind === "unix"
+    ? { unix: listenTarget.path }
+    : { hostname: listenTarget.hostname, port: listenTarget.port }),
 
   fetch(req, srv) {
     const pathname = new URL(req.url).pathname;
@@ -509,4 +548,18 @@ const server = serve<WsData>({
   },
 });
 
-console.log(`Server running at ${server.url} (command: ${JSON.stringify(command)})`);
+if (unixSocket) {
+  // Bun creates the socket under the process umask, which is usually 755.
+  chmodSync(unixSocket.path, unixSocket.mode);
+  // gracefulShutdown ends in process.exit, so an "exit" listener covers both
+  // SIGTERM/SIGINT and a plain return.
+  process.on("exit", () => {
+    try {
+      unlinkSync(unixSocket.path);
+    } catch {
+      // Already gone, or the directory went away first.
+    }
+  });
+}
+
+console.log(`Server running at ${describeListenTarget(listenTarget)} (command: ${JSON.stringify(command)})`);
