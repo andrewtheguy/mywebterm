@@ -11,6 +11,7 @@ import {
   provisionLocalHelper,
   REMOTE_DIRS,
   removeLocalHelper,
+  wrapLocalCommand,
 } from "./openHelper";
 import helperSource from "./webtermOpen.sh" with { type: "text" };
 
@@ -65,7 +66,8 @@ describe("buildRemoteBootstrap", () => {
     const home = env.HOME as string;
     const fakeShell = join(home, "fake-shell");
     // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
-    writeFileSync(fakeShell, '#!/bin/sh\nprintf "%s\\n%s\\n" "${BROWSER-unset}" "$PATH"\n', { mode: 0o755 });
+    const report = '#!/bin/sh\nprintf "%s\\n%s\\n%s\\n" "${BROWSER-unset}" "$PATH" "${WEBTERM_TTY-unset}"\n';
+    writeFileSync(fakeShell, report, { mode: 0o755 });
 
     const proc = Bun.spawn(["sh", "-c", bootstrap], {
       env: cleanEnv({ ...env, SHELL: fakeShell }),
@@ -83,9 +85,12 @@ describe("buildRemoteBootstrap", () => {
     expect(exitCode).toBe(0);
 
     const [browser, path] = stdout.split("\n");
-    expect(browser).toBe(HELPER_NAME);
-
     const installed = join(runtime, "mywebterm", "bin");
+    // Absolute, not the bare name: the login shell this execs into sources
+    // /etc/profile, which assigns $PATH outright instead of adding to it, so
+    // anything prepended here is gone by the first prompt. $BROWSER survives.
+    expect(browser).toBe(join(installed, HELPER_NAME));
+
     expect(path?.split(":")[0]).toBe(installed);
     expect(await Bun.file(join(installed, HELPER_NAME)).text()).toBe(helperSource);
     expect(statSync(join(installed, HELPER_NAME)).mode & 0o777).toBe(0o700);
@@ -108,7 +113,7 @@ describe("buildRemoteBootstrap", () => {
       XDG_RUNTIME_DIR: "/proc/nonexistent",
       XDG_CACHE_HOME: join(home, "cache"),
     });
-    expect(stdout.split("\n")[0]).toBe(HELPER_NAME);
+    expect(stdout.split("\n")[0]).toBe(join(home, "cache", "mywebterm", "bin", HELPER_NAME));
     expect(stdout.split("\n")[1]?.split(":")[0]).toBe(join(home, "cache", "mywebterm", "bin"));
   });
 
@@ -162,6 +167,86 @@ describe("buildRemoteBootstrap", () => {
     expect(exitCode).toBe(0);
     expect(stdout.split("\n")[0]).toBe("unset");
   });
+
+  test("records the session pty so a multiplexer can hand it down", async () => {
+    // Inside a zellij or tmux pane, /dev/tty is the pane. This is the only
+    // pointer back to the terminal MyWebTerm is showing.
+    const home = tempDir();
+    const fakeShell = join(home, "fake-shell");
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    writeFileSync(fakeShell, '#!/bin/sh\nprintf "%s\\n" "${WEBTERM_TTY-unset}"\n', { mode: 0o755 });
+
+    let output = "";
+    const proc = Bun.spawn(["sh", "-c", bootstrap], {
+      env: cleanEnv({ HOME: home, SHELL: fakeShell }),
+      terminal: {
+        cols: 80,
+        rows: 24,
+        data(_terminal, data) {
+          output += new TextDecoder().decode(data);
+        },
+      },
+    });
+    await proc.exited;
+    expect(output).toMatch(/\/dev\/pts\/\d+/);
+  });
+
+  test("survives a login shell that replaces PATH", async () => {
+    // What /etc/profile does on Debian, and what the bootstrap execs straight
+    // into: PATH is assigned outright, not added to. A bare-name $BROWSER would
+    // stop resolving here, before the user ever sees a prompt — which is how
+    // this went unnoticed until tmux, whose every new pane is a login shell.
+    const home = tempDir();
+    const fakeShell = join(home, "fake-shell");
+    const profile = '#!/bin/sh\nPATH=/usr/bin:/bin\nexport PATH\n[ -x "$BROWSER" ] && echo runnable\n';
+    writeFileSync(fakeShell, profile, { mode: 0o755 });
+
+    const proc = Bun.spawn(["sh", "-c", bootstrap], {
+      env: cleanEnv({ HOME: home, SHELL: fakeShell }),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = await new Response(proc.stdout).text();
+    expect(stdout.trim()).toBe("runnable");
+  });
+
+  test("leaves WEBTERM_TTY unset when there is no pty to name", async () => {
+    // `tty` answers on stdout as well as in its status, so the variable has to
+    // be cleared rather than exported with "not a tty" in it.
+    const home = tempDir();
+    const { stdout } = await runBootstrap({ HOME: home });
+    expect(stdout.split("\n")[2]).toBe("unset");
+  });
+
+  test("clears an inherited WEBTERM_TTY when there is no pty to name", async () => {
+    // Anything handed down — a nested session, an ssh that forwards it — names
+    // a terminal that is not this one, so keeping it would send the toast there.
+    const home = tempDir();
+    const { stdout } = await runBootstrap({ HOME: home, WEBTERM_TTY: "/dev/pts/999" });
+    expect(stdout.split("\n")[2]).toBe("unset");
+  });
+});
+
+describe("wrapLocalCommand", () => {
+  test("records the pty and then execs the shell it was given", async () => {
+    let output = "";
+    const proc = Bun.spawn(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+      wrapLocalCommand(["/bin/sh", "-c", 'printf "%s %s\\n" "$0" "${WEBTERM_TTY-unset}"']),
+      {
+        terminal: {
+          cols: 80,
+          rows: 24,
+          data(_terminal, data) {
+            output += new TextDecoder().decode(data);
+          },
+        },
+      },
+    );
+    await proc.exited;
+    // $0 proves the exec happened: the wrapper is gone, not sitting in the way.
+    expect(output).toMatch(/^\/bin\/sh \/dev\/pts\/\d+/);
+  });
 });
 
 describe("provisionLocalHelper", () => {
@@ -176,7 +261,10 @@ describe("provisionLocalHelper", () => {
     const env: Record<string, string | undefined> = { PATH: "/usr/bin" };
     applyLocalHelperEnv(env);
     expect(env.PATH).toBe(`${dir}:/usr/bin`);
-    expect(env.BROWSER).toBe(HELPER_NAME);
+    // $PATH is a convenience, $BROWSER is the contract: every login shell in the
+    // session — tmux gives each new pane one — has its $PATH replaced by
+    // /etc/profile, so the bare name would stop resolving.
+    expect(env.BROWSER).toBe(helper);
   });
 
   test("is idempotent, and removal is final", () => {

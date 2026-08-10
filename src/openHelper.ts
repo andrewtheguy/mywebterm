@@ -38,6 +38,16 @@ export const REMOTE_DIRS = [
   "${XDG_CACHE_HOME:-${HOME:+$HOME/.cache}}",
 ];
 
+// Every session records the pty it was handed, so that a multiplexer started
+// inside it passes the address of the real terminal down to its panes.
+//
+// `tty` answers "not a tty" on stdout as well as non-zero on status, so failure
+// has to clear the variable rather than leave it holding that sentence — and
+// clear it outright, since an inherited value (a nested session, or an ssh that
+// forwards it) would otherwise survive and point the helper at some other
+// terminal.
+const TTY_EXPORT = "WEBTERM_TTY=$(tty) && export WEBTERM_TTY || unset WEBTERM_TTY;";
+
 let localHelperDir: string | null = null;
 
 /**
@@ -110,9 +120,16 @@ export function buildRemoteBootstrap(): string {
     install,
     `if ${attempts}; then`,
     `PATH="$d:$PATH";`,
-    `BROWSER=${HELPER_NAME};`,
+    // Absolute, because $PATH does not survive what comes next: a login shell
+    // sources /etc/profile, which on Debian assigns $PATH outright rather than
+    // adding to it. $BROWSER is left alone, and is what the launchers read.
+    `BROWSER=${target};`,
     "export PATH BROWSER;",
     "fi;",
+    // Recorded before the multiplexers get a chance to hide it: inside a zellij
+    // or tmux pane /dev/tty is the pane, and this is the only pointer back to
+    // the terminal MyWebTerm is actually showing.
+    TTY_EXPORT,
     // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
     'exec "${SHELL:-/bin/sh}" -l',
   ].join(" ");
@@ -120,13 +137,28 @@ export function buildRemoteBootstrap(): string {
 }
 
 /**
+ * Wraps a local session's command so it records its pty before becoming the
+ * shell. `exec` keeps the wrapper from outliving the assignment, so the session
+ * still consists of exactly the process that was asked for.
+ */
+export function wrapLocalCommand(command: string[]): string[] {
+  return ["/bin/sh", "-c", `${TTY_EXPORT} exec "$@"`, "sh", ...command];
+}
+
+/**
  * Adds the helper to a local session's environment. `$BROWSER` is overwritten
  * deliberately: a browser command inherited from the server's own environment
  * would open on the server, which is the behaviour this exists to replace.
+ *
+ * It holds the absolute path rather than the bare name because `$PATH` is not
+ * dependable — any login shell in the session, such as the one tmux gives each
+ * new pane, sources /etc/profile and has its `$PATH` replaced wholesale. The
+ * directory is still prepended for shells that keep it, so the command can also
+ * be typed by hand.
  */
 export function applyLocalHelperEnv(env: Record<string, string | undefined>): void {
   const dir = getLocalHelperDir();
   if (dir === null) return;
   env.PATH = env.PATH === undefined || env.PATH === "" ? dir : `${dir}:${env.PATH}`;
-  env.BROWSER = HELPER_NAME;
+  env.BROWSER = join(dir, HELPER_NAME);
 }
