@@ -11,7 +11,6 @@ import {
   initHtpasswd,
   invalidateSession,
   isRequestAuthenticated,
-  setDevMode,
   verifyCredentials,
 } from "./auth";
 import boldFont from "./fonts/JetBrainsMonoNerdFontMono-Bold.woff2" with { type: "file" };
@@ -61,7 +60,7 @@ Options:
                             unix:/run/wt.sock,mode=660 unix socket, given mode
       --htpasswd-file <path>  Path to htpasswd file (default: .htpasswd)
       --no-auth       Disable authentication (loopback or unix socket only)
-      --dev           Enable development mode (HMR, non-secure cookies)
+      --dev           Enable development mode (HMR)
       --title <s>     Set the terminal title (default: "MyWebTerm")
       --cwd <path>    Set the working directory for the shell (default: $HOME)
       --ssh-config <path>  OpenSSH client config for ssh sessions (passed to ssh -F);
@@ -106,10 +105,6 @@ if (values.help) {
 if (values.version) {
   console.log(`mywebterm ${VERSION}`);
   process.exit(0);
-}
-
-if (values.dev) {
-  setDevMode(true);
 }
 
 const noAuth = !!values["no-auth"];
@@ -338,7 +333,7 @@ async function handleLoginPost(req: Request): Promise<Response> {
   return Response.json(
     { ok: true },
     {
-      headers: { "Set-Cookie": getSessionCookie(token) },
+      headers: { "Set-Cookie": getSessionCookie(token, req) },
     },
   );
 }
@@ -353,7 +348,7 @@ function handleLogout(req: Request): Response {
   return Response.json(
     { ok: true },
     {
-      headers: { "Set-Cookie": clearSessionCookie() },
+      headers: { "Set-Cookie": clearSessionCookie(req) },
     },
   );
 }
