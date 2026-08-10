@@ -141,7 +141,7 @@ Notes:
 | `-l`, `--listen <target>` | `127.0.0.1:8671` | Where to bind — see [Listen targets](#listen-targets) |
 | `--htpasswd-file <path>` | `.htpasswd` | Path to htpasswd credentials file |
 | `--daemonize` | off | Detach from the parent process and run in the background |
-| `--no-auth` | off | Disable authentication (localhost use only) |
+| `--no-auth` | off | Disable authentication (loopback or unix socket only) |
 | `--title <s>` | `MyWebTerm` | Customize the app heading and browser tab title |
 | `--ssh-config <path>` | | OpenSSH client config for ssh sessions (`ssh -F`); its `Host` aliases appear on the start screen |
 
@@ -159,10 +159,14 @@ A shell command can be specified after `--` (e.g. `mywebterm -- /bin/bash`). Whe
 | `unix:/run/mywebterm.sock` | Unix domain socket, created with mode `600` |
 | `unix:/run/mywebterm.sock,mode=660` | Unix socket with explicit permissions |
 
-A unix socket is not reachable over the network, so its file permissions are
-the access control: `600` (the default) is owner-only, and `660` with a shared
-group is the usual choice when the reverse proxy in front runs as another user.
-`--no-auth` is allowed there for the same reason it is allowed on loopback.
+A unix socket removes network exposure entirely, which moves the access control
+onto the filesystem: any local user who can open the socket file can connect.
+`600` (the default) is owner-only; `660` with a shared group is the usual
+choice when the reverse proxy in front runs as another user, but it hands a
+connection to every member of that group — and with `--no-auth` that is an
+unauthenticated shell, so pick the group accordingly. `--no-auth` is allowed
+here for the same reason it is allowed on loopback: nothing off the machine can
+reach the listener.
 
 A socket left behind by a crash is reclaimed at startup; if a live server is
 already listening on it, the new one refuses to start rather than stealing the
@@ -189,7 +193,7 @@ bun run htpasswd <username> > .htpasswd
 
 The server reads `.htpasswd` from the working directory by default. Use `--htpasswd-file <path>` or the `HTPASSWD_FILE` environment variable to specify a different location. The file is hot-reloaded when it changes.
 
-Use `--no-auth` to disable authentication entirely (only allowed when binding to localhost).
+Use `--no-auth` to disable authentication entirely. It is only allowed when the listener is unreachable from the network — a loopback address or a unix socket. On a unix socket the socket's mode is then the only thing standing between other local users and a shell, so keep it at `600` unless a specific group needs in (see [Listen targets](#listen-targets)).
 
 ### Exposing publicly
 

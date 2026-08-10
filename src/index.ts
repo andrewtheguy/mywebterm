@@ -59,7 +59,7 @@ Options:
                             unix:/run/wt.sock          unix socket, mode 600
                             unix:/run/wt.sock,mode=660 unix socket, given mode
       --htpasswd-file <path>  Path to htpasswd file (default: .htpasswd)
-      --no-auth       Disable authentication (localhost use only)
+      --no-auth       Disable authentication (loopback or unix socket only)
       --dev           Enable development mode (HMR, non-secure cookies)
       --title <s>     Set the terminal title (default: "MyWebTerm")
       --cwd <path>    Set the working directory for the shell (default: $HOME)
@@ -429,12 +429,22 @@ async function clearStaleSocket(path: string): Promise<void> {
     process.exit(1);
   }
 
+  // Only a socket we own is ours to reclaim — someone else's may well be live
+  // and merely unreachable to us.
+  if (info.uid !== process.getuid?.()) {
+    console.error(`Refusing to bind: ${path} belongs to uid ${info.uid}.`);
+    process.exit(1);
+  }
+
   try {
     const probe = await Bun.connect({ unix: path, socket: { data() {} } });
     probe.end();
     console.error(`Another server is already listening on ${path}.`);
     process.exit(1);
   } catch {
+    // Bun reports every unix connect failure as ENOENT, so "connection
+    // refused" cannot be told apart from any other failure; with the socket
+    // confirmed to be ours, treating a failure as leftover is the useful read.
     unlinkSync(path);
   }
 }
