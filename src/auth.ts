@@ -12,10 +12,24 @@ interface SessionData {
 const validTokens = new Map<string, SessionData>();
 
 const COOKIE_NAME = "mywebterm_session";
-// Fail-closed: secure by default, disabled explicitly via setDevMode(true)
-let secureCookie = true;
-export function setDevMode(dev: boolean): void {
-  secureCookie = !dev;
+
+// Whether the cookie gets `Secure` follows the scheme the browser actually used.
+// Safari, unlike Chrome, drops `Secure` cookies on plain http:// even for
+// localhost, so a hardcoded `Secure` silently breaks login behind a reverse
+// proxy that speaks HTTP (e.g. `http://foo.localhost:3800` via Caddy). Sending a
+// plaintext cookie over a plaintext connection gives nothing away that the
+// connection itself wasn't already exposing. Behind a proxy the real scheme
+// arrives in X-Forwarded-Proto; direct connections fall back to the request URL.
+export function isSecureRequest(req: Request): boolean {
+  const forwarded = req.headers.get("x-forwarded-proto");
+  if (forwarded) {
+    return forwarded.split(",")[0]?.trim().toLowerCase() === "https";
+  }
+  try {
+    return new URL(req.url).protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function purgeExpiredTokens(): void {
@@ -45,7 +59,7 @@ export function isValidSession(token: string): boolean {
   }
   // Refresh TTL on activity rather than rotating the token. createSession()
   // issues a fresh token on each login, which prevents classic session fixation.
-  // The cookie is HttpOnly + SameSite=Strict + Secure.
+  // The cookie is HttpOnly + SameSite=Strict (+ Secure over HTTPS).
   data.expiresAt = Date.now() + SESSION_TTL_MS;
   return true;
 }
@@ -58,12 +72,14 @@ export function invalidateAllSessions(): void {
   validTokens.clear();
 }
 
-export function getSessionCookie(token: string): string {
-  return `${COOKIE_NAME}=${token}; HttpOnly; SameSite=Strict${secureCookie ? "; Secure" : ""}; Path=/`;
+export function getSessionCookie(token: string, req: Request): string {
+  const secure = isSecureRequest(req) ? "; Secure" : "";
+  return `${COOKIE_NAME}=${token}; HttpOnly; SameSite=Strict${secure}; Path=/`;
 }
 
-export function clearSessionCookie(): string {
-  return `${COOKIE_NAME}=; HttpOnly; SameSite=Strict${secureCookie ? "; Secure" : ""}; Path=/; Max-Age=0`;
+export function clearSessionCookie(req: Request): string {
+  const secure = isSecureRequest(req) ? "; Secure" : "";
+  return `${COOKIE_NAME}=; HttpOnly; SameSite=Strict${secure}; Path=/; Max-Age=0`;
 }
 
 export function extractSessionToken(req: Request): string | null {
