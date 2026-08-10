@@ -1,5 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { type IDisposable, type ITerminalOptions, Terminal } from "@xterm/xterm";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -9,6 +10,13 @@ import "@xterm/xterm/css/xterm.css";
 
 import { isLikelyIOS, type Point } from "./mobileTouchSelection";
 import { createMouseReportRepairer } from "./mouseReports";
+import {
+  createOpenUrlOscHandler,
+  formatUrlForDisplay,
+  normalizeOpenableUrl,
+  OPEN_URL_OSC,
+  openUrlInNewTab,
+} from "./openUrl";
 import { normalizeVisibleTerminalLines } from "./terminalCopyText";
 import type { ServerControlMessage } from "./ttyProtocol";
 import { decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttyProtocol";
@@ -62,6 +70,18 @@ function resolveMinColumns(minColumns: number | undefined): number {
   return Math.max(1, Math.floor(minColumns));
 }
 
+// Clicking a link in the terminal output opens it in this browser, never on the
+// host the session is attached to. The click is a real user gesture, so it can
+// open without confirmation (unlike the OSC 1338 path below).
+function activateTerminalLink(_event: MouseEvent, uri: string): void {
+  const url = normalizeOpenableUrl(uri);
+  if (!url) {
+    toast.error("Only http(s) links can be opened", { id: "open-url-rejected" });
+    return;
+  }
+  openUrlInNewTab(url);
+}
+
 function buildTerminalOptions(isMobileViewport: boolean, fontSize?: number): ITerminalOptions {
   return {
     // Required by @xterm/addon-image (registers proposed parser/buffer APIs).
@@ -70,6 +90,8 @@ function buildTerminalOptions(isMobileViewport: boolean, fontSize?: number): ITe
     scrollback: 5000,
     fontSize: resolveFontSize(fontSize, isMobileViewport),
     fontFamily: "JetBrainsMono Nerd Font Mono, Symbols Nerd Font Mono, Menlo, monospace",
+    // Handles OSC 8 hyperlinks; plain URLs in the output come from WebLinksAddon.
+    linkHandler: { activate: activateTerminalLink },
     theme: {
       background: "#041425",
       foreground: "#d8ecff",
@@ -417,6 +439,8 @@ export function useTerminal({
     const imageAddon = new ImageAddon({ storageLimit: 32 });
     terminal.loadAddon(imageAddon);
     imageAddonRef.current = imageAddon;
+    const webLinksAddon = new WebLinksAddon(activateTerminalLink);
+    terminal.loadAddon(webLinksAddon);
     enableWebglRenderer(terminal);
 
     const textarea = terminal.textarea;
@@ -531,6 +555,32 @@ export function useTerminal({
         }
         return true;
       }),
+      // OSC 1338 ; <url> BEL — a program on the far side asking for a URL to be
+      // opened here (e.g. `xdg-open` / `$BROWSER` routed through webterm-open).
+      // Nothing opens without a click: this is not a user gesture, so browsers
+      // would block the popup anyway, and terminal output must not be able to
+      // navigate the viewer's browser on its own.
+      terminal.parser.registerOscHandler(
+        OPEN_URL_OSC,
+        createOpenUrlOscHandler({
+          onOpenRequest: (url) => {
+            toast("Open link in a new tab?", {
+              // Per URL, so a repeated request replaces its own toast instead
+              // of stacking, while two different URLs both stay visible.
+              id: `open-url:${url}`,
+              description: formatUrlForDisplay(url),
+              duration: 20_000,
+              action: {
+                label: "Open",
+                onClick: () => openUrlInNewTab(url),
+              },
+            });
+          },
+          onRejected: () => {
+            toast.error("Ignored a request to open a non-http(s) link", { id: "open-url-rejected" });
+          },
+        }),
+      ),
     ];
 
     const fitThrottleMs = 100;
@@ -623,6 +673,7 @@ export function useTerminal({
       webglAddonRef.current = null;
       imageAddonRef.current?.dispose();
       imageAddonRef.current = null;
+      webLinksAddon.dispose();
       fitAddon.dispose();
       terminal.dispose();
       fitAddonRef.current = null;
@@ -786,6 +837,9 @@ export function useTerminal({
               clientY: endedTouch.clientY,
               button: 0,
             };
+            // xterm only activates a link on mouseup if hovering already
+            // resolved one, so a tap needs a move at the same spot first.
+            screenEl.dispatchEvent(new MouseEvent("mousemove", { ...shared, buttons: 0 }));
             screenEl.dispatchEvent(new MouseEvent("mousedown", { ...shared, buttons: 1 }));
             screenEl.dispatchEvent(new MouseEvent("mouseup", { ...shared, buttons: 0 }));
           }

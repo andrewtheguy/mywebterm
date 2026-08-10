@@ -69,6 +69,42 @@ instead.
 - Terminal resize — automatic reflow on browser window resize
 - Copy tools — copy selection, copy recent output, selectable text panel
 - Inline images — sixel, iTerm2 inline images (IIP), and kitty graphics via `@xterm/addon-image`; decoded in the browser, so no GPU is needed on the server. Images are not restored after a reconnect (the resume snapshot is text-only)
+- Link opening — URLs in the output are clickable and open in the browser viewing the terminal; programs on the far side can request an open with `webterm-open`
+
+### Opening links
+
+Clicking a URL in the terminal opens it in a new tab **of the browser you are
+viewing MyWebTerm in** — never on the machine the shell or ssh session is
+running on. This covers plain URLs in the output and OSC 8 hyperlinks (`ls
+--hyperlink`, `gh`, `cargo`, …). Only `http`/`https` links open; anything else
+is refused.
+
+Programs that want to launch a browser themselves (`xdg-open`, `gh auth login`,
+`python -m webbrowser`) normally try to open one on the *remote* host, where
+there is no display. Install [`scripts/webterm-open`](scripts/webterm-open) on
+that host and point `BROWSER` at it:
+
+```bash
+# from the machine holding the MyWebTerm checkout
+ssh you@remote 'mkdir -p ~/.local/bin'
+scp scripts/webterm-open you@remote:.local/bin/webterm-open
+```
+
+```bash
+# then, on the remote host (~/.local/bin must be on PATH)
+chmod +x ~/.local/bin/webterm-open
+echo 'export BROWSER=webterm-open' >> ~/.bashrc
+```
+
+The script is short enough to paste into an editor on the remote instead, if
+copying a file over is inconvenient.
+
+The script prints `OSC 1338 ; <url> BEL`; MyWebTerm shows a toast with an
+**Open** button, and clicking it opens the URL locally. The confirmation is
+deliberate — anything writing to the tty can emit that sequence, and browsers
+block popups that no click asked for. Other terminals ignore the sequence, so
+leaving `BROWSER` set is harmless elsewhere. Under tmux you also need
+`set -g allow-passthrough on`.
 
 ### Inline images
 

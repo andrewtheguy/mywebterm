@@ -1,7 +1,7 @@
 {
   "//": "@xterm/xterm: beta chosen because stable has broken horizontal + vertical scrolling",
   "name": "mywebterm",
-  "version": "0.0.70",
+  "version": "0.0.71",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,6 +17,7 @@
     "@xterm/addon-fit": "0.12.0-beta.285",
     "@xterm/addon-image": "0.10.0-beta.285",
     "@xterm/addon-serialize": "0.15.0-beta.285",
+    "@xterm/addon-web-links": "0.13.0-beta.285",
     "@xterm/addon-webgl": "0.20.0-beta.285",
     "@xterm/headless": "6.1.0-beta.285",
     "@xterm/xterm": "6.1.0-beta.285",
