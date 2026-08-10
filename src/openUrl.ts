@@ -82,9 +82,29 @@ export function createOpenUrlOscHandler(handlers: OpenUrlOscHandlers): (data: st
   };
 }
 
-/** Shortens a URL for the confirmation toast so it cannot overflow the layout. */
+/**
+ * Shortens a URL for the confirmation toast so it cannot overflow the layout.
+ *
+ * The origin is never cut: truncating mid-host is how a long
+ * `https://<padding>.evil.example/` reads as a host the user trusts, and the
+ * host is the only part of the URL the confirmation is really asking about. A
+ * host too long to fit is shown alone, without its path.
+ */
 export function formatUrlForDisplay(url: string): string {
   if (url.length <= MAX_DISPLAY_LENGTH) return url;
+
+  let origin: string;
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    // Not reachable for normalizeOpenableUrl output; showing the whole URL is
+    // the safe fallback either way.
+    return url;
+  }
+
+  // No room for the origin plus at least one character of path: show the
+  // origin in full and drop the rest.
+  if (origin.length + 1 >= MAX_DISPLAY_LENGTH) return origin;
   return `${url.slice(0, MAX_DISPLAY_LENGTH - 1)}…`;
 }
 

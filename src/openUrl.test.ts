@@ -86,5 +86,13 @@ describe("formatUrlForDisplay", () => {
     const shown = formatUrlForDisplay(long);
     expect(shown).toHaveLength(96);
     expect(shown.endsWith("…")).toBe(true);
+    expect(shown.startsWith("https://example.com/")).toBe(true);
+  });
+
+  test("shows the whole origin rather than cutting a long host mid-way", () => {
+    const host = `${"a".repeat(60)}.${"b".repeat(60)}.evil.example`;
+    const shown = formatUrlForDisplay(`https://${host}/login`);
+    expect(shown).toBe(`https://${host}`);
+    expect(shown.endsWith("evil.example")).toBe(true);
   });
 });

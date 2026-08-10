@@ -101,8 +101,10 @@ For the exact frame and message formats, see
 
 ## Opening links
 
-Link opening is entirely client-side (`src/openUrl.ts`, wired up in
-`useTerminal.ts`); the server never sees it. Every URL is run through
+The URL bytes reach the browser like all other output — through the PTY, the
+shadow terminal, and the WebSocket — but the server has no link-handling code:
+validation and navigation live entirely on the client (`src/openUrl.ts`, wired
+up in `useTerminal.ts`). Every URL is run through
 `normalizeOpenableUrl`, which accepts only `http:`/`https:`, rejects embedded
 credentials (`https://github.com@evil.example`) and rejects control characters,
 spaces and bidi overrides — output on a tty is attacker-controlled in exactly

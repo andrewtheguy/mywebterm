@@ -85,12 +85,19 @@ there is no display. Install [`scripts/webterm-open`](scripts/webterm-open) on
 that host and point `BROWSER` at it:
 
 ```bash
-# on the host you ssh into
-mkdir -p ~/.local/bin
-scp scripts/webterm-open remote:~/.local/bin/webterm-open   # or just paste it
+# from the machine holding the MyWebTerm checkout
+ssh you@remote 'mkdir -p ~/.local/bin'
+scp scripts/webterm-open you@remote:.local/bin/webterm-open
+```
+
+```bash
+# then, on the remote host (~/.local/bin must be on PATH)
 chmod +x ~/.local/bin/webterm-open
 echo 'export BROWSER=webterm-open' >> ~/.bashrc
 ```
+
+The script is short enough to paste into an editor on the remote instead, if
+copying a file over is inconvenient.
 
 The script prints `OSC 1338 ; <url> BEL`; MyWebTerm shows a toast with an
 **Open** button, and clicking it opens the URL locally. The confirmation is
