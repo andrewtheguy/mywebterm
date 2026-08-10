@@ -143,13 +143,25 @@ starts, from a copy embedded in the binary (`import ... with { type: "text" }`).
 | Session | Mechanism | Lifetime |
 |---|---|---|
 | Local shell | `mkdtemp` at startup, prepended to `$PATH` by `buildSpawnEnv` | removed on process exit |
-| ssh | base64 payload in the ssh command line → `~/.cache/mywebterm/bin`, then `exec $SHELL -l` | persists on the remote, overwritten next session |
+| ssh | base64 payload in the ssh command line → `$XDG_RUNTIME_DIR`, else `~/.cache` | cleared by logind at logout; the fallback persists, overwritten next session |
 
 Two things constrain the ssh bootstrap. ssh hands the command to the *user's*
 login shell, which may be fish, so the real work is wrapped in `/bin/sh -c
 '...'` — and that wrapped text may therefore contain no single quote, which is
 why the payload is base64 (whose alphabet is also safe unquoted). And ssh only
 allocates a remote pty for a bare login, so a command means `-tt`.
+
+The install tries each candidate directory in turn and *runs* what it stored,
+because writing a file is no proof it can execute: a `noexec` mount accepts the
+write and refuses at exec time. Called with no arguments the helper answers 2,
+where a filesystem that will not run it answers 126. That check is also why
+`/tmp` is not a candidate — it is `noexec` often enough to matter.
+
+Cleaning up on exit instead of picking a self-clearing directory is not
+available: the bootstrap ends in `exec`, which discards any trap, and dropping
+the `exec` would leave a wrapper shell between ssh and the login shell for the
+whole session. Terminal sessions also tend to end by network drop, where no trap
+would run — per-session directories would accumulate exactly when cleanup fails.
 
 Every failure path still reaches the `exec`: a host with no `base64`, an
 unwritable `$HOME`, a full disk. The session comes up without the helper rather

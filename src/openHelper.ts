@@ -15,9 +15,24 @@ import helperSource from "./webtermOpen.sh" with { type: "text" };
 
 export const HELPER_NAME = "webterm-open";
 
-/** Where the helper lands on a remote host. Reused, so sessions don't litter. */
-// biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
-const REMOTE_DIR = "${XDG_CACHE_HOME:-$HOME/.cache}/mywebterm/bin";
+// Where the helper lands on a remote host, best first.
+//
+// $XDG_RUNTIME_DIR is the ephemeral choice: user-private, mode 0700, and torn
+// down by logind when the user's last session ends, so ssh'ing somewhere leaves
+// nothing behind. It does not exist everywhere (no logind, macOS), hence the
+// cache fallback — a fixed path either way, so repeat sessions overwrite one
+// file instead of accumulating per-session directories. Cleaning up on exit
+// instead is not an option: the bootstrap ends in exec, which discards traps,
+// and the sessions that matter end by network drop, where no trap runs anyway.
+//
+// /tmp is deliberately not in this list: it is mounted noexec often enough that
+// the helper would silently fail to run.
+const REMOTE_DIRS = [
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+  "${XDG_RUNTIME_DIR}",
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+  "${XDG_CACHE_HOME:-$HOME/.cache}",
+];
 
 let localHelperDir: string | null = null;
 
@@ -73,10 +88,23 @@ export function removeLocalHelper(): void {
 export function buildRemoteBootstrap(): string {
   const payload = Buffer.from(helperSource).toString("base64");
   const target = `"$d/${HELPER_NAME}"`;
+  // Writing the file is not proof it can run — a noexec mount refuses only at
+  // exec time. Calling it with no arguments is the cheap check: it answers 2,
+  // where a filesystem that will not run it answers 126.
+  const install = [
+    // Guard the empty case: unset $XDG_RUNTIME_DIR would otherwise aim at
+    // /mywebterm/bin, which a root session would happily create.
+    `i() { [ -n "$1" ] || return 1; d=$1/mywebterm/bin;`,
+    `mkdir -p "$d" 2>/dev/null &&`,
+    `printf %s ${payload} | base64 -d > ${target} 2>/dev/null &&`,
+    `chmod 700 ${target} 2>/dev/null || return 1;`,
+    `${target} >/dev/null 2>&1;`,
+    "[ $? -eq 2 ]; };",
+  ].join(" ");
+  const attempts = REMOTE_DIRS.map((dir) => `i "${dir}"`).join(" || ");
   const inner = [
-    `d=${REMOTE_DIR};`,
-    `if mkdir -p "$d" && printf %s ${payload} | base64 -d > ${target} 2>/dev/null; then`,
-    `chmod 700 ${target};`,
+    install,
+    `if ${attempts}; then`,
     `PATH="$d:$PATH";`,
     `BROWSER=${HELPER_NAME};`,
     "export PATH BROWSER;",

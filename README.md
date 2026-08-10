@@ -89,9 +89,11 @@ programs end up opening a tab in the browser you are viewing MyWebTerm in.
 
 Nothing is installed by hand, on any host. Local sessions get the helper from a
 private directory created at startup and deleted on exit. ssh sessions carry it
-over the ssh command line into `~/.cache/mywebterm/bin` on the remote host, then
-hand over to your login shell. If the remote is read-only or lacks `base64` the
-install is skipped and the session starts as usual, just without the helper.
+over the ssh command line into `$XDG_RUNTIME_DIR` on the remote host — which
+logind clears when your last session there ends, so nothing persists — falling
+back to `~/.cache` on hosts that have no runtime dir. If the remote is read-only
+or lacks `base64`, the install is skipped and the session starts as usual, just
+without the helper.
 
 The helper prints `OSC 1338 ; <url> BEL`; MyWebTerm shows a toast with an
 **Open** button, and clicking it opens the URL locally. The confirmation is

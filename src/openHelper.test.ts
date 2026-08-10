@@ -15,10 +15,15 @@ import helperSource from "./webtermOpen.sh" with { type: "text" };
 
 const scratch: string[] = [];
 
-/** The parent may export BROWSER (editors do); these tests assert on our own. */
+// The parent's own values would decide these tests: editors export BROWSER, and
+// a logind session exports XDG_RUNTIME_DIR, which outranks the cache fallback.
+const ISOLATED = ["BROWSER", "XDG_RUNTIME_DIR", "XDG_CACHE_HOME"];
+
 function cleanEnv(overrides: Record<string, string>): Record<string, string> {
   const env = { ...process.env, ...overrides } as Record<string, string>;
-  if (overrides.BROWSER === undefined) delete env.BROWSER;
+  for (const key of ISOLATED) {
+    if (overrides[key] === undefined) delete env[key];
+  }
   return env;
 }
 
@@ -54,45 +59,74 @@ describe("buildRemoteBootstrap", () => {
     expect(bootstrap).toInclude('exec "${SHELL:-/bin/sh}" -l');
   });
 
-  test("installs the helper, exports BROWSER, and execs — run for real", async () => {
-    const home = tempDir();
-    // A stand-in login shell that reports the environment it inherited.
+  /** Runs the bootstrap with a stand-in login shell that reports its env. */
+  async function runBootstrap(env: Record<string, string>): Promise<{ stdout: string; exitCode: number }> {
+    const home = env.HOME as string;
     const fakeShell = join(home, "fake-shell");
-    writeFileSync(fakeShell, '#!/bin/sh\nprintf "%s\\n%s\\n" "$BROWSER" "$PATH"\n', { mode: 0o755 });
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    writeFileSync(fakeShell, '#!/bin/sh\nprintf "%s\\n%s\\n" "${BROWSER-unset}" "$PATH"\n', { mode: 0o755 });
 
     const proc = Bun.spawn(["sh", "-c", bootstrap], {
-      env: cleanEnv({ HOME: home, XDG_CACHE_HOME: join(home, "cache"), SHELL: fakeShell }),
+      env: cleanEnv({ ...env, SHELL: fakeShell }),
       stdout: "pipe",
       stderr: "pipe",
     });
     const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+    return { stdout, exitCode };
+  }
+
+  test("installs the helper, exports BROWSER, and execs — run for real", async () => {
+    const home = tempDir();
+    const runtime = join(home, "run");
+    const { stdout, exitCode } = await runBootstrap({ HOME: home, XDG_RUNTIME_DIR: runtime });
     expect(exitCode).toBe(0);
 
     const [browser, path] = stdout.split("\n");
     expect(browser).toBe(HELPER_NAME);
 
-    const installed = join(home, "cache", "mywebterm", "bin");
+    const installed = join(runtime, "mywebterm", "bin");
     expect(path?.split(":")[0]).toBe(installed);
     expect(await Bun.file(join(installed, HELPER_NAME)).text()).toBe(helperSource);
     expect(statSync(join(installed, HELPER_NAME)).mode & 0o777).toBe(0o700);
   });
 
-  test("reaches the login shell even when the helper cannot be written", async () => {
-    // A read-only home is the realistic version of this: mkdir -p fails, the
-    // whole install is skipped, and the session must still come up.
+  test("prefers the runtime dir, falls back to the cache dir", async () => {
+    // No XDG_RUNTIME_DIR is the common case off systemd, and on macOS.
     const home = tempDir();
-    const fakeShell = join(home, "fake-shell");
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
-    writeFileSync(fakeShell, '#!/bin/sh\nprintf "%s\\n" "${BROWSER-unset}"\n', { mode: 0o755 });
+    const { stdout } = await runBootstrap({ HOME: home, XDG_CACHE_HOME: join(home, "cache") });
+    expect(stdout.split("\n")[1]?.split(":")[0]).toBe(join(home, "cache", "mywebterm", "bin"));
+  });
 
-    const proc = Bun.spawn(["sh", "-c", bootstrap], {
-      env: cleanEnv({ HOME: home, XDG_CACHE_HOME: "/proc/nonexistent", SHELL: fakeShell }),
-      stdout: "pipe",
-      stderr: "pipe",
+  test("falls through when the first choice cannot execute what it stored", async () => {
+    // The reason the bootstrap runs the helper rather than trusting the write:
+    // a noexec mount accepts the file and refuses to run it. /proc stands in
+    // here as a directory that accepts neither.
+    const home = tempDir();
+    const { stdout } = await runBootstrap({
+      HOME: home,
+      XDG_RUNTIME_DIR: "/proc/nonexistent",
+      XDG_CACHE_HOME: join(home, "cache"),
     });
-    const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+    expect(stdout.split("\n")[0]).toBe(HELPER_NAME);
+    expect(stdout.split("\n")[1]?.split(":")[0]).toBe(join(home, "cache", "mywebterm", "bin"));
+  });
+
+  test("never aims at the filesystem root when the runtime dir is unset", () => {
+    // A root session would happily create /mywebterm/bin.
+    expect(bootstrap).toInclude('[ -n "$1" ] || return 1');
+  });
+
+  test("reaches the login shell even when no location works", async () => {
+    // A read-only home is the realistic version of this: every candidate fails,
+    // the install is skipped, and the session must still come up.
+    const home = tempDir();
+    const { stdout, exitCode } = await runBootstrap({
+      HOME: home,
+      XDG_RUNTIME_DIR: "/proc/nonexistent",
+      XDG_CACHE_HOME: "/proc/nonexistent",
+    });
     expect(exitCode).toBe(0);
-    expect(stdout.trim()).toBe("unset");
+    expect(stdout.split("\n")[0]).toBe("unset");
   });
 });
 
