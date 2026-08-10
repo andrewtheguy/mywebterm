@@ -27,11 +27,15 @@ export const HELPER_NAME = "webterm-open";
 //
 // /tmp is deliberately not in this list: it is mounted noexec often enough that
 // the helper would silently fail to run.
-const REMOTE_DIRS = [
+// Both candidates must expand to nothing rather than to a root-relative path
+// when their variables are unset, so the empty-argument guard in the bootstrap
+// can reject them: a plain $HOME/.cache would become /.cache, which a root
+// session would create.
+export const REMOTE_DIRS = [
   // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
   "${XDG_RUNTIME_DIR}",
   // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
-  "${XDG_CACHE_HOME:-$HOME/.cache}",
+  "${XDG_CACHE_HOME:-${HOME:+$HOME/.cache}}",
 ];
 
 let localHelperDir: string | null = null;

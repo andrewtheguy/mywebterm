@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -9,6 +9,7 @@ import {
   getLocalHelperDir,
   HELPER_NAME,
   provisionLocalHelper,
+  REMOTE_DIRS,
   removeLocalHelper,
 } from "./openHelper";
 import helperSource from "./webtermOpen.sh" with { type: "text" };
@@ -17,7 +18,7 @@ const scratch: string[] = [];
 
 // The parent's own values would decide these tests: editors export BROWSER, and
 // a logind session exports XDG_RUNTIME_DIR, which outranks the cache fallback.
-const ISOLATED = ["BROWSER", "XDG_RUNTIME_DIR", "XDG_CACHE_HOME"];
+const ISOLATED = ["BROWSER", "XDG_RUNTIME_DIR", "XDG_CACHE_HOME", "HOME"];
 
 function cleanEnv(overrides: Record<string, string>): Record<string, string> {
   const env = { ...process.env, ...overrides } as Record<string, string>;
@@ -114,6 +115,39 @@ describe("buildRemoteBootstrap", () => {
   test("never aims at the filesystem root when the runtime dir is unset", () => {
     // A root session would happily create /mywebterm/bin.
     expect(bootstrap).toInclude('[ -n "$1" ] || return 1');
+  });
+
+  test("every candidate expands to nothing when its variables are unset", async () => {
+    // The guard above only helps if the expansion is empty. $HOME/.cache would
+    // have become /.cache — non-empty, so accepted, and created under root.
+    for (const dir of REMOTE_DIRS) {
+      const proc = Bun.spawn(["sh", "-c", `printf %s "${dir}"`], {
+        env: cleanEnv({}),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+      expect(exitCode).toBe(0);
+      expect(stdout).toBe("");
+    }
+  });
+
+  test("installs nowhere when HOME and both XDG variables are unset", async () => {
+    // The fake login shell has to live outside $HOME here, since there is none.
+    const elsewhere = tempDir();
+    const fakeShell = join(elsewhere, "fake-shell");
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    writeFileSync(fakeShell, '#!/bin/sh\nprintf "%s\\n" "${BROWSER-unset}"\n', { mode: 0o755 });
+
+    const proc = Bun.spawn(["sh", "-c", bootstrap], {
+      env: cleanEnv({ SHELL: fakeShell }),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+    expect(exitCode).toBe(0);
+    expect(stdout.split("\n")[0]).toBe("unset");
+    expect(existsSync("/.cache/mywebterm")).toBe(false);
   });
 
   test("reaches the login shell even when no location works", async () => {
