@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
+import { buildRemoteBootstrap, HELPER_NAME, provisionLocalHelper, removeLocalHelper } from "./openHelper";
 import { buildSessionCommand, buildSpawnEnv, setShellCommand, setSshConfigPath } from "./sessionManager";
+
+const BOOTSTRAP = buildRemoteBootstrap();
 
 describe("buildSessionCommand", () => {
   test("returns the configured shell command when no ssh target is given", () => {
@@ -15,7 +18,9 @@ describe("buildSessionCommand", () => {
       "ServerAliveInterval=30",
       "-o",
       "ServerAliveCountMax=3",
+      "-tt",
       "user@host",
+      BOOTSTRAP,
     ]);
   });
 
@@ -26,9 +31,11 @@ describe("buildSessionCommand", () => {
       "ServerAliveInterval=30",
       "-o",
       "ServerAliveCountMax=3",
+      "-tt",
       "-p",
       "2222",
       "user@host",
+      BOOTSTRAP,
     ]);
   });
 
@@ -43,7 +50,9 @@ describe("buildSessionCommand", () => {
         "ServerAliveInterval=30",
         "-o",
         "ServerAliveCountMax=3",
+        "-tt",
         "nas",
+        BOOTSTRAP,
       ]);
     } finally {
       setSshConfigPath(undefined);
@@ -78,5 +87,21 @@ describe("buildSpawnEnv", () => {
     expect(env.LANGUAGE).toBeUndefined();
     expect(env.TERM).toBe("xterm-256color");
     expect(env.PATH).toBe(process.env.PATH);
+  });
+
+  test("puts webterm-open on PATH for local sessions only", () => {
+    const dir = provisionLocalHelper();
+    try {
+      const local = buildSpawnEnv(false);
+      expect(local.PATH?.startsWith(`${dir}:`)).toBe(true);
+      expect(local.BROWSER).toBe(HELPER_NAME);
+
+      // ssh sessions get the helper from the bootstrap command instead — a
+      // local path exported across the hop would point at nothing.
+      const remote = buildSpawnEnv(true);
+      expect(remote.PATH).toBe(process.env.PATH);
+    } finally {
+      removeLocalHelper();
+    }
   });
 });

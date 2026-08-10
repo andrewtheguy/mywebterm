@@ -80,32 +80,30 @@ running on. This covers plain URLs in the output and OSC 8 hyperlinks (`ls
 --hyperlink`, `gh`, `cargo`, …). Only `http`/`https` links open; anything else
 is refused.
 
-Programs that want to launch a browser themselves (`xdg-open`, `gh auth login`,
-`python -m webbrowser`) normally try to open one on the *remote* host, where
-there is no display. Install [`scripts/webterm-open`](scripts/webterm-open) on
-that host and point `BROWSER` at it:
+Programs that launch a browser themselves (`xdg-open`, `gh auth login`, `python
+-m webbrowser`, Shopify CLI's preview shortcut) never print a URL to click —
+they spawn a browser on the host the shell is running on, where there is no
+display. MyWebTerm handles this without any setup: every session gets a
+`webterm-open` helper on `$PATH` with `$BROWSER` pointed at it, so those
+programs end up opening a tab in the browser you are viewing MyWebTerm in.
 
-```bash
-# from the machine holding the MyWebTerm checkout
-ssh you@remote 'mkdir -p ~/.local/bin'
-scp scripts/webterm-open you@remote:.local/bin/webterm-open
-```
+Nothing is installed by hand, on any host. Local sessions get the helper from a
+private directory created at startup and deleted on exit. ssh sessions carry it
+over the ssh command line into `~/.cache/mywebterm/bin` on the remote host, then
+hand over to your login shell. If the remote is read-only or lacks `base64` the
+install is skipped and the session starts as usual, just without the helper.
 
-```bash
-# then, on the remote host (~/.local/bin must be on PATH)
-chmod +x ~/.local/bin/webterm-open
-echo 'export BROWSER=webterm-open' >> ~/.bashrc
-```
-
-The script is short enough to paste into an editor on the remote instead, if
-copying a file over is inconvenient.
-
-The script prints `OSC 1338 ; <url> BEL`; MyWebTerm shows a toast with an
+The helper prints `OSC 1338 ; <url> BEL`; MyWebTerm shows a toast with an
 **Open** button, and clicking it opens the URL locally. The confirmation is
 deliberate — anything writing to the tty can emit that sequence, and browsers
-block popups that no click asked for. Other terminals ignore the sequence, so
-leaving `BROWSER` set is harmless elsewhere. Under tmux you also need
+block popups that no click asked for. Under tmux you also need
 `set -g allow-passthrough on`.
+
+Delivering that sequence is less obvious than it looks: launchers built on the
+npm `open` package spawn the browser detached, so it has no controlling
+terminal and its stdio is `/dev/null`. The helper falls back to `$WEBTERM_TTY`
+and then to a terminal an ancestor process still holds. On a host without
+`/proc` (macOS), set `export WEBTERM_TTY="$(tty)"` there to cover that case.
 
 ### Inline images
 

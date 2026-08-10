@@ -41,6 +41,8 @@ Key files:
 | `src/loginPage.ts` | Standalone `/login` page HTML |
 | `src/openUrl.ts` | URL validation and new-tab opening for terminal links and OSC 1338 |
 | `src/listenTarget.ts` | Parsing of `--listen` (port, host:port, or `unix:<path>[,mode=NNN]`) |
+| `src/openHelper.ts` | Installs `webterm-open` into every session (local `$PATH`, ssh bootstrap) |
+| `src/webtermOpen.sh` | The helper itself — emits OSC 1338 to whatever terminal it can reach |
 
 ## HTTP routes
 
@@ -123,13 +125,43 @@ Two paths reach it:
 
 OSC 1338 is MyWebTerm's own identifier (one past iTerm2's 1337). It exists so a
 program on the ssh destination can open a page on the viewer's machine instead
-of on a host with no display — `scripts/webterm-open` emits it, and is meant to
-be installed on the remote as `$BROWSER` so `xdg-open`, `gh auth login` and
-`python -m webbrowser` route through it. The toast is not politeness: the
-sequence arrives without a user gesture, so browsers would block a popup, and
-any process writing to the tty could otherwise navigate the viewer's browser.
-Toast ids are keyed on the URL, so a program spamming the same request replaces
-its own toast instead of stacking.
+of on a host with no display. `src/webtermOpen.sh` emits it; `src/openHelper.ts`
+plants it on the far side of every session as `$BROWSER`, so `xdg-open`, `gh
+auth login` and `python -m webbrowser` route through it (see
+[Planting webterm-open](#planting-webterm-open)). The toast is not politeness:
+the sequence arrives without a user gesture, so browsers would block a popup,
+and any process writing to the tty could otherwise navigate the viewer's
+browser. Toast ids are keyed on the URL, so a program spamming the same request
+replaces its own toast instead of stacking.
+
+### Planting webterm-open
+
+The helper has to exist on whichever host the session's shell runs on, and the
+server cannot reach that host after the fact — so it is installed as the session
+starts, from a copy embedded in the binary (`import ... with { type: "text" }`).
+
+| Session | Mechanism | Lifetime |
+|---|---|---|
+| Local shell | `mkdtemp` at startup, prepended to `$PATH` by `buildSpawnEnv` | removed on process exit |
+| ssh | base64 payload in the ssh command line → `~/.cache/mywebterm/bin`, then `exec $SHELL -l` | persists on the remote, overwritten next session |
+
+Two things constrain the ssh bootstrap. ssh hands the command to the *user's*
+login shell, which may be fish, so the real work is wrapped in `/bin/sh -c
+'...'` — and that wrapped text may therefore contain no single quote, which is
+why the payload is base64 (whose alphabet is also safe unquoted). And ssh only
+allocates a remote pty for a bare login, so a command means `-tt`.
+
+Every failure path still reaches the `exec`: a host with no `base64`, an
+unwritable `$HOME`, a full disk. The session comes up without the helper rather
+than not at all.
+
+Delivery is the subtle half. `webterm-open` writes to `/dev/tty`, not stdout,
+because callers like `gh auth login` capture stdout — but launchers built on the
+npm `open` package spawn with `detached: true, stdio: 'ignore'`, and `setsid()`
+leaves the process with no controlling terminal at all. So it falls back to
+`$WEBTERM_TTY`, then walks up `/proc/<ppid>/fd/{2,1,0}` for a terminal an
+ancestor still holds, checking `readlink` targets so an ancestor's `/dev/null`
+(also a character device) cannot swallow the sequence.
 
 The handler mirrors the OSC 52 clipboard bridge next to it, which is the same
 shape of problem: a terminal escape asking the *browser* to do something the
