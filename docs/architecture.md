@@ -39,6 +39,7 @@ Key files:
 | `src/App.tsx` | React UI shell, toolbar, logout/restart buttons |
 | `src/useTerminal.ts` | xterm.js wiring, WebSocket connection, reconnect/backoff, sessionStorage |
 | `src/loginPage.ts` | Standalone `/login` page HTML |
+| `src/openUrl.ts` | URL validation and new-tab opening for terminal links and OSC 1338 |
 
 ## HTTP routes
 
@@ -97,6 +98,39 @@ output frame ◄─────────────────────�
 
 For the exact frame and message formats, see
 [WebSocket Protocol](./websocket-protocol.md).
+
+## Opening links
+
+Link opening is entirely client-side (`src/openUrl.ts`, wired up in
+`useTerminal.ts`); the server never sees it. Every URL is run through
+`normalizeOpenableUrl`, which accepts only `http:`/`https:`, rejects embedded
+credentials (`https://github.com@evil.example`) and rejects control characters,
+spaces and bidi overrides — output on a tty is attacker-controlled in exactly
+the way a URL bar is not. Opening goes through a synthetic `<a target="_blank"
+rel="noopener noreferrer">` click rather than `window.open`, which keeps the
+user gesture and avoids `noopener` swallowing the return value.
+
+Two paths reach it:
+
+| Trigger | Path | Confirmation |
+|---|---|---|
+| Click on a plain URL in the output | `WebLinksAddon` → `activateTerminalLink` | none — the click *is* the gesture |
+| Click on an OSC 8 hyperlink | `linkHandler` terminal option → `activateTerminalLink` | none |
+| `OSC 1338 ; <url> BEL` from the far side | `createOpenUrlOscHandler` → sonner toast | **Open** button |
+
+OSC 1338 is MyWebTerm's own identifier (one past iTerm2's 1337). It exists so a
+program on the ssh destination can open a page on the viewer's machine instead
+of on a host with no display — `scripts/webterm-open` emits it, and is meant to
+be installed on the remote as `$BROWSER` so `xdg-open`, `gh auth login` and
+`python -m webbrowser` route through it. The toast is not politeness: the
+sequence arrives without a user gesture, so browsers would block a popup, and
+any process writing to the tty could otherwise navigate the viewer's browser.
+Toast ids are keyed on the URL, so a program spamming the same request replaces
+its own toast instead of stacking.
+
+The handler mirrors the OSC 52 clipboard bridge next to it, which is the same
+shape of problem: a terminal escape asking the *browser* to do something the
+remote host cannot.
 
 ## Inline images
 
