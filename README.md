@@ -84,8 +84,12 @@ Programs that launch a browser themselves (`xdg-open`, `gh auth login`, `python
 -m webbrowser`, Shopify CLI's preview shortcut) never print a URL to click —
 they spawn a browser on the host the shell is running on, where there is no
 display. MyWebTerm handles this without any setup: every session gets a
-`webterm-open` helper on `$PATH` with `$BROWSER` pointed at it, so those
-programs end up opening a tab in the browser you are viewing MyWebTerm in.
+`webterm-open` helper with `$BROWSER` pointed at it, so those programs end up
+opening a tab in the browser you are viewing MyWebTerm in. `$BROWSER` holds an
+absolute path, because `$PATH` is not dependable — a login shell sources
+`/etc/profile`, which replaces `$PATH` rather than adding to it, and tmux hands
+every new pane a login shell. The helper's directory is prepended to `$PATH` as
+well, so the command can be typed by hand in shells that keep it.
 
 Nothing is installed by hand, on any host. Local sessions get the helper from a
 private directory created at startup and deleted on exit. ssh sessions carry it
@@ -98,14 +102,29 @@ without the helper.
 The helper prints `OSC 1338 ; <url> BEL`; MyWebTerm shows a toast with an
 **Open** button, and clicking it opens the URL locally. The confirmation is
 deliberate — anything writing to the tty can emit that sequence, and browsers
-block popups that no click asked for. Under tmux you also need
-`set -g allow-passthrough on`.
+block popups that no click asked for.
 
-Delivering that sequence is less obvious than it looks: launchers built on the
-npm `open` package spawn the browser detached, so it has no controlling
-terminal and its stdio is `/dev/null`. The helper falls back to `$WEBTERM_TTY`
-and then to a terminal an ancestor process still holds. On a host without
-`/proc` (macOS), set `export WEBTERM_TTY="$(tty)"` there to cover that case.
+Delivering that sequence is less obvious than it looks:
+
+- Launchers built on the npm `open` package spawn the browser detached, so it
+  has no controlling terminal and its stdio is `/dev/null`. The helper falls
+  back to `$WEBTERM_TTY` and then to a terminal an ancestor process still holds.
+- Inside **tmux or zellij**, `/dev/tty` is only the pane, and the pane's owner
+  decides what escapes. With a stock tmux config nothing escapes at all — even
+  the DCS passthrough needs `set -g allow-passthrough on` — and zellij drops the
+  sequence whatever the wrapping, with no passthrough option to turn on. So the
+  helper writes to the outer terminal
+  directly instead, found via `tmux display-message -p '#{client_tty}'`, then
+  `$WEBTERM_TTY` (exported into every session for exactly this), then
+  `$SSH_TTY`. Neither multiplexer needs configuring, and `allow-passthrough`
+  only matters as a fallback.
+
+  The one case that misses is attaching to a multiplexer session that was
+  started outside MyWebTerm: its server hands panes the `$WEBTERM_TTY` it was
+  started with, so under zellij the toast can land in the terminal that session
+  came from. tmux is asked live and is unaffected.
+- On a host without `/proc` (macOS), set `export WEBTERM_TTY="$(tty)"` there to
+  cover the detached-launcher case.
 
 ### Inline images
 

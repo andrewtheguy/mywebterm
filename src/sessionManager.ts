@@ -1,7 +1,7 @@
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { Terminal as ShadowTerminal } from "@xterm/headless";
 import type { ServerWebSocket } from "bun";
-import { applyLocalHelperEnv, buildRemoteBootstrap } from "./openHelper";
+import { applyLocalHelperEnv, buildRemoteBootstrap, wrapLocalCommand } from "./openHelper";
 import { encodeServerControl, parseSshTarget } from "./ttyProtocol";
 
 // --- Types ---
@@ -129,9 +129,10 @@ export function setShellCommand(cmd: string[]): void {
 //
 // Remote sessions run a bootstrap command that installs webterm-open and then
 // execs the login shell, which is why -tt is needed: ssh only allocates a
-// remote pty for a bare login, not when a command is present.
+// remote pty for a bare login, not when a command is present. Local sessions
+// get a smaller bootstrap of their own, just to record the pty.
 export function buildSessionCommand(sshTarget: string | undefined): string[] {
-  if (sshTarget === undefined) return shellCommand;
+  if (sshTarget === undefined) return wrapLocalCommand(shellCommand);
   const parsed = parseSshTarget(sshTarget);
   if (!parsed) {
     throw new Error(`Invalid ssh target: ${sshTarget}`);

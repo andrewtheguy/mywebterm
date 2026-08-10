@@ -1,14 +1,21 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 
-import { buildRemoteBootstrap, HELPER_NAME, provisionLocalHelper, removeLocalHelper } from "./openHelper";
+import {
+  buildRemoteBootstrap,
+  HELPER_NAME,
+  provisionLocalHelper,
+  removeLocalHelper,
+  wrapLocalCommand,
+} from "./openHelper";
 import { buildSessionCommand, buildSpawnEnv, setShellCommand, setSshConfigPath } from "./sessionManager";
 
 const BOOTSTRAP = buildRemoteBootstrap();
 
 describe("buildSessionCommand", () => {
-  test("returns the configured shell command when no ssh target is given", () => {
+  test("wraps the configured shell command when no ssh target is given", () => {
     setShellCommand(["/bin/bash", "--norc"]);
-    expect(buildSessionCommand(undefined)).toEqual(["/bin/bash", "--norc"]);
+    expect(buildSessionCommand(undefined)).toEqual(wrapLocalCommand(["/bin/bash", "--norc"]));
   });
 
   test("builds an ssh command with keepalive options", () => {
@@ -94,7 +101,7 @@ describe("buildSpawnEnv", () => {
     try {
       const local = buildSpawnEnv(false);
       expect(local.PATH?.startsWith(`${dir}:`)).toBe(true);
-      expect(local.BROWSER).toBe(HELPER_NAME);
+      expect(local.BROWSER).toBe(join(dir as string, HELPER_NAME));
 
       // ssh sessions get the helper from the bootstrap command instead — a
       // local path exported across the hop would point at nothing.
