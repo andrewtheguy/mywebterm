@@ -1,6 +1,7 @@
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { Terminal as ShadowTerminal } from "@xterm/headless";
 import type { ServerWebSocket } from "bun";
+import { applyLocalHelperEnv, buildRemoteBootstrap } from "./openHelper";
 import { encodeServerControl, parseSshTarget } from "./ttyProtocol";
 
 // --- Types ---
@@ -125,6 +126,10 @@ export function setShellCommand(cmd: string[]): void {
 // given, the configured shell command otherwise. The keepalive options make a
 // hung ssh (dead network, unreachable host) exit on its own instead of
 // lingering until the stale sweep kills it.
+//
+// Remote sessions run a bootstrap command that installs webterm-open and then
+// execs the login shell, which is why -tt is needed: ssh only allocates a
+// remote pty for a bare login, not when a command is present.
 export function buildSessionCommand(sshTarget: string | undefined): string[] {
   if (sshTarget === undefined) return shellCommand;
   const parsed = parseSshTarget(sshTarget);
@@ -140,8 +145,10 @@ export function buildSessionCommand(sshTarget: string | undefined): string[] {
     "ServerAliveInterval=30",
     "-o",
     "ServerAliveCountMax=3",
+    "-tt",
     ...(parsed.port !== undefined ? ["-p", String(parsed.port)] : []),
     parsed.destination,
+    buildRemoteBootstrap(),
   ];
 }
 
@@ -149,6 +156,9 @@ export function buildSessionCommand(sshTarget: string | undefined): string[] {
 // ssh_config), and the remote side may not have this machine's locale
 // generated — producing setlocale warnings on every login. Strip them for ssh
 // sessions so the remote host falls back to its own default locale.
+//
+// Local sessions get webterm-open on $PATH here; remote ones get it from the
+// bootstrap command instead, since none of this environment survives the hop.
 export function buildSpawnEnv(isSsh: boolean): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = { ...process.env, TERM: "xterm-256color" };
   if (isSsh) {
@@ -157,6 +167,8 @@ export function buildSpawnEnv(isSsh: boolean): Record<string, string | undefined
         delete env[key];
       }
     }
+  } else {
+    applyLocalHelperEnv(env);
   }
   return env;
 }
