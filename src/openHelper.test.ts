@@ -1,5 +1,5 @@
-import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -33,6 +33,11 @@ function tempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "mywebterm-test-"));
   scratch.push(dir);
   return dir;
+}
+
+function restore(key: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
 }
 
 afterAll(() => {
@@ -250,9 +255,30 @@ describe("wrapLocalCommand", () => {
 });
 
 describe("provisionLocalHelper", () => {
+  // The real ones would be written to for real: this installs to a fixed path,
+  // not a fresh mkdtemp.
+  let savedRuntime: string | undefined;
+  let savedCache: string | undefined;
+  let runtime: string;
+
+  beforeEach(() => {
+    savedRuntime = process.env.XDG_RUNTIME_DIR;
+    savedCache = process.env.XDG_CACHE_HOME;
+    runtime = tempDir();
+    process.env.XDG_RUNTIME_DIR = runtime;
+    delete process.env.XDG_CACHE_HOME;
+    removeLocalHelper();
+  });
+
+  afterEach(() => {
+    removeLocalHelper();
+    restore("XDG_RUNTIME_DIR", savedRuntime);
+    restore("XDG_CACHE_HOME", savedCache);
+  });
+
   test("writes an owner-only executable and puts it on PATH", () => {
     const dir = provisionLocalHelper();
-    expect(dir).not.toBeNull();
+    expect(dir).toBe(join(runtime, "mywebterm", "bin"));
     expect(getLocalHelperDir()).toBe(dir);
 
     const helper = join(dir as string, HELPER_NAME);
@@ -267,13 +293,58 @@ describe("provisionLocalHelper", () => {
     expect(env.BROWSER).toBe(helper);
   });
 
+  test("lands on the same path across restarts", () => {
+    // What a per-run mkdtemp got wrong. A tmux server started inside a session
+    // keeps its copy of $BROWSER for life and hands it to every later pane, so
+    // the path has to still mean something after mywebterm is restarted.
+    const first = provisionLocalHelper();
+    removeLocalHelper();
+    expect(provisionLocalHelper()).toBe(first);
+    expect(statSync(join(first as string, HELPER_NAME)).mode & 0o777).toBe(0o700);
+  });
+
+  test("leaves an identical install untouched", () => {
+    // Rewriting a file another process is executing fails with ETXTBSY, which a
+    // fixed path makes reachable: a second instance is serving sessions off it.
+    const helper = join(provisionLocalHelper() as string, HELPER_NAME);
+    const before = statSync(helper).mtimeMs;
+
+    removeLocalHelper(); // forget the memo, then stand in for a previous run
+    writeFileSync(helper, helperSource, { mode: 0o700 });
+    const planted = statSync(helper).mtimeMs;
+
+    provisionLocalHelper();
+    expect(statSync(helper).mtimeMs).toBe(planted);
+    expect(planted).not.toBe(before); // the check above can actually fail
+  });
+
+  test("rewrites an install that no longer matches", () => {
+    const helper = join(provisionLocalHelper() as string, HELPER_NAME);
+    removeLocalHelper();
+    writeFileSync(helper, "#!/bin/sh\nexit 2\n", { mode: 0o700 });
+
+    provisionLocalHelper();
+    expect(readFileSync(helper, "utf8")).toBe(helperSource);
+  });
+
+  test("prefers the runtime dir, falls back to the cache dir", () => {
+    // /proc stands in for a directory that accepts neither the write nor the
+    // exec, the same way it does in the bootstrap tests.
+    const cache = tempDir();
+    process.env.XDG_RUNTIME_DIR = "/proc/nonexistent";
+    process.env.XDG_CACHE_HOME = cache;
+    expect(provisionLocalHelper()).toBe(join(cache, "mywebterm", "bin"));
+  });
+
   test("is idempotent, and removal is final", () => {
     const dir = provisionLocalHelper();
     expect(provisionLocalHelper()).toBe(dir);
 
     removeLocalHelper();
     expect(getLocalHelperDir()).toBeNull();
-    expect(() => statSync(dir as string)).toThrow();
+    // The directory is fixed and shared, so only the helper itself goes.
+    expect(() => statSync(join(dir as string, HELPER_NAME))).toThrow();
+    expect(statSync(dir as string).isDirectory()).toBe(true);
 
     // A session started after removal simply goes without.
     const env: Record<string, string | undefined> = { PATH: "/usr/bin" };
