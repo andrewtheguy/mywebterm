@@ -127,7 +127,7 @@ export function setShellCommand(cmd: string[]): void {
 // lingering until the stale sweep kills it. MyWebTerm deliberately does not
 // wrap either command or inject setup into the remote login.
 export function buildSessionCommand(sshTarget: string | undefined): string[] {
-  if (sshTarget === undefined) return shellCommand;
+  if (sshTarget === undefined) return [...shellCommand];
   const parsed = parseSshTarget(sshTarget);
   if (!parsed) {
     throw new Error(`Invalid ssh target: ${sshTarget}`);

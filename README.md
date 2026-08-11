@@ -101,8 +101,10 @@ tmux set-environment -gu BROWSER
 tmux set-environment -gu WEBTERM_TTY
 ```
 
-Restart a long-lived zellij session if it inherited those variables. The stale
-helper file is inert once nothing points at it; if desired, manually remove
+Clearing tmux's server environment only affects newly created processes, so
+restart any existing tmux shells or panes that inherited those variables.
+Restart a long-lived zellij session if it inherited them too. The stale helper
+file is inert once nothing points at it; if desired, manually remove
 `webterm-open` from the `mywebterm/bin` directory under `$XDG_RUNTIME_DIR`,
 `$XDG_CACHE_HOME` (or `~/.cache`), or `/tmp/mywebterm-$(id -u)`.
 
@@ -155,8 +157,9 @@ Multiplexers need their own setup too:
 - **tmux:** make `BROWSER` available to new panes (start the tmux server with it,
   configure it in each pane's shell profile, or use `tmux set-environment -g
   BROWSER "$HOME/.local/bin/webterm-open"`). The helper normally asks tmux for
-  the attached client's tty. Its wrapped fallback requires `set -g
-  allow-passthrough on` in `~/.tmux.conf`.
+  the attached client's tty. On tmux 3.3 or newer, its wrapped fallback requires
+  `set -g allow-passthrough on` in `~/.tmux.conf`; older versions do not
+  recognize that option, so omit it there.
 - **zellij:** zellij does not currently offer tmux-style arbitrary escape
   passthrough ([upstream issue](https://github.com/zellij-org/zellij/issues/3954)).
   Record the outer tty yourself before starting zellij and make both variables

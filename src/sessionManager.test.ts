@@ -4,6 +4,10 @@ import { buildSessionCommand, buildSpawnEnv, setShellCommand, setSshConfigPath }
 describe("buildSessionCommand", () => {
   test("returns the configured shell command unchanged when no ssh target is given", () => {
     setShellCommand(["/bin/bash", "--norc"]);
+    const command = buildSessionCommand(undefined);
+    expect(command).toEqual(["/bin/bash", "--norc"]);
+
+    command.push("--mutated");
     expect(buildSessionCommand(undefined)).toEqual(["/bin/bash", "--norc"]);
   });
 
