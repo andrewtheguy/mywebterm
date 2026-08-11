@@ -20,7 +20,7 @@ import index from "./index.html";
 import { DEFAULT_LISTEN, describeListenTarget, parseListenTarget } from "./listenTarget";
 import { buildLoginPageHtml } from "./loginPage";
 import manifestJson from "./manifest.json";
-import { provisionLocalHelper, removeLocalHelper } from "./openHelper";
+import { provisionLocalHelper } from "./openHelper";
 import pwaIcon192Path from "./pwa-icon-192.png" with { type: "file" };
 import pwaIcon512Path from "./pwa-icon-512.png" with { type: "file" };
 import {
@@ -190,11 +190,9 @@ if (values["ssh-config"]) {
   sshHosts = parseSshConfigHosts(await sshConfigFile.text());
 }
 
-// Sessions pick this up from $PATH, so it has to exist before the first one.
-// The cleanup handler goes on immediately: startup can still exit(1) below,
-// and gracefulShutdown ends in process.exit, so "exit" covers every way out.
+// Sessions name this in $BROWSER, so it has to exist before the first one. It
+// is left in place on exit on purpose — see removeLocalHelper.
 provisionLocalHelper();
-process.on("exit", removeLocalHelper);
 
 registerShutdownHandlers();
 startStaleSweep();

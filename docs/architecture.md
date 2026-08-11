@@ -142,7 +142,7 @@ starts, from a copy embedded in the binary (`import ... with { type: "text" }`).
 
 | Session | Mechanism | Lifetime |
 |---|---|---|
-| Local shell | `mkdtemp` at startup, named by `$BROWSER` via `buildSpawnEnv` | removed on process exit |
+| Local shell | at startup: `$XDG_RUNTIME_DIR/mywebterm/bin`, else `$XDG_CACHE_HOME` (or `~/.cache` when unset), else `/tmp/mywebterm-<uid>`; named by `$BROWSER` via `buildSpawnEnv` | left in place; an identical install is kept as-is, a mismatched one rewritten |
 | ssh | base64 payload in the ssh command line → `$XDG_RUNTIME_DIR`, else `~/.cache` | cleared by logind at logout; the fallback persists, overwritten next session |
 
 Two things constrain the ssh bootstrap. ssh hands the command to the *user's*
@@ -155,7 +155,8 @@ The install tries each candidate directory in turn and *runs* what it stored,
 because writing a file is no proof it can execute: a `noexec` mount accepts the
 write and refuses at exec time. Called with no arguments the helper answers 2,
 where a filesystem that will not run it answers 126. That check is also why
-`/tmp` is not a candidate — it is `noexec` often enough to matter.
+`/tmp` is not among the ssh candidates — it is `noexec` often enough to matter;
+locally it is the last resort, taken only when it passes that same check.
 
 Cleaning up on exit instead of picking a self-clearing directory is not
 available: the bootstrap ends in `exec`, which discards any trap, and dropping
@@ -205,6 +206,14 @@ carries too. A multiplexer *server* started inside a session inherits it and
 passes it to every pane — the case that matters, since that is how you normally
 reach zellij. Detection goes by `$TMUX`/`$ZELLIJ` before `$TERM`, since both
 leave `$TERM` free to configure and zellij's default is plain `xterm-256color`.
+
+A multiplexer also outlives the run that started it, which is why the local
+install path is fixed rather than a per-run `mkdtemp`. A server started inside a
+session copies `$BROWSER` into its own environment and hands that copy to every
+pane it opens afterwards, so a path deleted on exit leaves those panes naming
+nothing — silently, since `xdg-open` reports only "no method available". Hence a
+fixed path, left in place on exit, rewritten at startup only when the contents
+differ (rewriting a file another process is executing fails with `ETXTBSY`).
 
 The handler mirrors the OSC 52 clipboard bridge next to it, which is the same
 shape of problem: a terminal escape asking the *browser* to do something the

@@ -91,9 +91,15 @@ absolute path, because `$PATH` is not dependable — a login shell sources
 every new pane a login shell. The helper's directory is prepended to `$PATH` as
 well, so the command can be typed by hand in shells that keep it.
 
-Nothing is installed by hand, on any host. Local sessions get the helper from a
-private directory created at startup and deleted on exit. ssh sessions carry it
-over the ssh command line into `$XDG_RUNTIME_DIR` on the remote host — which
+Nothing is installed by hand, on any host. Local sessions get the helper from
+`$XDG_RUNTIME_DIR/mywebterm/bin`, falling back to `$XDG_CACHE_HOME/mywebterm/bin`
+— or `~/.cache/mywebterm/bin` when that variable is unset — and finally to
+`/tmp/mywebterm-<uid>/mywebterm/bin`, for a server running without a home or a
+runtime dir. Whichever is used, the path is fixed rather than unique per run,
+and is left in place on exit, because things outside MyWebTerm remember it: a
+tmux server started inside a session copies `$BROWSER` into its own environment
+and hands that copy to every pane it opens for the rest of its life. ssh sessions carry the helper over the ssh
+command line into `$XDG_RUNTIME_DIR` on the remote host — which
 logind clears when your last session there ends, so nothing persists — falling
 back to `~/.cache` on hosts that have no runtime dir. If the remote is read-only
 or lacks `base64`, the install is skipped and the session starts as usual, just

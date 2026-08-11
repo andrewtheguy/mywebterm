@@ -4,12 +4,13 @@
 // program that *launches* a browser itself (`gh auth login`, `xdg-open`,
 // Shopify CLI's preview shortcut) runs on the session's host and needs a
 // command there to run. The server can't reach into that host after the fact,
-// so it plants the helper as the session starts: a private directory on $PATH
-// for local shells, and a base64 payload carried over the ssh command line for
-// remote ones. Nothing is installed by hand on any host.
+// so it plants the helper as the session starts: a fixed, user-private
+// directory named by $BROWSER for local shells, and a base64 payload carried
+// over the ssh command line for remote ones. Nothing is installed by hand on
+// any host.
 
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import helperSource from "./webtermOpen.sh" with { type: "text" };
 
@@ -48,40 +49,105 @@ export const REMOTE_DIRS = [
 // terminal.
 const TTY_EXPORT = "WEBTERM_TTY=$(tty) && export WEBTERM_TTY || unset WEBTERM_TTY;";
 
+/**
+ * Where the helper lands locally, best first — the same preference the remote
+ * bootstrap applies in shell, for the same reasons (see REMOTE_DIRS).
+ *
+ * The path is fixed rather than unique per run, because things outside this
+ * process remember it. A tmux server started inside a session copies $BROWSER
+ * into its own environment and hands that copy to panes for the rest of its
+ * life; a per-run mkdtemp would leave those panes pointing at a directory that
+ * was deleted the next time mywebterm restarted, and $BROWSER failing is silent
+ * — xdg-open reports "no method available" and opens nothing.
+ */
+function localCandidates(env: Record<string, string | undefined>): string[] {
+  const dirs: string[] = [];
+  if (env.XDG_RUNTIME_DIR) dirs.push(env.XDG_RUNTIME_DIR);
+  if (env.XDG_CACHE_HOME) dirs.push(env.XDG_CACHE_HOME);
+  else if (env.HOME) dirs.push(join(env.HOME, ".cache"));
+  // Last resort, for a server running without a home or a runtime dir. Named by
+  // uid because /tmp is shared: a fixed path someone else owns is one this user
+  // cannot write, and falling back is better than failing.
+  dirs.push(join(tmpdir(), `mywebterm-${userInfo().uid}`));
+  return dirs.map((dir) => join(dir, "mywebterm", "bin"));
+}
+
+/**
+ * Whether what is already installed is what we would write. The path is fixed,
+ * so most startups find their own work from last time — and rewriting it would
+ * be worse than pointless: on Linux, writing to a file another process is
+ * executing fails with ETXTBSY, and a second mywebterm instance serving
+ * sessions is exactly when that happens.
+ */
+function alreadyInstalled(path: string): boolean {
+  try {
+    return (statSync(path).mode & 0o777) === 0o700 && readFileSync(path, "utf8") === helperSource;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Writing the helper is not proof it can run: a noexec mount accepts the file
+ * and refuses only at exec time. Calling it with no arguments is the cheap
+ * check — it answers 2, where a filesystem that will not run it answers 126.
+ */
+function canExecute(path: string): boolean {
+  try {
+    return Bun.spawnSync([path], { stdout: "ignore", stderr: "ignore" }).exitCode === 2;
+  } catch {
+    return false;
+  }
+}
+
 let localHelperDir: string | null = null;
 
 /**
  * Writes the helper somewhere local shells can reach it. Returns the directory
- * to prepend to $PATH, or null if it could not be written — a session without
- * the helper is still a working session, so this never throws.
+ * to prepend to $PATH, or null if nowhere worked — a session without the helper
+ * is still a working session, so this never throws.
  */
 export function provisionLocalHelper(): string | null {
   if (localHelperDir !== null) return localHelperDir;
-  try {
-    // 0700 from mkdtemp: the helper is executable, so keep it to this user.
-    const dir = mkdtempSync(join(tmpdir(), "mywebterm-"));
-    const path = join(dir, HELPER_NAME);
-    writeFileSync(path, helperSource);
-    chmodSync(path, 0o700); // writeFileSync's mode is subject to umask; this is not.
-    localHelperDir = dir;
-    return dir;
-  } catch (err) {
-    console.error(`Could not install ${HELPER_NAME}, browser-opening from local shells will not work:`, err);
-    return null;
+  for (const dir of localCandidates(process.env)) {
+    try {
+      // 0700 throughout: the helper is executable, so keep it to this user.
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+      const path = join(dir, HELPER_NAME);
+      if (!alreadyInstalled(path)) {
+        writeFileSync(path, helperSource);
+        chmodSync(path, 0o700); // writeFileSync's mode is subject to umask; this is not.
+      }
+      if (!canExecute(path)) continue;
+      localHelperDir = dir;
+      return dir;
+    } catch {
+      // Try the next candidate; the last failure is the one worth reporting.
+    }
   }
+  console.error(`Could not install ${HELPER_NAME}, browser-opening from local shells will not work`);
+  return null;
 }
 
 export function getLocalHelperDir(): string | null {
   return localHelperDir;
 }
 
-/** Removes the local helper directory. Safe to call when nothing was written. */
+/**
+ * Removes the installed helper. Safe to call when nothing was written.
+ *
+ * Deliberately not wired to process exit. The path is fixed and shared, so an
+ * instance shutting down would pull the helper out from under a second instance
+ * still serving sessions — and out from under any tmux server holding the path
+ * in its copy of $BROWSER. One file left behind is the cheaper mistake, which is
+ * the same trade the remote bootstrap makes.
+ */
 export function removeLocalHelper(): void {
   if (localHelperDir === null) return;
   try {
-    rmSync(localHelperDir, { recursive: true, force: true });
+    rmSync(join(localHelperDir, HELPER_NAME), { force: true });
   } catch {
-    // Exiting anyway; a leftover temp directory is not worth a message.
+    // Nothing depends on this succeeding; a leftover file is not worth a message.
   }
   localHelperDir = null;
 }

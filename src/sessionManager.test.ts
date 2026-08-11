@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
@@ -97,6 +99,11 @@ describe("buildSpawnEnv", () => {
   });
 
   test("puts webterm-open on PATH for local sessions only", () => {
+    // Installed to a fixed path now, so point it away from the real one.
+    const runtime = mkdtempSync(join(tmpdir(), "mywebterm-test-"));
+    const saved = process.env.XDG_RUNTIME_DIR;
+    process.env.XDG_RUNTIME_DIR = runtime;
+
     const dir = provisionLocalHelper();
     try {
       const local = buildSpawnEnv(false);
@@ -109,6 +116,9 @@ describe("buildSpawnEnv", () => {
       expect(remote.PATH).toBe(process.env.PATH);
     } finally {
       removeLocalHelper();
+      rmSync(runtime, { recursive: true, force: true });
+      if (saved === undefined) delete process.env.XDG_RUNTIME_DIR;
+      else process.env.XDG_RUNTIME_DIR = saved;
     }
   });
 });
