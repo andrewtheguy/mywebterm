@@ -1,7 +1,6 @@
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { Terminal as ShadowTerminal } from "@xterm/headless";
 import type { ServerWebSocket } from "bun";
-import { applyLocalHelperEnv, buildRemoteBootstrap, wrapLocalCommand } from "./openHelper";
 import { encodeServerControl, parseSshTarget } from "./ttyProtocol";
 
 // --- Types ---
@@ -125,14 +124,10 @@ export function setShellCommand(cmd: string[]): void {
 // Resolve the argv for a new session: ssh to a remote host when a target is
 // given, the configured shell command otherwise. The keepalive options make a
 // hung ssh (dead network, unreachable host) exit on its own instead of
-// lingering until the stale sweep kills it.
-//
-// Remote sessions run a bootstrap command that installs webterm-open and then
-// execs the login shell, which is why -tt is needed: ssh only allocates a
-// remote pty for a bare login, not when a command is present. Local sessions
-// get a smaller bootstrap of their own, just to record the pty.
+// lingering until the stale sweep kills it. MyWebTerm deliberately does not
+// wrap either command or inject setup into the remote login.
 export function buildSessionCommand(sshTarget: string | undefined): string[] {
-  if (sshTarget === undefined) return wrapLocalCommand(shellCommand);
+  if (sshTarget === undefined) return [...shellCommand];
   const parsed = parseSshTarget(sshTarget);
   if (!parsed) {
     throw new Error(`Invalid ssh target: ${sshTarget}`);
@@ -146,20 +141,17 @@ export function buildSessionCommand(sshTarget: string | undefined): string[] {
     "ServerAliveInterval=30",
     "-o",
     "ServerAliveCountMax=3",
-    "-tt",
     ...(parsed.port !== undefined ? ["-p", String(parsed.port)] : []),
     parsed.destination,
-    buildRemoteBootstrap(),
   ];
 }
 
 // ssh forwards LANG/LC_* to the remote host (SendEnv in the default
 // ssh_config), and the remote side may not have this machine's locale
 // generated — producing setlocale warnings on every login. Strip them for ssh
-// sessions so the remote host falls back to its own default locale.
-//
-// Local sessions get webterm-open on $PATH here; remote ones get it from the
-// bootstrap command instead, since none of this environment survives the hop.
+// sessions so the remote host falls back to its own default locale. Browser-
+// and display-related variables pass through unchanged; their policy belongs
+// to the process manager or shell configuration.
 export function buildSpawnEnv(isSsh: boolean): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = { ...process.env, TERM: "xterm-256color" };
   if (isSsh) {
@@ -168,8 +160,6 @@ export function buildSpawnEnv(isSsh: boolean): Record<string, string | undefined
         delete env[key];
       }
     }
-  } else {
-    applyLocalHelperEnv(env);
   }
   return env;
 }

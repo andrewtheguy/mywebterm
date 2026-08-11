@@ -41,8 +41,7 @@ Key files:
 | `src/loginPage.ts` | Standalone `/login` page HTML |
 | `src/openUrl.ts` | URL validation and new-tab opening for terminal links and OSC 1338 |
 | `src/listenTarget.ts` | Parsing of `--listen` (port, host:port, or `unix:<path>[,mode=NNN]`) |
-| `src/openHelper.ts` | Installs `webterm-open` into every session (local `$PATH`, ssh bootstrap) |
-| `src/webtermOpen.sh` | The helper itself — emits OSC 1338 to whatever terminal it can reach |
+| `scripts/webterm-open` | Optional, manually installed helper that emits OSC 1338 |
 
 ## HTTP routes
 
@@ -124,96 +123,36 @@ Two paths reach it:
 | `OSC 1338 ; <url> BEL` from the far side | `createOpenUrlOscHandler` → sonner toast | **Open** button |
 
 OSC 1338 is MyWebTerm's own identifier (one past iTerm2's 1337). It exists so a
-program on the ssh destination can open a page on the viewer's machine instead
-of on a host with no display. `src/webtermOpen.sh` emits it; `src/openHelper.ts`
-plants it on the far side of every session as `$BROWSER`, so `xdg-open`, `gh
-auth login` and `python -m webbrowser` route through it (see
-[Planting webterm-open](#planting-webterm-open)). The toast is not politeness:
-the sequence arrives without a user gesture, so browsers would block a popup,
-and any process writing to the tty could otherwise navigate the viewer's
-browser. Toast ids are keyed on the URL, so a program spamming the same request
-replaces its own toast instead of stacking.
+program can ask the viewer to open a page. The sequence arrives without a user
+gesture, so the client requires an **Open** click; that also prevents any
+process writing to the tty from navigating the viewer silently. Toast ids are
+keyed on the URL, so repeat requests replace their own toast instead of
+stacking.
 
-### Planting webterm-open
+### Optional webterm-open integration
 
-The helper has to exist on whichever host the session's shell runs on, and the
-server cannot reach that host after the fact — so it is installed as the session
-starts, from a copy embedded in the binary (`import ... with { type: "text" }`).
+The server deliberately stops at the OSC handler. It does not embed, install,
+or inject an opener, and it does not modify `BROWSER`, `PATH`, `DISPLAY`,
+`WAYLAND_DISPLAY`, or `WEBTERM_TTY`. Local sessions receive the configured
+command directly. SSH sessions receive a normal ssh invocation with no remote
+command or bootstrap payload. This keeps process and environment policy outside
+the terminal server.
 
-| Session | Mechanism | Lifetime |
-|---|---|---|
-| Local shell | at startup: `$XDG_RUNTIME_DIR/mywebterm/bin`, else `$XDG_CACHE_HOME` (or `~/.cache` when unset), else `/tmp/mywebterm-<uid>`; named by `$BROWSER` via `buildSpawnEnv` | left in place; an identical install is kept as-is, a mismatched one rewritten |
-| ssh | base64 payload in the ssh command line → `$XDG_RUNTIME_DIR`, else `~/.cache` | cleared by logind at logout; the fallback persists, overwritten next session |
+[`scripts/webterm-open`](../scripts/webterm-open) is an optional administrator
+tool, not runtime server code. A user may install it on a local or remote host
+and set `BROWSER` in a shell profile, systemd unit, tmux environment, or other
+external launcher. Conversely, a user who wants no host-side browser can clear
+`DISPLAY`/`WAYLAND_DISPLAY` and set `BROWSER=/bin/false` in that launcher. The
+concrete recipes live in the README.
 
-Two things constrain the ssh bootstrap. ssh hands the command to the *user's*
-login shell, which may be fish, so the real work is wrapped in `/bin/sh -c
-'...'` — and that wrapped text may therefore contain no single quote, which is
-why the payload is base64 (whose alphabet is also safe unquoted). And ssh only
-allocates a remote pty for a bare login, so a command means `-tt`.
-
-The install tries each candidate directory in turn and *runs* what it stored,
-because writing a file is no proof it can execute: a `noexec` mount accepts the
-write and refuses at exec time. Called with no arguments the helper answers 2,
-where a filesystem that will not run it answers 126. That check is also why
-`/tmp` is not among the ssh candidates — it is `noexec` often enough to matter;
-locally it is the last resort, taken only when it passes that same check.
-
-Cleaning up on exit instead of picking a self-clearing directory is not
-available: the bootstrap ends in `exec`, which discards any trap, and dropping
-the `exec` would leave a wrapper shell between ssh and the login shell for the
-whole session. Terminal sessions also tend to end by network drop, where no trap
-would run — per-session directories would accumulate exactly when cleanup fails.
-
-Every failure path still reaches the `exec`: a host with no `base64`, an
-unwritable `$HOME`, a full disk. The session comes up without the helper rather
-than not at all.
-
-`$BROWSER` holds the helper's **absolute path**, not its name. `$PATH` cannot
-carry it: the bootstrap execs a login shell, which sources `/etc/profile`, which
-on Debian assigns `$PATH` outright instead of extending it — so the prepended
-directory is gone before the first prompt. Nothing touches `$BROWSER`. tmux is
-where this shows up worst, since every new pane is another login shell. The
-directory is still prepended, for shells that keep it and for typing the command
-by hand.
-
-Delivery is the subtle half. `webterm-open` writes to `/dev/tty`, not stdout,
-because callers like `gh auth login` capture stdout — but launchers built on the
-npm `open` package spawn with `detached: true, stdio: 'ignore'`, and `setsid()`
-leaves the process with no controlling terminal at all. So it falls back to
-`$WEBTERM_TTY`, then walks up `/proc/<ppid>/fd/{2,1,0}` for a terminal an
-ancestor still holds, checking `readlink` targets so an ancestor's `/dev/null`
-(also a character device) cannot swallow the sequence.
-
-Multiplexers break the same assumption from the other side: inside tmux or
-zellij, `/dev/tty` is the *pane*, and the pane's owner decides what escapes.
-tmux forwards an unknown sequence only when it is wrapped in a DCS passthrough
-*and* `allow-passthrough` is on; zellij drops it under every wrapping — raw, DCS
-and DCS-`tmux` were all measured to vanish, and it has no passthrough option
-([zellij-org/zellij#3954](https://github.com/zellij-org/zellij/issues/3954)).
-
-So inside a multiplexer the pane is the fallback, not the target, and the helper
-looks for the outer terminal first:
-
-| Source | Good for | Caveat |
-|---|---|---|
-| `tmux display-message -p '#{client_tty}'` | tmux, local and remote | names the client attached right now, so never stale |
-| `$WEBTERM_TTY` | anything started from within the session | a server that predates the session hands down its old value |
-| `$SSH_TTY` | remote sessions | sshd's own record of the same pty |
-
-`$WEBTERM_TTY` is why local sessions also run a bootstrap (`wrapLocalCommand`):
-`WEBTERM_TTY=$(tty) && export WEBTERM_TTY; exec "$@"`, which the ssh bootstrap
-carries too. A multiplexer *server* started inside a session inherits it and
-passes it to every pane — the case that matters, since that is how you normally
-reach zellij. Detection goes by `$TMUX`/`$ZELLIJ` before `$TERM`, since both
-leave `$TERM` free to configure and zellij's default is plain `xterm-256color`.
-
-A multiplexer also outlives the run that started it, which is why the local
-install path is fixed rather than a per-run `mkdtemp`. A server started inside a
-session copies `$BROWSER` into its own environment and hands that copy to every
-pane it opens afterwards, so a path deleted on exit leaves those panes naming
-nothing — silently, since `xdg-open` reports only "no method available". Hence a
-fixed path, left in place on exit, rewritten at startup only when the contents
-differ (rewriting a file another process is executing fails with `ETXTBSY`).
+The helper writes to `/dev/tty`, not stdout, because callers like `gh auth
+login` capture stdout. For detached launchers it tries a user-supplied
+`WEBTERM_TTY`, then walks `/proc/<ppid>/fd/{2,1,0}` for a terminal held by an
+ancestor. Inside tmux it first asks for the attached client tty and otherwise
+uses a DCS passthrough; the latter requires `allow-passthrough`. Zellij has no
+equivalent arbitrary escape passthrough, so a user must provide `WEBTERM_TTY`
+before starting it (or rely on `SSH_TTY` in an ssh session). None of those
+variables or settings is supplied by MyWebTerm.
 
 The handler mirrors the OSC 52 clipboard bridge next to it, which is the same
 shape of problem: a terminal escape asking the *browser* to do something the

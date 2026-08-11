@@ -1,23 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
-import {
-  buildRemoteBootstrap,
-  HELPER_NAME,
-  provisionLocalHelper,
-  removeLocalHelper,
-  wrapLocalCommand,
-} from "./openHelper";
 import { buildSessionCommand, buildSpawnEnv, setShellCommand, setSshConfigPath } from "./sessionManager";
 
-const BOOTSTRAP = buildRemoteBootstrap();
-
 describe("buildSessionCommand", () => {
-  test("wraps the configured shell command when no ssh target is given", () => {
+  test("returns the configured shell command unchanged when no ssh target is given", () => {
     setShellCommand(["/bin/bash", "--norc"]);
-    expect(buildSessionCommand(undefined)).toEqual(wrapLocalCommand(["/bin/bash", "--norc"]));
+    const command = buildSessionCommand(undefined);
+    expect(command).toEqual(["/bin/bash", "--norc"]);
+
+    command.push("--mutated");
+    expect(buildSessionCommand(undefined)).toEqual(["/bin/bash", "--norc"]);
   });
 
   test("builds an ssh command with keepalive options", () => {
@@ -27,9 +18,7 @@ describe("buildSessionCommand", () => {
       "ServerAliveInterval=30",
       "-o",
       "ServerAliveCountMax=3",
-      "-tt",
       "user@host",
-      BOOTSTRAP,
     ]);
   });
 
@@ -40,11 +29,9 @@ describe("buildSessionCommand", () => {
       "ServerAliveInterval=30",
       "-o",
       "ServerAliveCountMax=3",
-      "-tt",
       "-p",
       "2222",
       "user@host",
-      BOOTSTRAP,
     ]);
   });
 
@@ -59,9 +46,7 @@ describe("buildSessionCommand", () => {
         "ServerAliveInterval=30",
         "-o",
         "ServerAliveCountMax=3",
-        "-tt",
         "nas",
-        BOOTSTRAP,
       ]);
     } finally {
       setSshConfigPath(undefined);
@@ -98,27 +83,31 @@ describe("buildSpawnEnv", () => {
     expect(env.PATH).toBe(process.env.PATH);
   });
 
-  test("puts webterm-open on PATH for local sessions only", () => {
-    // Installed to a fixed path now, so point it away from the real one.
-    const runtime = mkdtempSync(join(tmpdir(), "mywebterm-test-"));
-    const saved = process.env.XDG_RUNTIME_DIR;
-    process.env.XDG_RUNTIME_DIR = runtime;
-
-    const dir = provisionLocalHelper();
+  test("preserves browser-related variables in local sessions", () => {
+    const saved = {
+      BROWSER: process.env.BROWSER,
+      DISPLAY: process.env.DISPLAY,
+      PATH: process.env.PATH,
+      WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY,
+      WEBTERM_TTY: process.env.WEBTERM_TTY,
+    };
+    process.env.BROWSER = "/custom/browser";
+    process.env.DISPLAY = ":42";
+    process.env.PATH = "/custom/bin";
+    process.env.WAYLAND_DISPLAY = "wayland-42";
+    process.env.WEBTERM_TTY = "/dev/pts/42";
     try {
       const local = buildSpawnEnv(false);
-      expect(local.PATH?.startsWith(`${dir}:`)).toBe(true);
-      expect(local.BROWSER).toBe(join(dir as string, HELPER_NAME));
-
-      // ssh sessions get the helper from the bootstrap command instead — a
-      // local path exported across the hop would point at nothing.
-      const remote = buildSpawnEnv(true);
-      expect(remote.PATH).toBe(process.env.PATH);
+      expect(local.BROWSER).toBe("/custom/browser");
+      expect(local.DISPLAY).toBe(":42");
+      expect(local.PATH).toBe("/custom/bin");
+      expect(local.WAYLAND_DISPLAY).toBe("wayland-42");
+      expect(local.WEBTERM_TTY).toBe("/dev/pts/42");
     } finally {
-      removeLocalHelper();
-      rmSync(runtime, { recursive: true, force: true });
-      if (saved === undefined) delete process.env.XDG_RUNTIME_DIR;
-      else process.env.XDG_RUNTIME_DIR = saved;
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
     }
   });
 });

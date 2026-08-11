@@ -20,7 +20,6 @@ import index from "./index.html";
 import { DEFAULT_LISTEN, describeListenTarget, parseListenTarget } from "./listenTarget";
 import { buildLoginPageHtml } from "./loginPage";
 import manifestJson from "./manifest.json";
-import { provisionLocalHelper } from "./openHelper";
 import pwaIcon192Path from "./pwa-icon-192.png" with { type: "file" };
 import pwaIcon512Path from "./pwa-icon-512.png" with { type: "file" };
 import {
@@ -189,10 +188,6 @@ if (values["ssh-config"]) {
   setSshConfigPath(sshConfigPath);
   sshHosts = parseSshConfigHosts(await sshConfigFile.text());
 }
-
-// Sessions name this in $BROWSER, so it has to exist before the first one. It
-// is left in place on exit on purpose — see removeLocalHelper.
-provisionLocalHelper();
 
 registerShutdownHandlers();
 startStaleSweep();
