@@ -1,0 +1,129 @@
+#!/bin/sh
+# webterm-open — ask the browser viewing MyWebTerm to open a URL.
+#
+# MyWebTerm does not install this script or change BROWSER/PATH for a session.
+# Install and configure it explicitly on every host where it is wanted:
+#
+#   install -m 755 scripts/webterm-open ~/.local/bin/webterm-open
+#   export BROWSER="$HOME/.local/bin/webterm-open"
+#
+# It prints OSC 1338 to the terminal MyWebTerm is showing; the client presents
+# a confirmation toast before opening the URL. See README.md for setup needed
+# by detached launchers and terminal multiplexers.
+#
+# Keep this POSIX sh: it runs on whatever the session's host happens to have.
+
+set -eu
+
+url=${1-}
+if [ -z "$url" ]; then
+  echo "usage: webterm-open <url>" >&2
+  exit 2
+fi
+
+case $url in
+  http://* | https://*) ;;
+  *)
+    echo "webterm-open: only http(s) URLs are supported: $url" >&2
+    exit 2
+    ;;
+esac
+
+# Printable ASCII only. The client re-validates, but a URL carrying control
+# characters is never something worth forwarding.
+case $url in
+  *[!\ -~]* | *" "*)
+    echo "webterm-open: URL contains spaces or control characters" >&2
+    exit 2
+    ;;
+esac
+
+esc=$(printf '\033')
+bel=$(printf '\007')
+raw="${esc}]1338;${url}${bel}"
+
+# Inside a multiplexer, /dev/tty is the pane rather than the outer terminal,
+# and the pane decides which escape sequences pass through. Prefer an outer
+# terminal supplied by tmux, WEBTERM_TTY, or ssh. Keep a wrapped pane fallback
+# for tmux/screen; tmux requires `set -g allow-passthrough on` for that path.
+# Zellij has no passthrough setting, so it needs a valid WEBTERM_TTY or SSH_TTY.
+in_mux=0
+pane=$raw
+if [ -n "${TMUX-}" ]; then
+  in_mux=1
+  pane="${esc}Ptmux;${esc}${raw}${esc}\\"
+elif [ -n "${ZELLIJ-}" ]; then
+  in_mux=1
+else
+  case ${TERM-} in
+    screen* | tmux*)
+      in_mux=1
+      pane="${esc}P${raw}${esc}\\"
+      ;;
+  esac
+fi
+
+# Write to the terminal rather than stdout: callers such as `gh auth login`
+# capture stdout, which would swallow the sequence. Launchers built on the npm
+# `open` package may also detach with no controlling terminal, so fall back to
+# an explicitly supplied WEBTERM_TTY and then a terminal held by an ancestor.
+write_to() {
+  [ -n "$1" ] && [ -c "$1" ] || return 1
+  (printf '%s' "$2" > "$1") 2>/dev/null
+}
+
+outer_ttys() {
+  if [ -n "${TMUX-}" ]; then
+    tmux display-message -p '#{client_tty}' 2>/dev/null || :
+  fi
+  if [ -n "${WEBTERM_TTY-}" ]; then
+    echo "$WEBTERM_TTY"
+  fi
+  if [ -n "${SSH_TTY-}" ]; then
+    echo "$SSH_TTY"
+  fi
+  :
+}
+
+# Only a terminal is worth writing to. An ancestor's fd 1 pointing at
+# /dev/null is a character device too, and would swallow the sequence silently.
+is_terminal() {
+  case $(readlink "$1" 2>/dev/null) in
+    /dev/pts/[0-9]* | /dev/tty[0-9]* | /dev/ttyS[0-9]*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+write_seq() {
+  # Only prefer an externally supplied outer terminal inside a multiplexer.
+  # Outside one, /dev/tty is already right and WEBTERM_TTY may be stale.
+  if [ "$in_mux" = 1 ]; then
+    for outer in $(outer_ttys); do
+      write_to "$outer" "$raw" && return 0
+    done
+  fi
+
+  write_to /dev/tty "$pane" && return 0
+
+  if [ -n "${WEBTERM_TTY-}" ] && write_to "$WEBTERM_TTY" "$pane"; then
+    return 0
+  fi
+
+  # Linux fallback for detached launchers: walk up the process tree looking
+  # for a live terminal. On systems without /proc, configure WEBTERM_TTY.
+  pid=$$
+  depth=0
+  while [ "$depth" -lt 16 ]; do
+    pid=$(awk '/^PPid:/ { print $2 }' "/proc/$pid/status" 2>/dev/null) || return 1
+    [ -n "$pid" ] && [ "$pid" != 0 ] || return 1
+    for fd in 2 1 0; do
+      if is_terminal "/proc/$pid/fd/$fd" && write_to "/proc/$pid/fd/$fd" "$pane"; then
+        return 0
+      fi
+    done
+    depth=$((depth + 1))
+  done
+  return 1
+}
+
+write_seq || printf '%s' "$pane"

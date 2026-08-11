@@ -30,11 +30,3 @@ declare module "*.png" {
   const path: string;
   export default path;
 }
-
-declare module "*.sh" {
-  /**
-   * The script's source text, embedded at build time.
-   */
-  const source: string;
-  export default source;
-}

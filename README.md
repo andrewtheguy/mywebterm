@@ -81,56 +81,99 @@ running on. This covers plain URLs in the output and OSC 8 hyperlinks (`ls
 is refused.
 
 Programs that launch a browser themselves (`xdg-open`, `gh auth login`, `python
--m webbrowser`, Shopify CLI's preview shortcut) never print a URL to click —
-they spawn a browser on the host the shell is running on, where there is no
-display. MyWebTerm handles this without any setup: every session gets a
-`webterm-open` helper with `$BROWSER` pointed at it, so those programs end up
-opening a tab in the browser you are viewing MyWebTerm in. `$BROWSER` holds an
-absolute path, because `$PATH` is not dependable — a login shell sources
-`/etc/profile`, which replaces `$PATH` rather than adding to it, and tmux hands
-every new pane a login shell. The helper's directory is prepended to `$PATH` as
-well, so the command can be typed by hand in shells that keep it.
+-m webbrowser`, Shopify CLI's preview shortcut) are separate from link clicks.
+By default, they keep their normal behavior on the shell's host. MyWebTerm does
+not install an opener, wrap the configured command or ssh login, or alter
+`BROWSER`, `PATH`, `DISPLAY`, `WAYLAND_DISPLAY`, or `WEBTERM_TTY` for this
+feature. Any policy or integration belongs in the environment that launches
+MyWebTerm, the shell profile, ssh target, or multiplexer configuration.
 
-Nothing is installed by hand, on any host. Local sessions get the helper from
-`$XDG_RUNTIME_DIR/mywebterm/bin`, falling back to `$XDG_CACHE_HOME/mywebterm/bin`
-— or `~/.cache/mywebterm/bin` when that variable is unset — and finally to
-`/tmp/mywebterm-<uid>/mywebterm/bin`, for a server running without a home or a
-runtime dir. Whichever is used, the path is fixed rather than unique per run,
-and is left in place on exit, because things outside MyWebTerm remember it: a
-tmux server started inside a session copies `$BROWSER` into its own environment
-and hands that copy to every pane it opens for the rest of its life. ssh sessions carry the helper over the ssh
-command line into `$XDG_RUNTIME_DIR` on the remote host — which
-logind clears when your last session there ends, so nothing persists — falling
-back to `~/.cache` on hosts that have no runtime dir. If the remote is read-only
-or lacks `base64`, the install is skipped and the session starts as usual, just
-without the helper.
+#### One-time cleanup after v0.0.73–v0.0.76
 
-The helper prints `OSC 1338 ; <url> BEL`; MyWebTerm shows a toast with an
+Those releases left the generated helper on disk so long-lived tmux servers
+would not lose it. This version intentionally does not delete host files either.
+If an old `BROWSER` still points at `webterm-open`, clear it from the shell or
+service that owns it. Existing tmux servers can also retain the old values:
+
+```bash
+unset BROWSER WEBTERM_TTY
+tmux set-environment -gu BROWSER
+tmux set-environment -gu WEBTERM_TTY
+```
+
+Restart a long-lived zellij session if it inherited those variables. The stale
+helper file is inert once nothing points at it; if desired, manually remove
+`webterm-open` from the `mywebterm/bin` directory under `$XDG_RUNTIME_DIR`,
+`$XDG_CACHE_HOME` (or `~/.cache`), or `/tmp/mywebterm-$(id -u)`.
+
+#### Block host-side browsers
+
+If the MyWebTerm process inherits a graphical session and browser launches are
+unwanted, remove the display variables outside the program. Setting `BROWSER`
+to `/bin/false` also stops programs that honor an explicit browser command:
+
+```bash
+env -u DISPLAY -u WAYLAND_DISPLAY BROWSER=/bin/false mywebterm
+```
+
+For a systemd service, put the same policy in the unit:
+
+```systemd
+[Service]
+UnsetEnvironment=DISPLAY WAYLAND_DISPLAY
+Environment=BROWSER=/bin/false
+```
+
+Run `systemctl daemon-reload` and restart the service after editing it.
+
+#### Opt in to browser-opening toasts
+
+To route an application's browser request to the browser viewing MyWebTerm,
+install [`scripts/webterm-open`](scripts/webterm-open) yourself on the host
+where that application runs and point `BROWSER` at its absolute path:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+install -m 755 scripts/webterm-open "$HOME/.local/bin/webterm-open"
+export BROWSER="$HOME/.local/bin/webterm-open"
+```
+
+Put the export in that host's shell profile if it should apply to every shell.
+For a local shell launched by a systemd-managed MyWebTerm, use an external
+service setting such as
+`Environment=BROWSER=/home/you/.local/bin/webterm-open`. For an ssh session,
+copy the script to the target host and configure `BROWSER` in the remote login
+environment; MyWebTerm does not transfer it or add a remote ssh command.
+
+The script prints `OSC 1338 ; <url> BEL`; MyWebTerm shows a toast with an
 **Open** button, and clicking it opens the URL locally. The confirmation is
 deliberate — anything writing to the tty can emit that sequence, and browsers
 block popups that no click asked for.
 
-Delivering that sequence is less obvious than it looks:
+Multiplexers need their own setup too:
 
-- Launchers built on the npm `open` package spawn the browser detached, so it
-  has no controlling terminal and its stdio is `/dev/null`. The helper falls
-  back to `$WEBTERM_TTY` and then to a terminal an ancestor process still holds.
-- Inside **tmux or zellij**, `/dev/tty` is only the pane, and the pane's owner
-  decides what escapes. With a stock tmux config nothing escapes at all — even
-  the DCS passthrough needs `set -g allow-passthrough on` — and zellij drops the
-  sequence whatever the wrapping, with no passthrough option to turn on. So the
-  helper writes to the outer terminal
-  directly instead, found via `tmux display-message -p '#{client_tty}'`, then
-  `$WEBTERM_TTY` (exported into every session for exactly this), then
-  `$SSH_TTY`. Neither multiplexer needs configuring, and `allow-passthrough`
-  only matters as a fallback.
+- **tmux:** make `BROWSER` available to new panes (start the tmux server with it,
+  configure it in each pane's shell profile, or use `tmux set-environment -g
+  BROWSER "$HOME/.local/bin/webterm-open"`). The helper normally asks tmux for
+  the attached client's tty. Its wrapped fallback requires `set -g
+  allow-passthrough on` in `~/.tmux.conf`.
+- **zellij:** zellij does not currently offer tmux-style arbitrary escape
+  passthrough ([upstream issue](https://github.com/zellij-org/zellij/issues/3954)).
+  Record the outer tty yourself before starting zellij and make both variables
+  available to its panes:
 
-  The one case that misses is attaching to a multiplexer session that was
-  started outside MyWebTerm: its server hands panes the `$WEBTERM_TTY` it was
-  started with, so under zellij the toast can land in the terminal that session
-  came from. tmux is asked live and is unaffected.
-- On a host without `/proc` (macOS), set `export WEBTERM_TTY="$(tty)"` there to
-  cover the detached-launcher case.
+  ```bash
+  export BROWSER="$HOME/.local/bin/webterm-open"
+  export WEBTERM_TTY="$(tty)"
+  zellij
+  ```
+
+  A long-lived zellij server can retain a stale tty from the terminal where it
+  started. Refresh or restart that external setup when attaching from a
+  different terminal.
+- **Detached launchers or hosts without `/proc`:** set `WEBTERM_TTY="$(tty)"`
+  before launching the program or multiplexer. On Linux the helper also tries
+  to find a terminal held by an ancestor process.
 
 ### Inline images
 

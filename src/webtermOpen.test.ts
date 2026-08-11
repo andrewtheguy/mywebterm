@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import helperSource from "./webtermOpen.sh" with { type: "text" };
+const helperSource = await Bun.file(new globalThis.URL("../scripts/webterm-open", import.meta.url)).text();
 
 const URL = "https://example.com/preview";
 const OSC = `\x1b]1338;${URL}\x07`;
@@ -138,8 +138,7 @@ describe("webterm-open delivery", () => {
     const outer = await openPty();
     let pane = "";
     const proc = Bun.spawn([helper, URL], {
-      // No WEBTERM_TTY at all: a zellij server started before MyWebTerm's
-      // session existed hands its panes nothing, but sshd's own record stands.
+      // No WEBTERM_TTY at all: sshd's own record points at the outer pty.
       env: { PATH: process.env.PATH as string, ZELLIJ: "0", SSH_TTY: outer.path },
       terminal: {
         cols: 80,
