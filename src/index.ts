@@ -19,9 +19,6 @@ import symbolsFont from "./fonts/SymbolsNerdFontMono-Regular.woff2" with { type:
 import index from "./index.html";
 import { DEFAULT_LISTEN, describeListenTarget, parseListenTarget } from "./listenTarget";
 import { buildLoginPageHtml } from "./loginPage";
-import manifestJson from "./manifest.json";
-import pwaIcon192Path from "./pwa-icon-192.png" with { type: "file" };
-import pwaIcon512Path from "./pwa-icon-512.png" with { type: "file" };
 import {
   attachSession,
   createSession,
@@ -147,8 +144,6 @@ const fontBuffers = new Map<string, ArrayBuffer>([
   ["JetBrainsMonoNerdFontMono-Regular.woff2", await Bun.file(regularFont).arrayBuffer()],
   ["SymbolsNerdFontMono-Regular.woff2", await Bun.file(symbolsFont).arrayBuffer()],
 ]);
-const pwaIcon192 = await Bun.file(pwaIcon192Path).arrayBuffer();
-const pwaIcon512 = await Bun.file(pwaIcon512Path).arrayBuffer();
 const appleTouchIcon = await Bun.file(appleTouchIconPath).arrayBuffer();
 
 const command = positionals.length > 0 ? positionals : [process.env.SHELL || "/bin/sh", "-l"];
@@ -455,13 +450,6 @@ serve<WsData>({
     "/api/auth/login": { POST: handleLoginPost },
     "/api/auth/logout": { POST: handleLogout },
     "/api/auth/check": handleAuthCheck,
-    "/manifest.json": () => Response.json(manifestJson, { headers: { "Content-Type": "application/manifest+json" } }),
-    "/sw.js": () =>
-      new Response("// no-op service worker for PWA installability\n", {
-        headers: { "Content-Type": "application/javascript", "Cache-Control": "no-cache" },
-      }),
-    "/pwa-icon-192.png": () => new Response(pwaIcon192, { headers: { "Content-Type": "image/png" } }),
-    "/pwa-icon-512.png": () => new Response(pwaIcon512, { headers: { "Content-Type": "image/png" } }),
     "/apple-touch-icon.png": () => new Response(appleTouchIcon, { headers: { "Content-Type": "image/png" } }),
   },
 
