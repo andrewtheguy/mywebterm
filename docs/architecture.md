@@ -58,7 +58,7 @@ Defined in the `routes` table at `src/index.ts:387`.
 | `/api/sessions` | GET | yes | List active PTY sessions + child processes |
 | `/api/restart` | POST | yes | Destroy all PTY sessions (keep login) |
 | `/tty/ws` | WS upgrade | cookie | Terminal I/O channel |
-| static | GET | no | fonts (`.woff2`), PWA icons, `manifest.json`, `sw.js` |
+| static | GET | no | fonts (`.woff2`), `apple-touch-icon.png` |
 
 ### Auth gate
 
