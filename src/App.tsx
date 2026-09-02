@@ -2006,7 +2006,7 @@ export function App() {
                   >
                     Processes
                   </button>
-                  {connectionStatus === "connected" ? (
+                  {awaitingStart ? null : connectionStatus === "connected" ? (
                     <button
                       type="button"
                       className="toolbar-button overflow-menu-item touch-only"
@@ -2053,7 +2053,7 @@ export function App() {
             <button type="button" className="toolbar-button pointer-only" onClick={() => void inspectProcesses()}>
               Processes
             </button>
-            {connectionStatus === "connected" ? (
+            {awaitingStart ? null : connectionStatus === "connected" ? (
               <button
                 type="button"
                 className="toolbar-button pointer-only"
