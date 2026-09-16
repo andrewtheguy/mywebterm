@@ -37,7 +37,7 @@ import {
   startStaleSweep,
   type WsData,
 } from "./sessionManager";
-import { parseSshConfigHosts } from "./sshConfig";
+import { loadSshConfigHosts } from "./sshConfig";
 import { ClientCommand, decodeFrame, parseClientControl } from "./ttyProtocol";
 
 declare const BUILD_VERSION: string;
@@ -170,18 +170,20 @@ if (values.cwd) {
 }
 setCwd(values.cwd || process.env.HOME || undefined);
 
-let sshHosts: string[] = [];
+let sshConfigPath: string | undefined;
 if (values["ssh-config"]) {
   // Absolute path: the PTY spawns with its own cwd, so a relative -F would
   // resolve against the wrong directory.
-  const sshConfigPath = resolve(values["ssh-config"]);
-  const sshConfigFile = Bun.file(sshConfigPath);
-  if (!(await sshConfigFile.exists())) {
-    console.error(`Invalid --ssh-config: ${values["ssh-config"]} does not exist`);
+  sshConfigPath = resolve(values["ssh-config"]);
+  // Fail fast on a path that is wrong from the start; the alias list itself is
+  // re-read per request (see handleSshHosts) so later edits are picked up.
+  try {
+    await loadSshConfigHosts(sshConfigPath);
+  } catch (err) {
+    console.error(`Invalid --ssh-config: ${err instanceof Error ? err.message : err}`);
     process.exit(1);
   }
   setSshConfigPath(sshConfigPath);
-  sshHosts = parseSshConfigHosts(await sshConfigFile.text());
 }
 
 registerShutdownHandlers();
@@ -371,8 +373,24 @@ function handleConfig(): Response {
     appTitle,
     shellCommand: command,
     authEnabled: !noAuth,
-    sshHosts,
   });
+}
+
+// Queried each time the start screen is shown, so aliases added to the config
+// file since startup appear without a restart. A file that went missing or
+// unreadable is reported to the page rather than taking the server down — the
+// local shell entry stays usable either way.
+async function handleSshHosts(): Promise<Response> {
+  if (sshConfigPath === undefined) {
+    return Response.json({ hosts: [] });
+  }
+  try {
+    return Response.json({ hosts: await loadSshConfigHosts(sshConfigPath) });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[ssh-config] ${message}`);
+    return Response.json({ error: message }, { status: 500 });
+  }
 }
 
 async function handleSessions(): Promise<Response> {
@@ -524,6 +542,9 @@ serve<WsData>({
         return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET" } });
       }
       return handleConfig();
+    }
+    if (pathname === "/api/ssh-hosts" && req.method === "GET") {
+      return handleSshHosts();
     }
     if (pathname === "/api/sessions" && req.method === "GET") {
       return handleSessions();

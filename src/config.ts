@@ -13,8 +13,14 @@ export interface TtyConfig {
   appTitle: string;
   shellCommand: string[];
   authEnabled: boolean;
+}
+
+export interface SshHostsResult {
   // Host aliases from the --ssh-config file, offered on the start screen
-  sshHosts: string[];
+  hosts: string[];
+  // Set when the config file could not be read; the page shows it instead of
+  // a host list and keeps the local shell entry working.
+  error: string | null;
 }
 
 function toWebSocketProtocol(protocol: string): "ws:" | "wss:" {
@@ -33,7 +39,6 @@ export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = win
   let appTitle = DEFAULT_APP_TITLE;
   let shellCommand: string[] = [];
   let authEnabled = true;
-  let sshHosts: string[] = [];
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 4000);
   try {
@@ -49,7 +54,6 @@ export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = win
       appTitle = json.appTitle ?? DEFAULT_APP_TITLE;
       shellCommand = Array.isArray(json.shellCommand) ? json.shellCommand : [];
       authEnabled = typeof json.authEnabled === "boolean" ? json.authEnabled : true;
-      sshHosts = Array.isArray(json.sshHosts) ? json.sshHosts.filter((h: unknown) => typeof h === "string") : [];
     }
   } catch (err) {
     if (err instanceof AuthError) throw err;
@@ -64,6 +68,30 @@ export async function loadTtyConfig(locationLike: Pick<Location, "origin"> = win
     appTitle,
     shellCommand,
     authEnabled,
-    sshHosts,
   };
+}
+
+// Queried every time the start screen is shown rather than once at load, so
+// edits to the --ssh-config file are picked up without reloading the page.
+export async function loadSshHosts(locationLike: Pick<Location, "origin"> = window.location): Promise<SshHostsResult> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
+  try {
+    const res = await fetch(new URL("/api/ssh-hosts", locationLike.origin), { signal: controller.signal });
+    if (res.status === 401) {
+      window.location.href = "/login";
+      throw new AuthError();
+    }
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      return { hosts: [], error: typeof json?.error === "string" ? json.error : `Request failed (${res.status})` };
+    }
+    const hosts = Array.isArray(json?.hosts) ? json.hosts.filter((h: unknown) => typeof h === "string") : [];
+    return { hosts, error: null };
+  } catch (err) {
+    if (err instanceof AuthError) throw err;
+    return { hosts: [], error: "Could not reach the server." };
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }

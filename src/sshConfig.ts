@@ -24,3 +24,20 @@ export function parseSshConfigHosts(content: string): string[] {
 
   return hosts;
 }
+
+// Read the config from disk and list its aliases. Called on every request
+// rather than cached at startup, so edits to the file are picked up without a
+// restart. Throws with a readable message when the file can no longer be read
+// (deleted, replaced by a directory, permissions changed).
+export async function loadSshConfigHosts(path: string): Promise<string[]> {
+  let content: string;
+  try {
+    content = await Bun.file(path).text();
+  } catch (err) {
+    // The errno code alone ("ENOENT", "EACCES") reads better than the full
+    // message, which repeats the path.
+    const detail = (err as { code?: string } | null)?.code ?? (err instanceof Error ? err.message : String(err));
+    throw new Error(`cannot read ssh config ${path}: ${detail}`);
+  }
+  return parseSshConfigHosts(content);
+}
