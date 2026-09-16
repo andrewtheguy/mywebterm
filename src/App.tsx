@@ -1,6 +1,6 @@
 import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
-import { DEFAULT_APP_TITLE, loadTtyConfig, type TtyConfig } from "./config";
+import { DEFAULT_APP_TITLE, loadSshHosts, loadTtyConfig, type TtyConfig } from "./config";
 import type { SoftKeyModifiers } from "./softKeyboard";
 import {
   applyShiftToPrintable,
@@ -643,6 +643,8 @@ export function App() {
   );
   const [sshInput, setSshInput] = useState("");
   const [startStep, setStartStep] = useState<"choice" | "ssh">("choice");
+  const [sshHosts, setSshHosts] = useState<string[]>([]);
+  const [sshHostsError, setSshHostsError] = useState<string | null>(null);
   const effectiveMinColumns = minColumns ?? DEFAULT_MIN_COLUMNS;
   const hasStoredSession = sessionStorage.getItem(SESSION_STORAGE_KEY) !== null;
   const focusOnMountRef = useCallback((el: HTMLElement | null) => {
@@ -1020,6 +1022,29 @@ export function App() {
     setDockedPressedOverlay(null);
     activeSoftKeyPointerIdRef.current = null;
   }, [softKeysOpen, isDesktopWide]);
+
+  // The server re-reads the ssh config per query, so ask again whenever the
+  // host list is about to be looked at — edits to the file are picked up
+  // without restarting the server or reloading the page.
+  const sshHostsRequestRef = useRef(0);
+  const refreshSshHosts = useCallback(() => {
+    const requestId = sshHostsRequestRef.current + 1;
+    sshHostsRequestRef.current = requestId;
+    loadSshHosts()
+      .then((result) => {
+        if (requestId !== sshHostsRequestRef.current) return;
+        setSshHosts(result.hosts);
+        setSshHostsError(result.error);
+      })
+      .catch(() => {
+        // AuthError — the page is already navigating to /login.
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!awaitingStart || hasStoredSession) return;
+    refreshSshHosts();
+  }, [awaitingStart, hasStoredSession, refreshSshHosts]);
 
   // Escape backs out of the ssh host picker to the session-type choice.
   useEffect(() => {
@@ -2124,10 +2149,16 @@ export function App() {
                         Local shell
                         <code className="start-overlay-command">{formatShellCommand(config?.shellCommand ?? [])}</code>
                       </button>
+                      {sshHostsError ? (
+                        <span className="start-overlay-error">SSH config unavailable: {sshHostsError}</span>
+                      ) : null}
                       <button
                         type="button"
                         className="toolbar-button start-overlay-choice"
-                        onClick={() => setStartStep("ssh")}
+                        onClick={() => {
+                          refreshSshHosts();
+                          setStartStep("ssh");
+                        }}
                       >
                         SSH to another host…
                       </button>
@@ -2135,7 +2166,10 @@ export function App() {
                   ) : (
                     <>
                       <span className="start-overlay-heading">SSH to</span>
-                      {(config?.sshHosts ?? []).map((host) => (
+                      {sshHostsError ? (
+                        <span className="start-overlay-error">SSH config unavailable: {sshHostsError}</span>
+                      ) : null}
+                      {sshHosts.map((host) => (
                         <button
                           key={host}
                           type="button"

@@ -960,6 +960,15 @@ body {
   padding: 0.45rem 1rem;
 }
 
+.start-overlay-error {
+  width: 100%;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+  color: var(--status-disconnected);
+}
+
 .start-overlay-back {
   font-size: 0.85rem;
   padding: 0.35rem 0.9rem;

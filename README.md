@@ -52,7 +52,11 @@ disconnected pages never leave dangling ssh processes behind.
 `--ssh-config <path>` points ssh at a custom OpenSSH client config (the
 standard `ssh -F` mechanism — no custom config format), replacing
 `~/.ssh/config` for these sessions. Anything ssh supports works there:
-`HostName`, `User`, `IdentityFile`, `ProxyJump`, etc.
+`HostName`, `User`, `IdentityFile`, `ProxyJump`, etc. The path is validated at
+startup (a bad one is a hard error), but the alias list is re-read each time
+the start screen is shown, so edits to the file show up without a restart. If
+the file becomes unreadable later, the start screen says so under the local
+shell entry instead of the server failing.
 
 `LANG`/`LC_*` are stripped from ssh sessions' environment (ssh would otherwise
 forward this machine's locale to remote hosts that may not have it generated,
