@@ -60,7 +60,7 @@ interface UseTerminalResult {
 const MOBILE_VIEWPORT_QUERY = "(max-width: 768px)";
 
 function resolveFontSize(fontSize: number | undefined, isMobileViewport: boolean): number {
-  return fontSize ?? (isMobileViewport ? 10 : 12);
+  return fontSize ?? (isMobileViewport ? 10 : 14);
 }
 
 function resolveMinColumns(minColumns: number | undefined): number {
