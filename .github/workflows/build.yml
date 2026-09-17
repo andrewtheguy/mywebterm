@@ -13,7 +13,7 @@ jobs:
       release_tag: ${{ steps.version.outputs.new }}
       is_prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Determine version
         id: version
@@ -70,7 +70,7 @@ jobs:
             artifact: mywebterm-darwin-arm64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
 
@@ -81,7 +81,7 @@ jobs:
           mkdir -p dist
           bun build --compile --no-compile-autoload-dotenv src/index.ts --outfile dist/${{ matrix.artifact }} --define "BUILD_VERSION='\"${{ needs.setup.outputs.release_tag }}\"'"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: dist/${{ matrix.artifact }}
@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
