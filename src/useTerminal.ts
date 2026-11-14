@@ -1249,9 +1249,22 @@ export function useTerminal({
       if (sessionIdRef.current !== sessionId) return;
       if (ended) {
         returnToStart();
-      } else {
-        toast.error("Could not end the session — the server did not confirm it. Try again.", { id: "end-session" });
+        return;
       }
+      // End Session stays available to try again. Leaving is offered too, so
+      // an unreachable server cannot hold the page on this session: whatever
+      // is left behind detached is reaped by the server's stale sweep.
+      toast.error("Could not end the session — the server did not confirm it.", {
+        id: "end-session",
+        description: "Try again, or leave it: the server ends abandoned sessions after a few minutes.",
+        duration: 12_000,
+        action: {
+          label: "Leave Anyway",
+          onClick: () => {
+            if (sessionIdRef.current === sessionId) returnToStart();
+          },
+        },
+      });
     })();
   }, [clearReconnectTimer, returnToStart]);
 

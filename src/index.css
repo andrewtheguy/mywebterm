@@ -943,8 +943,8 @@ body {
   font-weight: 700;
 }
 
-/* A card with nothing to press is purely "in progress": pulse its title. */
-.session-card-busy:not(:has(.session-card-actions)) .session-card-title {
+/* Something is in progress. */
+.session-card-pulse .session-card-title {
   animation: pulse-badge 1.2s ease-in-out infinite;
 }
 
@@ -986,7 +986,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .session-card-busy:not(:has(.session-card-actions)) .session-card-title {
+  .session-card-pulse .session-card-title {
     animation: none;
   }
 }

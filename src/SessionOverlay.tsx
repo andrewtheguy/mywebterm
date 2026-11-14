@@ -13,6 +13,10 @@ export interface SessionSummary {
 
 type CardTone = "ok" | "busy" | "warn" | "danger";
 
+// A connection normally completes within a moment, so a way out is offered
+// only once it clearly has not: a button flashing past would just be noise.
+const CANCEL_CONNECT_AFTER_MS = 2500;
+
 function focusOnMount(el: HTMLElement | null) {
   el?.focus();
 }
@@ -47,14 +51,19 @@ interface SessionCardProps {
   // Keep the terminal readable behind the card (its last output explains
   // why the session ended).
   dimLess?: boolean;
+  // Something is in progress: pulse the title.
+  pulse?: boolean;
   children?: ReactNode;
   actions?: ReactNode;
 }
 
-function SessionCard({ tone, title, dimLess, children, actions }: SessionCardProps) {
+function SessionCard({ tone, title, dimLess, pulse, children, actions }: SessionCardProps) {
   return (
     <div className={`disconnect-overlay start-overlay-static ${dimLess ? "disconnect-overlay-readable" : ""}`}>
-      <div className={`disconnect-overlay-text session-card session-card-${tone}`} role="status">
+      <div
+        className={`disconnect-overlay-text session-card session-card-${tone} ${pulse ? "session-card-pulse" : ""}`}
+        role="status"
+      >
         <span className="session-card-title">{title}</span>
         {children}
         {actions ? <div className="session-card-actions">{actions}</div> : null}
@@ -116,6 +125,31 @@ export function ResumeCard({ session, targetLabel, onResume, onRequestEnd }: Res
   );
 }
 
+function ConnectingCard({ targetLabel, onCancel }: { targetLabel: string; onCancel: () => void }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), CANCEL_CONNECT_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <SessionCard
+      tone="busy"
+      title="Connecting…"
+      pulse
+      actions={
+        slow ? (
+          <button type="button" className="toolbar-button session-card-button" onClick={onCancel}>
+            Cancel
+          </button>
+        ) : undefined
+      }
+    >
+      <code className="session-card-target">{targetLabel}</code>
+    </SessionCard>
+  );
+}
+
 interface SessionOverlayProps {
   connectionStatus: ConnectionStatus;
   disconnectInfo: DisconnectInfo | null;
@@ -126,6 +160,8 @@ interface SessionOverlayProps {
   onLeave: () => void;
   // Ask to kill the session (opens the confirmation dialog).
   onRequestEnd: () => void;
+  // Give up on a connection attempt that is taking too long.
+  onCancelConnect: () => void;
 }
 
 // Covers the terminal whenever a started session is not connected, naming
@@ -137,6 +173,7 @@ export function SessionOverlay({
   onReconnect,
   onLeave,
   onRequestEnd,
+  onCancelConnect,
 }: SessionOverlayProps) {
   if (connectionStatus === "connected") return null;
 
@@ -244,25 +281,8 @@ export function SessionOverlay({
       );
   }
 
-  if (connectionStatus === "connecting") {
-    return (
-      <SessionCard key="connecting" tone="busy" title="Connecting…">
-        <code className="session-card-target">{targetLabel}</code>
-      </SessionCard>
-    );
-  }
-
-  return (
-    <SessionCard
-      key="disconnected"
-      tone="danger"
-      title="Disconnected"
-      actions={
-        <>
-          {primary("Reconnect")}
-          {backToStart}
-        </>
-      }
-    />
-  );
+  // Nothing to report, so a connection is being made — or is about to be:
+  // the status still reads "disconnected" in the moment between choosing a
+  // session and the first attempt starting, which is not worth an alarm.
+  return <ConnectingCard targetLabel={targetLabel} onCancel={onCancelConnect} />;
 }

@@ -1170,6 +1170,18 @@ export function App() {
     setAwaitingStart(false);
   }, []);
 
+  // Give up on a connection attempt that is taking too long. A session this
+  // tab was resuming is kept and offered again on the resume card; a fresh
+  // start has nothing to keep, so it returns to the session picker.
+  const cancelConnect = useCallback(() => {
+    if (sessionStorage.getItem(SESSION_STORAGE_KEY) !== null) {
+      setHasStoredSession(true);
+      setAwaitingStart(true);
+    } else {
+      leaveSession();
+    }
+  }, [leaveSession]);
+
   // In-app confirmation rather than window.confirm(), which iOS Safari
   // suppresses (it returns false without showing a dialog), making End Session
   // look like a dead button on mobile.
@@ -2341,6 +2353,7 @@ export function App() {
               onReconnect={reconnect}
               onLeave={leaveSession}
               onRequestEnd={() => setEndSessionConfirmOpen(true)}
+              onCancelConnect={cancelConnect}
             />
           )}
 

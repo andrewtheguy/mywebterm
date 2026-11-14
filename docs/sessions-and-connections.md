@@ -114,6 +114,7 @@ and offers only the actions that make sense (`src/SessionOverlay.tsx`):
 | State | Cause | Actions |
 |---|---|---|
 | Session still running | page load with a stored id (see above) | Resume · End Session |
+| Connecting… | first attempt, or a resume, in flight | Cancel, once it has taken more than a moment (a resume returns to its card; a fresh start to the picker) |
 | Connection lost | socket dropped (`4001`, `1006`, …); retried with backoff, countdown shown | Retry Now · End Session |
 | Session ended | shell exited (`1000`); exit code or signal shown | Start Again · Back to Start |
 | Session moved | evicted by another viewer (`4002`) | Use Here · Back to Start |
@@ -123,7 +124,9 @@ and offers only the actions that make sense (`src/SessionOverlay.tsx`):
 attached it sends `terminate` over the socket; otherwise (resume card,
 connection lost) it calls `DELETE /api/sessions/:id` and returns to the start
 screen only once the server confirms. If the request fails or is refused, the
-page keeps the session, says so, and End Session can be tried again.
+page keeps the session and says so; End Session can be tried again, or the
+notice's **Leave Anyway** forgets the session locally and leaves it to the
+stale sweep.
 **Back to Start** never kills anything.
 
 A dropped connection also probes `/api/auth/check`; a `401` means the login
