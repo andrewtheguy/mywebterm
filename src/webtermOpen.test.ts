@@ -39,7 +39,8 @@ async function openPty(): Promise<Pty> {
       rows: 24,
       data(_terminal, data) {
         buffer += new TextDecoder().decode(data);
-        const match = buffer.match(/(\/dev\/pts\/\d+)/);
+        // Linux names ptys /dev/pts/N, macOS /dev/ttysNNN.
+        const match = buffer.match(/(\/dev\/(?:pts\/|ttys)\d+)/);
         if (match) resolvePath(match[1] as string);
       },
     },
