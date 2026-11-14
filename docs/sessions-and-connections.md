@@ -128,7 +128,10 @@ page keeps the session and says so; End Session can be tried again, or the
 notice's **Leave Anyway** forgets the session locally and leaves it to the
 stale sweep. A reconnect that is pending or in flight while the session is
 being ended, and is then refused because the session is gone, goes to the
-start screen instead of falling back to a fresh shell.
+start screen instead of falling back to a fresh shell. The page keeps the
+session id until the server confirms the end (`4004`): if the connection
+drops before `terminate` gets through, the reconnect resumes that session and
+sends `terminate` again.
 **Back to Start** never kills anything.
 
 A dropped connection also probes `/api/auth/check`; a `401` means the login

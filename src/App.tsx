@@ -668,6 +668,7 @@ export function App() {
   // Non-null while the logout confirmation is open; sessionCount is how many
   // shells logging out would kill (null until the server has answered).
   const [logoutConfirm, setLogoutConfirm] = useState<{ sessionCount: number | null } | null>(null);
+  const logoutLookupRef = useRef(0);
   const [arrowOverlayEnabled, setArrowOverlayEnabled] = useState(true);
   const [awaitingStart, setAwaitingStart] = useState(true);
   // Survives reloads (per tab) so a resume that falls back to a fresh
@@ -1842,12 +1843,16 @@ export function App() {
   // Logging out kills every shell on the server, in every tab and on every
   // device, so it gets a confirmation that says how many that is.
   const requestLogout = useCallback(() => {
+    // Each confirmation takes only the answer to its own lookup: one that was
+    // slow must not overwrite the count on a confirmation opened since.
+    const lookup = logoutLookupRef.current + 1;
+    logoutLookupRef.current = lookup;
     setLogoutConfirm({ sessionCount: null });
     fetch("/api/sessions")
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { sessions?: unknown[] } | null) => {
         const sessions = data?.sessions;
-        if (!Array.isArray(sessions)) return;
+        if (!Array.isArray(sessions) || logoutLookupRef.current !== lookup) return;
         setLogoutConfirm((prev) => (prev === null ? null : { sessionCount: sessions.length }));
       })
       .catch(() => {

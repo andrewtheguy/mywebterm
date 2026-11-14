@@ -288,8 +288,9 @@ export function useTerminal({
   const sessionIdRestoredRef = useRef(false);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The session End Session is currently killing, so that a resume refused
-  // because of it is not answered by starting a replacement.
+  // The session End Session was asked to kill. A resume of it that is refused
+  // (already gone) is not answered by starting a replacement, and one that
+  // succeeds (the request never arrived) asks again.
   const endingSessionIdRef = useRef<string | null>(null);
 
   if (!sessionIdRestoredRef.current && typeof window !== "undefined") {
@@ -1000,6 +1001,13 @@ export function useTerminal({
           sessionIdRef.current = msg.sessionId;
           sessionStorage.setItem(SESSION_STORAGE_KEY, msg.sessionId);
           reconnectAttemptRef.current = 0;
+          if (msg.sessionId === endingSessionIdRef.current) {
+            // End Session was asked for, but the connection dropped before the
+            // server confirmed it. Now that it is back, ask again; the close
+            // that follows (CLOSE_CODE_ENDED) leads to the start screen.
+            socket.send(JSON.stringify({ type: "terminate" }));
+            break;
+          }
           setConnectionStatus("connected");
           setDisconnectInfo(null);
           if (replacedExpiredSession) {
@@ -1242,11 +1250,12 @@ export function useTerminal({
       }
       clearReconnectTimer();
       reconnectAttemptRef.current = 0;
-      endingSessionIdRef.current = sessionId;
-      sessionIdRef.current = null;
-      sessionStorage.removeItem(SESSION_STORAGE_KEY);
       // Server destroys the session and closes with CLOSE_CODE_ENDED, which
-      // drives the start-screen transition via onSessionEnd.
+      // clears the session id and drives the start-screen transition via
+      // onSessionEnd. The id is kept until then: if the connection drops
+      // first, the reconnect resumes this session and ends it (see
+      // session_info) rather than starting a fresh one beside it.
+      endingSessionIdRef.current = sessionId;
       return;
     }
 
