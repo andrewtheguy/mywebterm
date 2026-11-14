@@ -121,8 +121,9 @@ and offers only the actions that make sense (`src/SessionOverlay.tsx`):
 
 **End Session** always asks for confirmation and kills the shell. While
 attached it sends `terminate` over the socket; otherwise (resume card,
-connection lost) it calls `DELETE /api/sessions/:id`. If that request cannot
-reach the server, the stale sweep reaps the detached session later.
+connection lost) it calls `DELETE /api/sessions/:id` and returns to the start
+screen only once the server confirms. If the request fails or is refused, the
+page keeps the session, says so, and End Session can be tried again.
 **Back to Start** never kills anything.
 
 A dropped connection also probes `/api/auth/check`; a `401` means the login

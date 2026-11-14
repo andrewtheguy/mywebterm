@@ -986,7 +986,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .session-card-busy .session-card-title {
+  .session-card-busy:not(:has(.session-card-actions)) .session-card-title {
     animation: none;
   }
 }

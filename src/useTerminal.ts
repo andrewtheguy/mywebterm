@@ -1223,15 +1223,36 @@ export function useTerminal({
       return;
     }
 
-    // Not attached (start screen, dropped connection, taken over elsewhere):
-    // end the session by id over HTTP. If the server cannot be reached, the
-    // stale sweep reaps the detached session a few minutes later.
-    if (sessionId) {
-      void fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE", keepalive: true }).catch(
-        () => {},
-      );
+    if (!sessionId) {
+      // Nothing left on the server to kill.
+      returnToStart();
+      return;
     }
-    returnToStart();
+
+    // Not attached (start screen, dropped connection): end the session by id
+    // over HTTP, and leave only once the server confirms. If it does not, the
+    // shell may still be running, so keep the session and its End Session
+    // button rather than pretend it is gone.
+    void (async () => {
+      let ended = false;
+      try {
+        const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+        if (res.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
+        ended = res.ok;
+      } catch {
+        // Server unreachable.
+      }
+      // Resumed, left or ended by other means while the request was in flight.
+      if (sessionIdRef.current !== sessionId) return;
+      if (ended) {
+        returnToStart();
+      } else {
+        toast.error("Could not end the session — the server did not confirm it. Try again.", { id: "end-session" });
+      }
+    })();
   }, [clearReconnectTimer, returnToStart]);
 
   const focusTerminalInput = useCallback((): boolean => {

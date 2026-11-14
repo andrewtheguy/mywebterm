@@ -676,6 +676,9 @@ export function App() {
   const focusOnMountRef = useCallback((el: HTMLElement | null) => {
     if (el) el.focus();
   }, []);
+  const showModalOnMountRef = useCallback((el: HTMLDialogElement | null) => {
+    if (el && !el.open) el.showModal();
+  }, []);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
   const copyModeMenuRef = useRef<HTMLDivElement>(null);
   const selectableTextRef = useRef<HTMLTextAreaElement | null>(null);
@@ -2670,14 +2673,21 @@ export function App() {
         </dialog>
       )}
       {logoutConfirm !== null && (
+        // biome-ignore lint/a11y/useKeyWithClickEvents: the keyboard equivalent of the backdrop click is Escape, which a modal dialog delivers as its cancel event
         <dialog
           className="settings-dialog-backdrop"
-          open
+          // A real modal: the page behind is inert and focus stays inside
+          // until the question is answered. Escape arrives as `cancel`, and
+          // `close` covers any other way the dialog shuts, so the state that
+          // renders it always follows what the dialog itself did.
+          ref={showModalOnMountRef}
+          onCancel={(e) => {
+            e.preventDefault();
+            setLogoutConfirm(null);
+          }}
+          onClose={() => setLogoutConfirm(null)}
           onClick={(e) => {
             if (e.target === e.currentTarget) setLogoutConfirm(null);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setLogoutConfirm(null);
           }}
         >
           <div className="settings-dialog confirm-dialog">
