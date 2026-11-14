@@ -1460,12 +1460,103 @@ body {
     gap: 0.3rem;
   }
 
-  .toolbar-actions > .toolbar-button {
+  /* The copy button is nested in its menu wrapper; style it like its siblings. */
+  .toolbar-actions > .toolbar-button,
+  .toolbar-actions > .copy-mode-menu > .toolbar-button {
     padding: 0.25rem 0.5rem;
     font-size: 1rem;
     white-space: nowrap;
     min-width: 3rem;
     border: 1px solid rgba(120, 150, 180, 0.4);
+  }
+
+  /* Stretch each bar button's touch target over the bar's own padding, so
+     the targets grow without the bar taking rows away from the terminal. */
+  .toolbar-actions > .toolbar-button,
+  .toolbar-actions > .copy-mode-menu > .toolbar-button {
+    position: relative;
+  }
+
+  .toolbar-actions > .toolbar-button::after,
+  .toolbar-actions > .copy-mode-menu > .toolbar-button::after {
+    content: "";
+    position: absolute;
+    inset: -0.35rem -0.15rem;
+  }
+
+  .overflow-menu-panel {
+    min-width: 12rem;
+  }
+
+  .overflow-menu-item,
+  .copy-mode-menu-item {
+    min-height: 2.75rem;
+    padding-inline: 0.8rem;
+    font-size: 0.95rem;
+  }
+
+  .overflow-menu-divider {
+    width: 100%;
+    margin: 0.2rem 0;
+    border: none;
+    border-top: 1px solid rgba(172, 255, 236, 0.25);
+  }
+
+  /* Confirmations: two full-width, thumb-sized choices. */
+  .confirm-dialog .settings-dialog-options {
+    width: 100%;
+  }
+
+  .confirm-dialog .settings-dialog-option {
+    flex: 1;
+    min-height: 2.75rem;
+  }
+
+  /* Setting pickers (font size, min columns): thumb-sized options that wrap
+     rather than squeeze. */
+  .settings-dialog {
+    max-width: calc(100vw - 1.5rem);
+  }
+
+  .settings-dialog-options {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .settings-dialog-option {
+    min-height: 2.75rem;
+  }
+
+  /* The font size picker applies each choice live, so it sits at the bottom
+     of the screen over a barely dimmed terminal: the text being judged
+     stays in view. */
+  dialog.settings-dialog-backdrop.settings-dialog-backdrop-preview {
+    align-items: flex-end;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    background: rgba(2, 10, 20, 0.2);
+  }
+
+  /* Full width, so the floating arrow pad does not peek out beside it. */
+  .settings-dialog-backdrop-preview .settings-dialog {
+    width: calc(100% - 1.5rem);
+  }
+
+  .settings-dialog-done {
+    width: 100%;
+    min-height: 2.75rem;
+    border-radius: 8px;
+  }
+
+  /* 16px keeps iOS Safari from zooming the page when the field is focused. */
+  .start-overlay-ssh-input {
+    font-size: 16px;
+    min-height: 2.75rem;
+  }
+
+  .start-overlay-ssh-button,
+  .start-overlay-back {
+    min-height: 2.75rem;
+    padding-inline: 1rem;
   }
 
   .terminal-card {

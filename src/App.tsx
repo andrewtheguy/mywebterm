@@ -23,6 +23,21 @@ import { parseSshTarget } from "./ttyProtocol";
 import { SESSION_STORAGE_KEY, useTerminal } from "./useTerminal";
 
 const SSH_TARGET_STORAGE_KEY = "mywebterm-ssh-target";
+const FONT_SIZE_STORAGE_KEY = "mywebterm-font-size";
+const FONT_SIZE_OPTIONS = [10, 12, 14, 16] as const;
+// Matches the stylesheet's phone layout breakpoint.
+const PHONE_LAYOUT_QUERY = "(max-width: 768px)";
+
+// The font size chosen on this device, kept across reloads; undefined is Auto.
+function loadStoredFontSize(): number | undefined {
+  try {
+    const stored = Number(localStorage.getItem(FONT_SIZE_STORAGE_KEY));
+    return FONT_SIZE_OPTIONS.find((size) => size === stored);
+  } catch {
+    return undefined; // Storage unavailable (e.g. private mode).
+  }
+}
+
 // How often the start screen re-checks that its resumable session still exists.
 const STORED_SESSION_POLL_MS = 15_000;
 
@@ -631,7 +646,7 @@ export function App() {
     ...DEFAULT_SOFT_KEY_MODIFIERS,
   }));
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
-  const [fontSize, setFontSize] = useState<number | undefined>(undefined);
+  const [fontSize, setFontSize] = useState<number | undefined>(loadStoredFontSize);
   const [fontSizeMenuOpen, setFontSizeMenuOpen] = useState(false);
   const [minColumns, setMinColumns] = useState<number | undefined>(undefined);
   const [minColumnsMenuOpen, setMinColumnsMenuOpen] = useState(false);
@@ -757,6 +772,24 @@ export function App() {
     setFontSizeMenuOpen(false);
   }, []);
 
+  const chooseFontSize = useCallback((size: number | undefined) => {
+    setFontSize(size);
+    try {
+      if (size === undefined) {
+        localStorage.removeItem(FONT_SIZE_STORAGE_KEY);
+      } else {
+        localStorage.setItem(FONT_SIZE_STORAGE_KEY, String(size));
+      }
+    } catch {
+      // Storage unavailable: the choice still applies until the page reloads.
+    }
+    // On a phone the picker stays open, so sizes can be compared against the
+    // live terminal instead of reopening the menu for every try.
+    if (!window.matchMedia(PHONE_LAYOUT_QUERY).matches) {
+      setFontSizeMenuOpen(false);
+    }
+  }, []);
+
   const openMinColumnsMenu = useCallback(() => {
     setFontSizeMenuOpen(false);
     setMinColumnsMenuOpen(true);
@@ -855,6 +888,7 @@ export function App() {
     copyTextToClipboard,
     horizontalOverflow,
     containerElement,
+    autoFontSize,
   } = useTerminal({
     wsUrl: awaitingStart ? undefined : config?.wsUrl,
     sshTarget,
@@ -2013,6 +2047,7 @@ export function App() {
                 setOverflowMenuOpen(false);
               }}
               aria-pressed={softKeysOpen}
+              aria-label="Soft Keys"
             >
               <svg
                 className="btn-icon"
@@ -2085,6 +2120,7 @@ export function App() {
               className="toolbar-button"
               onClick={() => void handleToolbarPaste()}
               title="Paste from clipboard. If blocked, a helper panel opens for iOS paste."
+              aria-label="Paste Text"
             >
               <svg
                 className="btn-icon"
@@ -2136,6 +2172,23 @@ export function App() {
                   >
                     Processes
                   </button>
+                  <button
+                    type="button"
+                    className="toolbar-button overflow-menu-item"
+                    onClick={() => overflowAction(openFontSizeMenu)}
+                  >
+                    Font Size: {fontSize ?? `Auto (${autoFontSize})`}
+                  </button>
+                  <button
+                    type="button"
+                    className="toolbar-button overflow-menu-item"
+                    onClick={() => overflowAction(openMinColumnsMenu)}
+                  >
+                    Min Cols: {effectiveMinColumns}
+                  </button>
+                  {/* Destructive actions sit together at the bottom, set apart
+                      from the everyday items so a near-miss cannot hit them. */}
+                  {canEndSession || authEnabled ? <hr className="overflow-menu-divider touch-only" /> : null}
                   {canEndSession ? (
                     <button
                       type="button"
@@ -2145,20 +2198,6 @@ export function App() {
                       End Session
                     </button>
                   ) : null}
-                  <button
-                    type="button"
-                    className="toolbar-button overflow-menu-item"
-                    onClick={() => overflowAction(openFontSizeMenu)}
-                  >
-                    Font Size: {fontSize ?? "Auto"}
-                  </button>
-                  <button
-                    type="button"
-                    className="toolbar-button overflow-menu-item"
-                    onClick={() => overflowAction(openMinColumnsMenu)}
-                  >
-                    Min Cols: {effectiveMinColumns}
-                  </button>
                   {authEnabled ? (
                     <button
                       type="button"
@@ -2710,7 +2749,7 @@ export function App() {
       )}
       {fontSizeMenuOpen && (
         <dialog
-          className="settings-dialog-backdrop"
+          className="settings-dialog-backdrop settings-dialog-backdrop-preview"
           open
           onClick={(e) => {
             if (e.target === e.currentTarget) closeFontSizeMenu();
@@ -2725,27 +2764,30 @@ export function App() {
               <button
                 type="button"
                 className={`toolbar-button settings-dialog-option ${fontSize === undefined ? "toolbar-button-active" : ""}`}
-                onClick={() => {
-                  setFontSize(undefined);
-                  closeFontSizeMenu();
-                }}
+                aria-pressed={fontSize === undefined}
+                onClick={() => chooseFontSize(undefined)}
               >
-                Auto
+                Auto ({autoFontSize})
               </button>
-              {[10, 12, 14, 16].map((size) => (
+              {FONT_SIZE_OPTIONS.map((size) => (
                 <button
                   key={size}
                   type="button"
                   className={`toolbar-button settings-dialog-option ${fontSize === size ? "toolbar-button-active" : ""}`}
-                  onClick={() => {
-                    setFontSize(size);
-                    closeFontSizeMenu();
-                  }}
+                  aria-pressed={fontSize === size}
+                  onClick={() => chooseFontSize(size)}
                 >
                   {size}
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              className="toolbar-button toolbar-button-primary settings-dialog-done touch-only"
+              onClick={closeFontSizeMenu}
+            >
+              Done
+            </button>
           </div>
         </dialog>
       )}

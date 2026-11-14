@@ -72,6 +72,8 @@ interface UseTerminalResult {
   getVisibleTerminalText: () => string;
   copyTextToClipboard: (text: string) => Promise<boolean>;
   horizontalOverflow: boolean;
+  // The size "Auto" currently resolves to (it differs between phone and desktop layouts).
+  autoFontSize: number;
   containerElement: HTMLDivElement | null;
 }
 
@@ -1402,6 +1404,7 @@ export function useTerminal({
     getVisibleTerminalText,
     copyTextToClipboard,
     horizontalOverflow,
+    autoFontSize: resolveFontSize(undefined, isMobileViewport),
     containerElement: container,
   };
 }
