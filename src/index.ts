@@ -6,10 +6,9 @@ import appleTouchIconPath from "./apple-touch-icon.png" with { type: "file" };
 import {
   clearSessionCookie,
   createSession as createAuthSession,
-  extractSessionToken,
   getSessionCookie,
   initHtpasswd,
-  invalidateSession,
+  invalidateAllSessions,
   isRequestAuthenticated,
   verifyCredentials,
 } from "./auth";
@@ -28,6 +27,7 @@ import {
   ENDED_CLOSE_CODE,
   getSession,
   getSessionSummaries,
+  getSessionSummary,
   handlePong,
   registerShutdownHandlers,
   resizeSession,
@@ -328,19 +328,13 @@ async function handleLoginPost(req: Request): Promise<Response> {
   );
 }
 
+// Signs the account out everywhere and ends every shell. Each login has its
+// own token, so all of them go: one left valid would reconnect from its tab
+// and start a new shell.
 function handleLogout(req: Request): Response {
-  if (req.method !== "POST") {
-    return new Response("Method Not Allowed", { status: 405, headers: { Allow: "POST" } });
-  }
-  const token = extractSessionToken(req);
-  if (token) invalidateSession(token);
-  destroyAllSessions(); // tear down PTYs so next login starts fresh
-  return Response.json(
-    { ok: true },
-    {
-      headers: { "Set-Cookie": clearSessionCookie(req) },
-    },
-  );
+  invalidateAllSessions();
+  destroyAllSessions();
+  return Response.json({ ok: true }, { headers: { "Set-Cookie": clearSessionCookie(req) } });
 }
 
 function handleAuthCheck(req: Request): Response {
@@ -417,6 +411,19 @@ async function handleSessions(): Promise<Response> {
   return Response.json({ ppid, children, sessions: getSessionSummaries() });
 }
 
+// One session by id: lets the page tell a resumable session from one that has
+// already been reaped, and end a session it is not currently connected to.
+function handleSessionById(req: Request, sessionId: string): Response {
+  if (req.method === "GET") {
+    const summary = getSessionSummary(sessionId);
+    return summary ? Response.json(summary) : Response.json({ error: "Session not found" }, { status: 404 });
+  }
+  if (req.method === "DELETE") {
+    return Response.json({ ok: true, ended: destroySession(sessionId, ENDED_CLOSE_CODE) });
+  }
+  return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, DELETE" } });
+}
+
 function handleRestart(): Response {
   destroyAllSessions();
   return Response.json({ ok: true });
@@ -466,7 +473,6 @@ serve<WsData>({
     "/": index,
     "/login": handleLoginPage,
     "/api/auth/login": { POST: handleLoginPost },
-    "/api/auth/logout": { POST: handleLogout },
     "/api/auth/check": handleAuthCheck,
     "/apple-touch-icon.png": () => new Response(appleTouchIcon, { headers: { "Content-Type": "image/png" } }),
   },
@@ -548,6 +554,12 @@ serve<WsData>({
     }
     if (pathname === "/api/sessions" && req.method === "GET") {
       return handleSessions();
+    }
+    if (pathname.startsWith("/api/sessions/")) {
+      return handleSessionById(req, decodeURIComponent(pathname.slice("/api/sessions/".length)));
+    }
+    if (pathname === "/api/auth/logout" && req.method === "POST") {
+      return handleLogout(req);
     }
     if (pathname === "/api/restart" && req.method === "POST") {
       return handleRestart();

@@ -13,6 +13,8 @@ export interface WsData {
 
 export interface PtySession {
   sessionId: string;
+  // ssh destination the session was started with; null for the local shell.
+  target: string | null;
   proc: ReturnType<typeof Bun.spawn> | null;
   cols: number;
   rows: number;
@@ -38,11 +40,16 @@ const HEARTBEAT_TIMEOUT_MS = 10_000;
 const STALE_SWEEP_INTERVAL_MS = 60_000;
 const SESSION_IDLE_TIMEOUT_MS = 5 * 60_000; // 5 minutes
 const KILL_ESCALATION_MS = 5_000;
+// How long to wait for the child's real exit status once its PTY has closed.
+const EXIT_STATUS_WAIT_MS = 1_000;
 const MAX_COLS = 500;
 const MAX_ROWS = 200;
 const OUTPUT_PREFIX = 0x30; // "0" — ServerCommand.OUTPUT
 const RESTART_CLOSE_CODE = 4000;
 const HEARTBEAT_CLOSE_CODE = 4001;
+// Another connection attached to the same session — the evicted client must
+// not auto-reconnect, or the two would keep stealing the session from each other.
+const REPLACED_CLOSE_CODE = 4002;
 // Session ended deliberately by the user — the client returns to the start
 // screen instead of auto-reconnecting.
 const ENDED_CLOSE_CODE = 4004;
@@ -222,6 +229,24 @@ function startHeartbeat(session: PtySession): void {
   }, HEARTBEAT_INTERVAL_MS);
 }
 
+// The child's exit code and terminating signal. The PTY usually closes a
+// moment before the process is reaped, so wait briefly; a child that outlives
+// its terminal is reported as unknown rather than holding the client up.
+async function resolveExitStatus(
+  proc: ReturnType<typeof Bun.spawn> | null,
+): Promise<{ exitCode: number | null; signal: string | null }> {
+  if (!proc) return { exitCode: null, signal: null };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), EXIT_STATUS_WAIT_MS);
+  });
+  const exitCode = await Promise.race([proc.exited, timedOut]);
+  clearTimeout(timer);
+  if (exitCode === null) return { exitCode: null, signal: null };
+  const signal = proc.signalCode;
+  return signal ? { exitCode: null, signal } : { exitCode, signal: null };
+}
+
 // --- Session lifecycle ---
 
 export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: number, sshTarget?: string): void {
@@ -242,6 +267,7 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
 
   const session: PtySession = {
     sessionId,
+    target: sshTarget ?? null,
     proc: null,
     cols: clampedCols,
     rows: clampedRows,
@@ -282,26 +308,30 @@ export function createSession(ws: ServerWebSocket<WsData>, cols: number, rows: n
             sendOutputFrame(current.attachedWs, data);
           }
         },
-        exit(_terminal, exitCode, signal) {
+        exit(_terminal, ptyExitCode, ptySignal) {
           const current = sessions.get(sessionId);
           if (!current) return;
 
-          console.log(`[session ${sessionId}] PTY exited (code=${exitCode}, signal=${signal})`);
+          console.log(`[session ${sessionId}] PTY exited (code=${ptyExitCode}, signal=${ptySignal})`);
+          const child = current.proc;
+          const ws = current.attachedWs;
           current.state = "dead";
           current.proc = null;
           current.attachPending = null;
+          current.attachedWs = null;
           current.shadowTerm.dispose();
           stopHeartbeat(current);
-
-          if (current.attachedWs) {
-            current.attachedWs.send(
-              encodeServerControl({ type: "session_ended", exitCode: exitCode ?? null, signal: signal ?? null }),
-            );
-            closeClientSocket(current.attachedWs, 1000, "Session destroyed");
-            current.attachedWs = null;
-          }
-
           sessions.delete(sessionId);
+
+          if (!ws) return;
+          // The callback's arguments describe the PTY (0 = EOF), not the
+          // command that ran in it. Report the child's own exit status so the
+          // client can tell a clean `exit` from a failed ssh.
+          void resolveExitStatus(child).then((status) => {
+            if (ws.readyState !== WebSocket.OPEN) return;
+            ws.send(encodeServerControl({ type: "session_ended", ...status }));
+            closeClientSocket(ws, 1000, "Session destroyed");
+          });
         },
       },
       env: buildSpawnEnv(sshTarget !== undefined),
@@ -333,7 +363,7 @@ export function attachSession(sessionId: string, ws: ServerWebSocket<WsData>, co
 
   // Detach previous client if still connected
   if (session.attachedWs && session.attachedWs !== ws) {
-    closeClientSocket(session.attachedWs, 4002, "Replaced by new connection");
+    closeClientSocket(session.attachedWs, REPLACED_CLOSE_CODE, "Replaced by new connection");
   }
 
   session.attachedWs = ws;
@@ -404,9 +434,10 @@ export function detachSession(session: PtySession, closeCode?: number, closeReas
   }
 }
 
-export function destroySession(sessionId: string, closeCode: number = RESTART_CLOSE_CODE): void {
+// Returns false when there was no such session to destroy.
+export function destroySession(sessionId: string, closeCode: number = RESTART_CLOSE_CODE): boolean {
   const session = sessions.get(sessionId);
-  if (!session) return;
+  if (!session) return false;
 
   console.log(`[session ${sessionId}] destroying`);
   // Deregister and close the client socket before touching the process:
@@ -448,6 +479,7 @@ export function destroySession(sessionId: string, closeCode: number = RESTART_CL
     void proc.exited.finally(() => clearTimeout(killTimer));
     session.proc = null;
   }
+  return true;
 }
 
 export function destroyAllSessions(): void {
@@ -467,18 +499,37 @@ export function getSession(sessionId: string): PtySession | undefined {
   return sessions.get(sessionId);
 }
 
-export function getSessionSummaries(): {
+export interface SessionSummary {
   sessionId: string;
-  state: string;
+  state: PtySession["state"];
+  // ssh destination, or null for the local shell
+  target: string | null;
   pid: number | undefined;
+  createdAt: number;
   lastActivityAt: number;
-}[] {
-  return [...sessions.values()].map((s) => ({
+  // When the stale sweep will reap the session; null while a client is attached.
+  expiresAt: number | null;
+}
+
+function summarizeSession(s: PtySession): SessionSummary {
+  return {
     sessionId: s.sessionId,
     state: s.state,
+    target: s.target,
     pid: s.proc?.pid,
+    createdAt: s.createdAt,
     lastActivityAt: s.lastActivityAt,
-  }));
+    expiresAt: s.state === "detached" && s.lastDetachedAt !== null ? s.lastDetachedAt + SESSION_IDLE_TIMEOUT_MS : null,
+  };
+}
+
+export function getSessionSummary(sessionId: string): SessionSummary | undefined {
+  const session = sessions.get(sessionId);
+  return session && session.state !== "dead" ? summarizeSession(session) : undefined;
+}
+
+export function getSessionSummaries(): SessionSummary[] {
+  return [...sessions.values()].map(summarizeSession);
 }
 
 // --- Stale session sweep ---

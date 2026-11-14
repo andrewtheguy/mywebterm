@@ -1,5 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { buildSessionCommand, buildSpawnEnv, setShellCommand, setSshConfigPath } from "./sessionManager";
+import type { ServerWebSocket } from "bun";
+import {
+  attachSession,
+  buildSessionCommand,
+  buildSpawnEnv,
+  createSession,
+  destroySession,
+  ENDED_CLOSE_CODE,
+  getSessionSummaries,
+  getSessionSummary,
+  setShellCommand,
+  setSshConfigPath,
+  type WsData,
+} from "./sessionManager";
 
 describe("buildSessionCommand", () => {
   test("returns the configured shell command unchanged when no ssh target is given", () => {
@@ -109,5 +122,70 @@ describe("buildSpawnEnv", () => {
         else process.env[key] = value;
       }
     }
+  });
+});
+
+// Minimal stand-in for a Bun server socket: records what the session manager
+// sends and how it closes the connection.
+function fakeSocket() {
+  const sent: string[] = [];
+  const closes: { code?: number; reason?: string }[] = [];
+  const ws = {
+    data: { sessionId: null, connectionId: "test", handshakeTimer: null } as WsData,
+    readyState: WebSocket.OPEN as number,
+    send(message: string | Uint8Array) {
+      if (typeof message === "string") sent.push(message);
+    },
+    close(code?: number, reason?: string) {
+      closes.push({ code, reason });
+      ws.readyState = WebSocket.CLOSED;
+    },
+  };
+  return { ws: ws as unknown as ServerWebSocket<WsData>, sent, closes };
+}
+
+describe("session lookup and ending by id", () => {
+  test("a running session is summarised, and ending it by id closes its client with the ended code", () => {
+    setShellCommand(["/bin/sh"]);
+    const { ws, sent, closes } = fakeSocket();
+    createSession(ws, 80, 24);
+
+    const sessionId = ws.data.sessionId;
+    if (sessionId === null) throw new Error("session was not created");
+    expect(sent.map((m) => JSON.parse(m))).toContainEqual({ type: "session_info", sessionId });
+
+    const summary = getSessionSummary(sessionId);
+    expect(summary).toMatchObject({ sessionId, state: "attached", target: null, expiresAt: null });
+    expect(getSessionSummaries().map((s) => s.sessionId)).toContain(sessionId);
+
+    expect(destroySession(sessionId, ENDED_CLOSE_CODE)).toBe(true);
+    expect(closes).toEqual([{ code: ENDED_CLOSE_CODE, reason: "Session ended" }]);
+    expect(getSessionSummary(sessionId)).toBeUndefined();
+    // Ending it again reports that there was nothing left to end.
+    expect(destroySession(sessionId, ENDED_CLOSE_CODE)).toBe(false);
+  });
+
+  test("a second connection takes the session over and evicts the first with code 4002", () => {
+    setShellCommand(["/bin/sh"]);
+    const first = fakeSocket();
+    createSession(first.ws, 80, 24);
+    const sessionId = first.ws.data.sessionId;
+    if (sessionId === null) throw new Error("session was not created");
+
+    try {
+      const second = fakeSocket();
+      attachSession(sessionId, second.ws, 80, 24);
+
+      expect(first.closes).toEqual([{ code: 4002, reason: "Replaced by new connection" }]);
+      expect(second.closes).toEqual([]);
+      expect(getSessionSummary(sessionId)?.state).toBe("attached");
+    } finally {
+      destroySession(sessionId);
+    }
+  });
+
+  test("an unknown id has no summary and nothing to end", () => {
+    expect(getSessionSummary("no-such-session")).toBeUndefined();
+    expect(destroySession("no-such-session", ENDED_CLOSE_CODE)).toBe(false);
   });
 });

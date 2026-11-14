@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { clearSessionCookie, getSessionCookie, isSecureRequest } from "./auth";
+import {
+  clearSessionCookie,
+  createSession,
+  getSessionCookie,
+  invalidateAllSessions,
+  isSecureRequest,
+  isValidSession,
+} from "./auth";
 
 function req(url: string, headers: Record<string, string> = {}): Request {
   return new Request(url, { headers });
@@ -40,4 +47,15 @@ test("clearing cookie mirrors the Secure flag", () => {
   expect(clearSessionCookie(req("https://example.com/logout"))).toBe(
     "mywebterm_session=; HttpOnly; SameSite=Strict; Secure; Path=/; Max-Age=0",
   );
+});
+
+test("invalidating all sessions signs out every login", () => {
+  const first = createSession("admin");
+  const second = createSession("admin");
+  expect(isValidSession(first)).toBe(true);
+  expect(isValidSession(second)).toBe(true);
+
+  invalidateAllSessions();
+  expect(isValidSession(first)).toBe(false);
+  expect(isValidSession(second)).toBe(false);
 });

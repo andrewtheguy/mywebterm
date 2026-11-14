@@ -1,6 +1,7 @@
 import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
 import { DEFAULT_APP_TITLE, loadSshHosts, loadTtyConfig, type TtyConfig } from "./config";
+import { ResumeCard, SessionOverlay, type SessionSummary } from "./SessionOverlay";
 import type { SoftKeyModifiers } from "./softKeyboard";
 import {
   applyShiftToPrintable,
@@ -22,6 +23,23 @@ import { parseSshTarget } from "./ttyProtocol";
 import { SESSION_STORAGE_KEY, useTerminal } from "./useTerminal";
 
 const SSH_TARGET_STORAGE_KEY = "mywebterm-ssh-target";
+const FONT_SIZE_STORAGE_KEY = "mywebterm-font-size";
+const FONT_SIZE_OPTIONS = [10, 12, 14, 16] as const;
+// Matches the stylesheet's phone layout breakpoint.
+const PHONE_LAYOUT_QUERY = "(max-width: 768px)";
+
+// The font size chosen on this device, kept across reloads; undefined is Auto.
+function loadStoredFontSize(): number | undefined {
+  try {
+    const stored = Number(localStorage.getItem(FONT_SIZE_STORAGE_KEY));
+    return FONT_SIZE_OPTIONS.find((size) => size === stored);
+  } catch {
+    return undefined; // Storage unavailable (e.g. private mode).
+  }
+}
+
+// How often the start screen re-checks that its resumable session still exists.
+const STORED_SESSION_POLL_MS = 15_000;
 
 function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
   if (key.kind === "printable") {
@@ -605,6 +623,19 @@ function DesktopPcKeyboardGrid({
   );
 }
 
+// What logging out will do, given how many sessions are running (null while
+// the count is unknown).
+function describeLogout(sessionCount: number | null): string {
+  if (sessionCount === 0) return "No sessions are running. You will need to sign in again.";
+  const sessions =
+    sessionCount === null
+      ? "all running sessions"
+      : sessionCount === 1
+        ? "the 1 running session"
+        : `all ${sessionCount} running sessions`;
+  return `This signs out every tab and device and kills ${sessions}.`;
+}
+
 function formatShellCommand(args: string[]): string {
   if (args.length === 0) return "shell";
   return args.map((a) => (/[^a-zA-Z0-9_\-./=:@]/.test(a) ? `'${a.replace(/'/g, "'\\''")}'` : a)).join(" ");
@@ -628,12 +659,16 @@ export function App() {
     ...DEFAULT_SOFT_KEY_MODIFIERS,
   }));
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
-  const [fontSize, setFontSize] = useState<number | undefined>(undefined);
+  const [fontSize, setFontSize] = useState<number | undefined>(loadStoredFontSize);
   const [fontSizeMenuOpen, setFontSizeMenuOpen] = useState(false);
   const [minColumns, setMinColumns] = useState<number | undefined>(undefined);
   const [minColumnsMenuOpen, setMinColumnsMenuOpen] = useState(false);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [endSessionConfirmOpen, setEndSessionConfirmOpen] = useState(false);
+  // Non-null while the logout confirmation is open; sessionCount is how many
+  // shells logging out would kill (null until the server has answered).
+  const [logoutConfirm, setLogoutConfirm] = useState<{ sessionCount: number | null } | null>(null);
+  const logoutLookupRef = useRef(0);
   const [arrowOverlayEnabled, setArrowOverlayEnabled] = useState(true);
   const [awaitingStart, setAwaitingStart] = useState(true);
   // Survives reloads (per tab) so a resume that falls back to a fresh
@@ -646,9 +681,17 @@ export function App() {
   const [sshHosts, setSshHosts] = useState<string[]>([]);
   const [sshHostsError, setSshHostsError] = useState<string | null>(null);
   const effectiveMinColumns = minColumns ?? DEFAULT_MIN_COLUMNS;
-  const hasStoredSession = sessionStorage.getItem(SESSION_STORAGE_KEY) !== null;
+  // This tab's session from before a reload, offered for resume on the start
+  // screen. Only ever true on first load: every later return to the start
+  // screen has ended or forgotten the session.
+  const [hasStoredSession, setHasStoredSession] = useState(() => sessionStorage.getItem(SESSION_STORAGE_KEY) !== null);
+  const [storedSession, setStoredSession] = useState<SessionSummary | null>(null);
+  const [startNotice, setStartNotice] = useState<string | null>(null);
   const focusOnMountRef = useCallback((el: HTMLElement | null) => {
     if (el) el.focus();
+  }, []);
+  const showModalOnMountRef = useCallback((el: HTMLDialogElement | null) => {
+    if (el && !el.open) el.showModal();
   }, []);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
   const copyModeMenuRef = useRef<HTMLDivElement>(null);
@@ -746,6 +789,24 @@ export function App() {
     setFontSizeMenuOpen(false);
   }, []);
 
+  const chooseFontSize = useCallback((size: number | undefined) => {
+    setFontSize(size);
+    try {
+      if (size === undefined) {
+        localStorage.removeItem(FONT_SIZE_STORAGE_KEY);
+      } else {
+        localStorage.setItem(FONT_SIZE_STORAGE_KEY, String(size));
+      }
+    } catch {
+      // Storage unavailable: the choice still applies until the page reloads.
+    }
+    // On a phone the picker stays open, so sizes can be compared against the
+    // live terminal instead of reopening the menu for every try.
+    if (!window.matchMedia(PHONE_LAYOUT_QUERY).matches) {
+      setFontSizeMenuOpen(false);
+    }
+  }, []);
+
   const openMinColumnsMenu = useCallback(() => {
     setFontSizeMenuOpen(false);
     setMinColumnsMenuOpen(true);
@@ -819,14 +880,19 @@ export function App() {
     setSshInput("");
     setStartStep("choice");
     setRemoteTitle(null);
+    setHasStoredSession(false);
+    setStoredSession(null);
+    setStartNotice(null);
     setAwaitingStart(true);
   }, []);
 
   const {
     containerRef,
     connectionStatus,
+    disconnectInfo,
     sysKeyActive,
     endSession,
+    leaveSession,
     reconnect,
     focusSysKeyboard,
     focusTerminalInput,
@@ -839,6 +905,7 @@ export function App() {
     copyTextToClipboard,
     horizontalOverflow,
     containerElement,
+    autoFontSize,
   } = useTerminal({
     wsUrl: awaitingStart ? undefined : config?.wsUrl,
     sshTarget,
@@ -1046,6 +1113,58 @@ export function App() {
     refreshSshHosts();
   }, [awaitingStart, hasStoredSession, refreshSshHosts]);
 
+  // A resumable session can be reaped (or ended from elsewhere) while the
+  // start screen sits open, so keep asking the server about it and fall back
+  // to the session picker once it is gone instead of offering a dead resume.
+  useEffect(() => {
+    if (!awaitingStart || !hasStoredSession) return;
+    const sessionId = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (sessionId === null) return;
+
+    let cancelled = false;
+    let recheckTimer: ReturnType<typeof setTimeout> | null = null;
+    const check = async () => {
+      let res: Response;
+      try {
+        res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`);
+      } catch {
+        return; // Server unreachable: keep offering resume, which retries on its own.
+      }
+      if (cancelled) return;
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (res.status === 404) {
+        leaveSession();
+        setStartNotice("Your previous session is no longer running.");
+        return;
+      }
+      if (!res.ok) return;
+      const summary = (await res.json()) as SessionSummary;
+      if (cancelled) return;
+      setStoredSession(summary);
+      // Right after a reload the old page's socket may not have closed yet,
+      // which reads as "open elsewhere"; look again shortly to settle it.
+      if (summary.state === "attached" && recheckTimer === null) {
+        recheckTimer = setTimeout(() => void check(), 1500);
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void check();
+    };
+
+    void check();
+    const pollTimer = setInterval(() => void check(), STORED_SESSION_POLL_MS);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      cancelled = true;
+      clearInterval(pollTimer);
+      if (recheckTimer !== null) clearTimeout(recheckTimer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [awaitingStart, hasStoredSession, leaveSession]);
+
   // Escape backs out of the ssh host picker to the session-type choice.
   useEffect(() => {
     if (!awaitingStart || startStep !== "ssh") return;
@@ -1065,6 +1184,19 @@ export function App() {
     setAwaitingStart(false);
   }, []);
 
+  // Give up on a connection attempt that is taking too long. A session this
+  // tab was resuming is kept and offered again on the resume card; a fresh
+  // start has nothing to keep, so it returns to the session picker.
+  const cancelConnect = useCallback(() => {
+    if (sessionStorage.getItem(SESSION_STORAGE_KEY) !== null) {
+      setHasStoredSession(true);
+      setAwaitingStart(true);
+    } else {
+      // Nothing to resume later, so whatever the attempt started is killed.
+      endSession();
+    }
+  }, [endSession]);
+
   // In-app confirmation rather than window.confirm(), which iOS Safari
   // suppresses (it returns false without showing a dialog), making End Session
   // look like a dead button on mobile.
@@ -1077,6 +1209,7 @@ export function App() {
   const startLocalShell = useCallback(() => {
     sessionStorage.removeItem(SSH_TARGET_STORAGE_KEY);
     setSshTarget(undefined);
+    setStartNotice(null);
     setAwaitingStart(false);
   }, []);
 
@@ -1090,6 +1223,7 @@ export function App() {
     }
     sessionStorage.setItem(SSH_TARGET_STORAGE_KEY, target);
     setSshTarget(target);
+    setStartNotice(null);
     setAwaitingStart(false);
   }, []);
 
@@ -1706,12 +1840,40 @@ export function App() {
     scrollbarDraggingRef.current = false;
   }, []);
 
+  // Logging out kills every shell on the server, in every tab and on every
+  // device, so it gets a confirmation that says how many that is.
+  const requestLogout = useCallback(() => {
+    // Each confirmation takes only the answer to its own lookup: one that was
+    // slow must not overwrite the count on a confirmation opened since.
+    const lookup = logoutLookupRef.current + 1;
+    logoutLookupRef.current = lookup;
+    setLogoutConfirm({ sessionCount: null });
+    fetch("/api/sessions")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { sessions?: unknown[] } | null) => {
+        const sessions = data?.sessions;
+        if (!Array.isArray(sessions) || logoutLookupRef.current !== lookup) return;
+        setLogoutConfirm((prev) => (prev === null ? null : { sessionCount: sessions.length }));
+      })
+      .catch(() => {
+        // Count unavailable — the dialog falls back to generic wording.
+      });
+  }, []);
+
   function handleLogout() {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     fetch("/api/auth/logout", { method: "POST" }).finally(() => {
       window.location.href = "/login";
     });
   }
+
+  // What the current (or about-to-be-resumed) session runs, for labels.
+  const describeTarget = (target: string | null | undefined) =>
+    target ? `ssh ${target}` : formatShellCommand(config?.shellCommand ?? []);
+  const targetLabel = describeTarget(sshTarget);
+  // A session exists on the server that End Session could kill: either it is
+  // attached here, or the connection dropped and it is waiting to be resumed.
+  const canEndSession = !awaitingStart && (connectionStatus === "connected" || disconnectInfo?.kind === "lost");
 
   const handleFloatingVisualPressStart = useCallback(
     (key: SoftKeyDefinition, buttonEl: HTMLButtonElement, pointerId: number) => {
@@ -1844,23 +2006,34 @@ export function App() {
               i
             </button>
             {(() => {
+              // No session has been started yet: that is not a fault, so do
+              // not show it as a red "disconnected". While a dropped connection
+              // is being retried, stay on "connecting" rather than flickering
+              // through every attempt's states.
+              const statusKey = awaitingStart
+                ? "idle"
+                : disconnectInfo?.kind === "lost"
+                  ? "connecting"
+                  : connectionStatus;
               const statusLabel =
-                connectionStatus === "connected"
-                  ? "Connected"
-                  : connectionStatus === "connecting"
-                    ? "Connecting"
-                    : connectionStatus === "error"
-                      ? "Error"
-                      : "Disconnected";
+                statusKey === "idle"
+                  ? "No session"
+                  : statusKey === "connected"
+                    ? "Connected"
+                    : statusKey === "connecting"
+                      ? "Connecting"
+                      : statusKey === "error"
+                        ? "Error"
+                        : "Disconnected";
               return (
                 <>
-                  <span className={`status-dot status-dot-${connectionStatus} touch-only`} aria-hidden="true" />
+                  <span className={`status-dot status-dot-${statusKey} touch-only`} aria-hidden="true" />
                   <span
-                    className={`status-badge status-${connectionStatus} pointer-only`}
+                    className={`status-badge status-${statusKey} pointer-only`}
                     role="status"
                     aria-label={statusLabel}
                   >
-                    {connectionStatus === "connecting" ? "..." : connectionStatus}
+                    {statusKey === "connecting" ? "..." : statusKey}
                   </span>
                 </>
               );
@@ -1908,6 +2081,7 @@ export function App() {
                 setOverflowMenuOpen(false);
               }}
               aria-pressed={softKeysOpen}
+              aria-label="Soft Keys"
             >
               <svg
                 className="btn-icon"
@@ -1980,6 +2154,7 @@ export function App() {
               className="toolbar-button"
               onClick={() => void handleToolbarPaste()}
               title="Paste from clipboard. If blocked, a helper panel opens for iOS paste."
+              aria-label="Paste Text"
             >
               <svg
                 className="btn-icon"
@@ -2031,30 +2206,12 @@ export function App() {
                   >
                     Processes
                   </button>
-                  {awaitingStart ? null : connectionStatus === "connected" ? (
-                    <button
-                      type="button"
-                      className="toolbar-button overflow-menu-item touch-only"
-                      onClick={() => overflowAction(() => setEndSessionConfirmOpen(true))}
-                    >
-                      End Session
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="toolbar-button overflow-menu-item reconnect-button touch-only"
-                      onClick={() => overflowAction(reconnect)}
-                      disabled={connectionStatus === "connecting"}
-                    >
-                      Reconnect
-                    </button>
-                  )}
                   <button
                     type="button"
                     className="toolbar-button overflow-menu-item"
                     onClick={() => overflowAction(openFontSizeMenu)}
                   >
-                    Font Size: {fontSize ?? "Auto"}
+                    Font Size: {fontSize ?? `Auto (${autoFontSize})`}
                   </button>
                   <button
                     type="button"
@@ -2063,11 +2220,23 @@ export function App() {
                   >
                     Min Cols: {effectiveMinColumns}
                   </button>
+                  {/* Destructive actions sit together at the bottom, set apart
+                      from the everyday items so a near-miss cannot hit them. */}
+                  {canEndSession || authEnabled ? <hr className="overflow-menu-divider touch-only" /> : null}
+                  {canEndSession ? (
+                    <button
+                      type="button"
+                      className="toolbar-button overflow-menu-item danger-text touch-only"
+                      onClick={() => overflowAction(() => setEndSessionConfirmOpen(true))}
+                    >
+                      End Session
+                    </button>
+                  ) : null}
                   {authEnabled ? (
                     <button
                       type="button"
-                      className="toolbar-button overflow-menu-item logout-button touch-only"
-                      onClick={() => overflowAction(handleLogout)}
+                      className="toolbar-button overflow-menu-item danger-text touch-only"
+                      onClick={() => overflowAction(requestLogout)}
                     >
                       Log Out
                     </button>
@@ -2078,26 +2247,17 @@ export function App() {
             <button type="button" className="toolbar-button pointer-only" onClick={() => void inspectProcesses()}>
               Processes
             </button>
-            {awaitingStart ? null : connectionStatus === "connected" ? (
+            {canEndSession ? (
               <button
                 type="button"
-                className="toolbar-button pointer-only"
+                className="toolbar-button danger-text pointer-only"
                 onClick={() => setEndSessionConfirmOpen(true)}
               >
                 End Session
               </button>
-            ) : (
-              <button
-                type="button"
-                className="toolbar-button reconnect-button pointer-only"
-                onClick={reconnect}
-                disabled={connectionStatus === "connecting"}
-              >
-                Reconnect
-              </button>
-            )}
+            ) : null}
             {authEnabled ? (
-              <button type="button" className="toolbar-button pointer-only logout-button" onClick={handleLogout}>
+              <button type="button" className="toolbar-button pointer-only danger-text" onClick={requestLogout}>
                 Log Out
               </button>
             ) : null}
@@ -2114,31 +2274,18 @@ export function App() {
 
           {awaitingStart ? (
             hasStoredSession ? (
-              <div
-                className="disconnect-overlay"
-                role="button"
-                tabIndex={0}
-                ref={focusOnMountRef}
-                onClick={resumeSession}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    resumeSession();
-                  }
-                }}
-              >
-                <div className="disconnect-overlay-text start-overlay-text start-overlay-resume">
-                  <span>
-                    <span className="pointer-only">Click or press Enter to</span>
-                    <span className="touch-only">Tap to</span> resume
-                  </span>
-                </div>
-              </div>
+              <ResumeCard
+                session={storedSession}
+                targetLabel={describeTarget(storedSession ? storedSession.target : sshTarget)}
+                onResume={resumeSession}
+                onRequestEnd={() => setEndSessionConfirmOpen(true)}
+              />
             ) : (
               <div className="disconnect-overlay start-overlay-static">
                 <div className="disconnect-overlay-text start-overlay-text start-overlay-menu">
                   {startStep === "choice" ? (
                     <>
+                      {startNotice ? <span className="start-overlay-notice">{startNotice}</span> : null}
                       <span className="start-overlay-heading">Start a session</span>
                       <button
                         type="button"
@@ -2218,30 +2365,15 @@ export function App() {
               </div>
             )
           ) : (
-            connectionStatus !== "connected" &&
-            (connectionStatus === "connecting" ? (
-              <div className="disconnect-overlay">
-                <p className="disconnect-overlay-text disconnect-overlay-connecting">Connecting...</p>
-              </div>
-            ) : (
-              <div
-                className="disconnect-overlay"
-                role="button"
-                tabIndex={0}
-                onClick={() => reconnect()}
-                onKeyDown={(e) => {
-                  if (e.key === " " || e.key === "Enter") {
-                    e.preventDefault();
-                    reconnect();
-                  }
-                }}
-              >
-                <p className="disconnect-overlay-text">
-                  <span className="pointer-only">Click or press Space to</span>
-                  <span className="touch-only">Tap to</span> reconnect
-                </p>
-              </div>
-            ))
+            <SessionOverlay
+              connectionStatus={connectionStatus}
+              disconnectInfo={disconnectInfo}
+              targetLabel={targetLabel}
+              onReconnect={reconnect}
+              onLeave={leaveSession}
+              onRequestEnd={() => setEndSessionConfirmOpen(true)}
+              onCancelConnect={cancelConnect}
+            />
           )}
 
           {horizontalOverflow && (
@@ -2548,7 +2680,10 @@ export function App() {
         >
           <div className="settings-dialog confirm-dialog">
             <p className="settings-dialog-label">End this session?</p>
-            <p className="copy-sheet-hint">The shell is killed and you return to the start screen.</p>
+            <code className="session-card-target">
+              {describeTarget(awaitingStart && storedSession ? storedSession.target : sshTarget)}
+            </code>
+            <p className="copy-sheet-hint">Anything still running in it is killed. This cannot be undone.</p>
             <div className="settings-dialog-options">
               <button
                 type="button"
@@ -2558,8 +2693,53 @@ export function App() {
               >
                 Cancel
               </button>
-              <button type="button" className="toolbar-button settings-dialog-option" onClick={confirmEndSession}>
+              <button
+                type="button"
+                className="toolbar-button toolbar-button-danger settings-dialog-option"
+                onClick={confirmEndSession}
+              >
                 End Session
+              </button>
+            </div>
+          </div>
+        </dialog>
+      )}
+      {logoutConfirm !== null && (
+        // biome-ignore lint/a11y/useKeyWithClickEvents: the keyboard equivalent of the backdrop click is Escape, which a modal dialog delivers as its cancel event
+        <dialog
+          className="settings-dialog-backdrop"
+          // A real modal: the page behind is inert and focus stays inside
+          // until the question is answered. Escape arrives as `cancel`, and
+          // `close` covers any other way the dialog shuts, so the state that
+          // renders it always follows what the dialog itself did.
+          ref={showModalOnMountRef}
+          onCancel={(e) => {
+            e.preventDefault();
+            setLogoutConfirm(null);
+          }}
+          onClose={() => setLogoutConfirm(null)}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLogoutConfirm(null);
+          }}
+        >
+          <div className="settings-dialog confirm-dialog">
+            <p className="settings-dialog-label">Log out?</p>
+            <p className="copy-sheet-hint">{describeLogout(logoutConfirm.sessionCount)}</p>
+            <div className="settings-dialog-options">
+              <button
+                type="button"
+                className="toolbar-button settings-dialog-option"
+                ref={focusOnMountRef}
+                onClick={() => setLogoutConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="toolbar-button toolbar-button-danger settings-dialog-option"
+                onClick={handleLogout}
+              >
+                Log Out
               </button>
             </div>
           </div>
@@ -2603,7 +2783,7 @@ export function App() {
       )}
       {fontSizeMenuOpen && (
         <dialog
-          className="settings-dialog-backdrop"
+          className="settings-dialog-backdrop settings-dialog-backdrop-preview"
           open
           onClick={(e) => {
             if (e.target === e.currentTarget) closeFontSizeMenu();
@@ -2618,27 +2798,30 @@ export function App() {
               <button
                 type="button"
                 className={`toolbar-button settings-dialog-option ${fontSize === undefined ? "toolbar-button-active" : ""}`}
-                onClick={() => {
-                  setFontSize(undefined);
-                  closeFontSizeMenu();
-                }}
+                aria-pressed={fontSize === undefined}
+                onClick={() => chooseFontSize(undefined)}
               >
-                Auto
+                Auto ({autoFontSize})
               </button>
-              {[10, 12, 14, 16].map((size) => (
+              {FONT_SIZE_OPTIONS.map((size) => (
                 <button
                   key={size}
                   type="button"
                   className={`toolbar-button settings-dialog-option ${fontSize === size ? "toolbar-button-active" : ""}`}
-                  onClick={() => {
-                    setFontSize(size);
-                    closeFontSizeMenu();
-                  }}
+                  aria-pressed={fontSize === size}
+                  onClick={() => chooseFontSize(size)}
                 >
                   {size}
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              className="toolbar-button toolbar-button-primary settings-dialog-done touch-only"
+              onClick={closeFontSizeMenu}
+            >
+              Done
+            </button>
           </div>
         </dialog>
       )}
