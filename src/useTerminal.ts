@@ -22,14 +22,28 @@ import type { ServerControlMessage } from "./ttyProtocol";
 import { decodeFrame, encodeInput, encodeResize, ServerCommand } from "./ttyProtocol";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
+// Why the terminal is not attached to a live session, for the overlay that
+// offers the next step. Null while connected, on the start screen, or during
+// the first connection attempt.
+export type DisconnectInfo =
+  // The shell (or ssh) process exited on its own.
+  | { kind: "exited"; exitCode: number | null; signal: string | null }
+  // Another tab or device attached to this session and took it over.
+  | { kind: "replaced" }
+  // The session could not be started at all.
+  | { kind: "failed"; message: string }
+  // The connection dropped; the session may still be alive on the server.
+  // retryAt is when the next automatic attempt fires, null while one is in flight.
+  | { kind: "lost"; retryAt: number | null };
 export type PasteResult = "pasted" | "empty" | "fallback-required" | "terminal-unavailable";
 
 interface UseTerminalOptions {
   wsUrl?: string;
   // "[user@]host[:port]" — new sessions run `ssh` to this target instead of the shell
   sshTarget?: string;
-  // Called when the session was ended deliberately (endSession); the app
-  // should return to its start screen instead of reconnecting.
+  // Called when the session was ended or left deliberately (endSession,
+  // leaveSession); the app should return to its start screen instead of
+  // reconnecting.
   onSessionEnd?: () => void;
   onTitleChange?: (title: string) => void;
   onClipboardFallback?: (text: string) => void;
@@ -41,8 +55,12 @@ interface UseTerminalOptions {
 interface UseTerminalResult {
   containerRef: (node: HTMLDivElement | null) => void;
   connectionStatus: ConnectionStatus;
+  disconnectInfo: DisconnectInfo | null;
   sysKeyActive: boolean;
+  // Kill the session's shell and return to the start screen.
   endSession: () => void;
+  // Return to the start screen without killing anything on the server.
+  leaveSession: () => void;
   reconnect: () => void;
   focusSysKeyboard: () => void;
   focusTerminalInput: () => boolean;
@@ -113,8 +131,11 @@ const BASE_RECONNECT_DELAY_MS = 1_000;
 
 // Close codes from server
 const CLOSE_CODE_RESTART = 4000;
-const CLOSE_CODE_HEARTBEAT = 4001;
+const CLOSE_CODE_REPLACED = 4002;
 const CLOSE_CODE_ENDED = 4004;
+// Standard codes the server uses when a session cannot be started.
+const CLOSE_CODE_POLICY_VIOLATION = 1008; // invalid ssh target
+const CLOSE_CODE_INTERNAL_ERROR = 1011; // shell failed to spawn
 
 type TerminalLayout = {
   containerRect: DOMRect;
@@ -225,6 +246,7 @@ export function useTerminal({
 }: UseTerminalOptions): UseTerminalResult {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
+  const [disconnectInfo, setDisconnectInfo] = useState<DisconnectInfo | null>(null);
   const [reconnectToken, setReconnectToken] = useState(0);
   const [isMobileViewport, setIsMobileViewport] = useState(
     () => typeof window !== "undefined" && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches,
@@ -254,6 +276,8 @@ export function useTerminal({
   const onClipboardCopyRef = useRef(onClipboardCopy);
   const sshTargetRef = useRef(sshTarget);
   sshTargetRef.current = sshTarget;
+  const wsUrlRef = useRef(wsUrl);
+  wsUrlRef.current = wsUrl;
   const onSessionEndRef = useRef(onSessionEnd);
   onSessionEndRef.current = onSessionEnd;
   const connectionEpochRef = useRef(0);
@@ -506,7 +530,9 @@ export function useTerminal({
 
     customFitRef.current = customFit;
     customFit();
-    if (!mobileTouchSupported) {
+    // Only when a session is being connected: on the start screen the focus
+    // belongs to its buttons, so Enter activates the primary action.
+    if (!mobileTouchSupported && wsUrlRef.current) {
       terminal.focus();
     }
     terminalMountedRef.current = true;
@@ -886,6 +912,7 @@ export function useTerminal({
       closeSocket();
       clearReconnectTimer();
       setConnectionStatus("disconnected");
+      setDisconnectInfo(null);
       return;
     }
 
@@ -898,7 +925,9 @@ export function useTerminal({
     closeSocket();
     clearReconnectTimer();
     setConnectionStatus("connecting");
-    toast.info("Connecting.", { id: "connection-status" });
+    // A retry after a dropped connection keeps its "lost" notice up (now with
+    // an attempt in flight) so the overlay does not flicker between states.
+    setDisconnectInfo((prev) => (prev?.kind === "lost" ? { kind: "lost", retryAt: null } : null));
 
     const socket = new WebSocket(wsUrl);
     socket.binaryType = "arraybuffer";
@@ -910,6 +939,12 @@ export function useTerminal({
       connectionEpochRef.current === connectionEpoch &&
       socket === socketRef.current &&
       terminalRef.current === terminal;
+
+    // Set once a resume is refused because the session is gone and a fresh
+    // one is requested in its place, so the swap can be announced.
+    let replacedExpiredSession = false;
+    let sentReconnect = false;
+    let exitInfo: { exitCode: number | null; signal: string | null } | null = null;
 
     const handleFrame = (arrayBuffer: ArrayBuffer) => {
       if (!isCurrentConnection()) {
@@ -961,7 +996,14 @@ export function useTerminal({
           sessionStorage.setItem(SESSION_STORAGE_KEY, msg.sessionId);
           reconnectAttemptRef.current = 0;
           setConnectionStatus("connected");
-          toast.dismiss("connection-status");
+          setDisconnectInfo(null);
+          if (replacedExpiredSession) {
+            replacedExpiredSession = false;
+            toast.info("The previous session was no longer running — started a new one.", {
+              id: "connection-status",
+              duration: 6000,
+            });
+          }
           break;
 
         case "ping":
@@ -971,9 +1013,15 @@ export function useTerminal({
         case "session_ended":
           sessionIdRef.current = null;
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          exitInfo = { exitCode: msg.exitCode, signal: msg.signal };
           break;
 
         case "error":
+          // Only a refused resume is recoverable here; a failed start is
+          // reported through the close code instead.
+          if (!sentReconnect) break;
+          sentReconnect = false;
+          replacedExpiredSession = true;
           // Session not found — clear stored session and retry as fresh handshake
           sessionIdRef.current = null;
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
@@ -993,6 +1041,7 @@ export function useTerminal({
         // Reconnecting to existing session — reset terminal for scrollback replay
         terminal.reset();
         imageAddonRef.current?.reset();
+        sentReconnect = true;
         socket.send(
           JSON.stringify({
             type: "reconnect",
@@ -1042,8 +1091,8 @@ export function useTerminal({
       if (!isCurrentConnection()) {
         return;
       }
+      // onclose always follows and decides what to show.
       setConnectionStatus("error");
-      toast.error("WebSocket error.", { id: "connection-status" });
     };
 
     socket.onclose = (event) => {
@@ -1060,7 +1109,6 @@ export function useTerminal({
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
           terminal.reset();
           imageAddonRef.current?.reset();
-          toast.info("Restarting...", { id: "connection-status" });
           reconnectAttemptRef.current = 0;
           setReconnectToken((prev) => prev + 1);
           return;
@@ -1071,34 +1119,58 @@ export function useTerminal({
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
           terminal.reset();
           imageAddonRef.current?.reset();
-          toast.dismiss("connection-status");
+          setDisconnectInfo(null);
           onSessionEndRef.current?.();
           return;
 
-        case CLOSE_CODE_HEARTBEAT:
-          // Heartbeat timeout: keep session ID, auto-reconnect with backoff
-          toast.info("Connection lost. Reconnecting...", { id: "connection-status" });
-          break;
+        case CLOSE_CODE_REPLACED:
+          // Taken over by another tab or device. Keep the session ID so this
+          // tab can take it back on request, but never automatically — two
+          // tabs auto-reconnecting would evict each other forever.
+          setDisconnectInfo({ kind: "replaced" });
+          return;
 
         case 1000:
           // Normal close (shell exited): clear session
           sessionIdRef.current = null;
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
-          toast.error(`Disconnected: ${event.reason || "Shell exited"}.`, { id: "connection-status" });
+          setDisconnectInfo({ kind: "exited", exitCode: exitInfo?.exitCode ?? null, signal: exitInfo?.signal ?? null });
+          return;
+
+        case CLOSE_CODE_POLICY_VIOLATION:
+        case CLOSE_CODE_INTERNAL_ERROR:
+          // The session never started; retrying on a timer would only fail again.
+          sessionIdRef.current = null;
+          sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          setDisconnectInfo({ kind: "failed", message: event.reason || "The session could not be started" });
           return;
 
         default:
-          // Unexpected: keep session ID, auto-reconnect with backoff
-          toast.error(`Disconnected (code ${event.code}).`, { id: "connection-status" });
+          // Heartbeat timeout or an unexpected drop: keep the session ID and
+          // auto-reconnect with backoff.
           break;
       }
 
-      // Auto-reconnect with exponential backoff
+      // A dropped connection can also mean the login expired or was ended from
+      // another tab; retrying would then fail forever, so go sign in instead.
+      void fetch("/api/auth/check")
+        .then((res) => {
+          if (res.status === 401 && connectionEpochRef.current === connectionEpoch) {
+            window.location.href = "/login";
+          }
+        })
+        .catch(() => {
+          // Server unreachable — the retry loop below covers it.
+        });
+
+      // Auto-reconnect with exponential backoff. The socket ref was cleared
+      // above, so staleness is judged by the epoch alone.
       const delay = computeReconnectDelay(reconnectAttemptRef.current);
       reconnectAttemptRef.current += 1;
+      setDisconnectInfo({ kind: "lost", retryAt: Date.now() + delay });
       reconnectTimerRef.current = setTimeout(() => {
         reconnectTimerRef.current = null;
-        if (isCurrentConnection()) {
+        if (connectionEpochRef.current === connectionEpoch) {
           setReconnectToken((prev) => prev + 1);
         }
       }, delay);
@@ -1115,34 +1187,50 @@ export function useTerminal({
   }, [wsUrl, reconnectToken, closeSocket, clearReconnectTimer, container, mobileTouchSupported]);
 
   const reconnect = useCallback(() => {
-    // Resume existing session — just trigger a new WebSocket connection
+    // Trigger a new WebSocket connection: resumes the stored session if there
+    // is one, otherwise starts a fresh session on the same target.
     clearReconnectTimer();
     reconnectAttemptRef.current = 0;
     setReconnectToken((prev) => prev + 1);
   }, [clearReconnectTimer]);
 
-  // Kill the current PTY and return to the start screen (no auth change).
-  const endSession = useCallback(() => {
+  // Forget the session locally and hand control back to the start screen.
+  const returnToStart = useCallback(() => {
     clearReconnectTimer();
     reconnectAttemptRef.current = 0;
     sessionIdRef.current = null;
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    terminalRef.current?.reset();
+    imageAddonRef.current?.reset();
+    setDisconnectInfo(null);
+    onSessionEndRef.current?.();
+  }, [clearReconnectTimer]);
 
+  // Kill the current PTY and return to the start screen (no auth change).
+  const endSession = useCallback(() => {
+    const sessionId = sessionIdRef.current;
     const socket = socketRef.current;
-    if (socket && socket.readyState === WebSocket.OPEN) {
+    if (sessionId && socket && socket.readyState === WebSocket.OPEN) {
+      clearReconnectTimer();
+      reconnectAttemptRef.current = 0;
+      sessionIdRef.current = null;
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
       // Server destroys the session and closes with CLOSE_CODE_ENDED, which
       // drives the start-screen transition via onSessionEnd.
       socket.send(JSON.stringify({ type: "terminate" }));
       return;
     }
 
-    // Disconnected: the detached server session gets reaped by the stale
-    // sweep; just reset locally and go to the start screen.
-    terminalRef.current?.reset();
-    imageAddonRef.current?.reset();
-    toast.dismiss("connection-status");
-    onSessionEndRef.current?.();
-  }, [clearReconnectTimer]);
+    // Not attached (start screen, dropped connection, taken over elsewhere):
+    // end the session by id over HTTP. If the server cannot be reached, the
+    // stale sweep reaps the detached session a few minutes later.
+    if (sessionId) {
+      void fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE", keepalive: true }).catch(
+        () => {},
+      );
+    }
+    returnToStart();
+  }, [clearReconnectTimer, returnToStart]);
 
   const focusTerminalInput = useCallback((): boolean => {
     const terminal = terminalRef.current;
@@ -1299,8 +1387,10 @@ export function useTerminal({
   return {
     containerRef,
     connectionStatus,
+    disconnectInfo,
     sysKeyActive,
     endSession,
+    leaveSession: returnToStart,
     reconnect,
     focusSysKeyboard,
     focusTerminalInput,

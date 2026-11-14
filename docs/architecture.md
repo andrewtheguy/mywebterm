@@ -56,6 +56,8 @@ Defined in the `routes` table at `src/index.ts:387`.
 | `/api/auth/check` | GET | no | Report whether the request is authenticated |
 | `/api/config` | GET | yes | Version, app title, shell command, `authEnabled` |
 | `/api/sessions` | GET | yes | List active PTY sessions + child processes |
+| `/api/sessions/:id` | GET | yes | One session's summary (state, target, start time, expiry); `404` once it is gone |
+| `/api/sessions/:id` | DELETE | yes | End that session (closes its client with `4004`); works without a WebSocket |
 | `/api/restart` | POST | yes | Destroy all PTY sessions (keep login) |
 | `/tty/ws` | WS upgrade | cookie | Terminal I/O channel |
 | static | GET | no | fonts (`.woff2`), `apple-touch-icon.png` |

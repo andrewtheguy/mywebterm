@@ -1,6 +1,7 @@
 import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
 import { DEFAULT_APP_TITLE, loadSshHosts, loadTtyConfig, type TtyConfig } from "./config";
+import { ResumeCard, SessionOverlay, type SessionSummary } from "./SessionOverlay";
 import type { SoftKeyModifiers } from "./softKeyboard";
 import {
   applyShiftToPrintable,
@@ -22,6 +23,8 @@ import { parseSshTarget } from "./ttyProtocol";
 import { SESSION_STORAGE_KEY, useTerminal } from "./useTerminal";
 
 const SSH_TARGET_STORAGE_KEY = "mywebterm-ssh-target";
+// How often the start screen re-checks that its resumable session still exists.
+const STORED_SESSION_POLL_MS = 15_000;
 
 function softKeyLabel(key: SoftKeyDefinition, shiftActive: boolean): string {
   if (key.kind === "printable") {
@@ -634,6 +637,9 @@ export function App() {
   const [minColumnsMenuOpen, setMinColumnsMenuOpen] = useState(false);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [endSessionConfirmOpen, setEndSessionConfirmOpen] = useState(false);
+  // Non-null while the logout confirmation is open; sessionCount is how many
+  // shells logging out would kill (null until the server has answered).
+  const [logoutConfirm, setLogoutConfirm] = useState<{ sessionCount: number | null } | null>(null);
   const [arrowOverlayEnabled, setArrowOverlayEnabled] = useState(true);
   const [awaitingStart, setAwaitingStart] = useState(true);
   // Survives reloads (per tab) so a resume that falls back to a fresh
@@ -646,7 +652,12 @@ export function App() {
   const [sshHosts, setSshHosts] = useState<string[]>([]);
   const [sshHostsError, setSshHostsError] = useState<string | null>(null);
   const effectiveMinColumns = minColumns ?? DEFAULT_MIN_COLUMNS;
-  const hasStoredSession = sessionStorage.getItem(SESSION_STORAGE_KEY) !== null;
+  // This tab's session from before a reload, offered for resume on the start
+  // screen. Only ever true on first load: every later return to the start
+  // screen has ended or forgotten the session.
+  const [hasStoredSession, setHasStoredSession] = useState(() => sessionStorage.getItem(SESSION_STORAGE_KEY) !== null);
+  const [storedSession, setStoredSession] = useState<SessionSummary | null>(null);
+  const [startNotice, setStartNotice] = useState<string | null>(null);
   const focusOnMountRef = useCallback((el: HTMLElement | null) => {
     if (el) el.focus();
   }, []);
@@ -819,14 +830,19 @@ export function App() {
     setSshInput("");
     setStartStep("choice");
     setRemoteTitle(null);
+    setHasStoredSession(false);
+    setStoredSession(null);
+    setStartNotice(null);
     setAwaitingStart(true);
   }, []);
 
   const {
     containerRef,
     connectionStatus,
+    disconnectInfo,
     sysKeyActive,
     endSession,
+    leaveSession,
     reconnect,
     focusSysKeyboard,
     focusTerminalInput,
@@ -1046,6 +1062,58 @@ export function App() {
     refreshSshHosts();
   }, [awaitingStart, hasStoredSession, refreshSshHosts]);
 
+  // A resumable session can be reaped (or ended from elsewhere) while the
+  // start screen sits open, so keep asking the server about it and fall back
+  // to the session picker once it is gone instead of offering a dead resume.
+  useEffect(() => {
+    if (!awaitingStart || !hasStoredSession) return;
+    const sessionId = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (sessionId === null) return;
+
+    let cancelled = false;
+    let recheckTimer: ReturnType<typeof setTimeout> | null = null;
+    const check = async () => {
+      let res: Response;
+      try {
+        res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`);
+      } catch {
+        return; // Server unreachable: keep offering resume, which retries on its own.
+      }
+      if (cancelled) return;
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (res.status === 404) {
+        leaveSession();
+        setStartNotice("Your previous session is no longer running.");
+        return;
+      }
+      if (!res.ok) return;
+      const summary = (await res.json()) as SessionSummary;
+      if (cancelled) return;
+      setStoredSession(summary);
+      // Right after a reload the old page's socket may not have closed yet,
+      // which reads as "open elsewhere"; look again shortly to settle it.
+      if (summary.state === "attached" && recheckTimer === null) {
+        recheckTimer = setTimeout(() => void check(), 1500);
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void check();
+    };
+
+    void check();
+    const pollTimer = setInterval(() => void check(), STORED_SESSION_POLL_MS);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      cancelled = true;
+      clearInterval(pollTimer);
+      if (recheckTimer !== null) clearTimeout(recheckTimer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [awaitingStart, hasStoredSession, leaveSession]);
+
   // Escape backs out of the ssh host picker to the session-type choice.
   useEffect(() => {
     if (!awaitingStart || startStep !== "ssh") return;
@@ -1077,6 +1145,7 @@ export function App() {
   const startLocalShell = useCallback(() => {
     sessionStorage.removeItem(SSH_TARGET_STORAGE_KEY);
     setSshTarget(undefined);
+    setStartNotice(null);
     setAwaitingStart(false);
   }, []);
 
@@ -1090,6 +1159,7 @@ export function App() {
     }
     sessionStorage.setItem(SSH_TARGET_STORAGE_KEY, target);
     setSshTarget(target);
+    setStartNotice(null);
     setAwaitingStart(false);
   }, []);
 
@@ -1706,12 +1776,36 @@ export function App() {
     scrollbarDraggingRef.current = false;
   }, []);
 
+  // Logging out kills every shell on the server, in every tab and on every
+  // device, so it gets a confirmation that says how many that is.
+  const requestLogout = useCallback(() => {
+    setLogoutConfirm({ sessionCount: null });
+    fetch("/api/sessions")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { sessions?: unknown[] } | null) => {
+        const sessions = data?.sessions;
+        if (!Array.isArray(sessions)) return;
+        setLogoutConfirm((prev) => (prev === null ? null : { sessionCount: sessions.length }));
+      })
+      .catch(() => {
+        // Count unavailable — the dialog falls back to generic wording.
+      });
+  }, []);
+
   function handleLogout() {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     fetch("/api/auth/logout", { method: "POST" }).finally(() => {
       window.location.href = "/login";
     });
   }
+
+  // What the current (or about-to-be-resumed) session runs, for labels.
+  const describeTarget = (target: string | null | undefined) =>
+    target ? `ssh ${target}` : formatShellCommand(config?.shellCommand ?? []);
+  const targetLabel = describeTarget(sshTarget);
+  // A session exists on the server that End Session could kill: either it is
+  // attached here, or the connection dropped and it is waiting to be resumed.
+  const canEndSession = !awaitingStart && (connectionStatus === "connected" || disconnectInfo?.kind === "lost");
 
   const handleFloatingVisualPressStart = useCallback(
     (key: SoftKeyDefinition, buttonEl: HTMLButtonElement, pointerId: number) => {
@@ -1844,23 +1938,34 @@ export function App() {
               i
             </button>
             {(() => {
+              // No session has been started yet: that is not a fault, so do
+              // not show it as a red "disconnected". While a dropped connection
+              // is being retried, stay on "connecting" rather than flickering
+              // through every attempt's states.
+              const statusKey = awaitingStart
+                ? "idle"
+                : disconnectInfo?.kind === "lost"
+                  ? "connecting"
+                  : connectionStatus;
               const statusLabel =
-                connectionStatus === "connected"
-                  ? "Connected"
-                  : connectionStatus === "connecting"
-                    ? "Connecting"
-                    : connectionStatus === "error"
-                      ? "Error"
-                      : "Disconnected";
+                statusKey === "idle"
+                  ? "No session"
+                  : statusKey === "connected"
+                    ? "Connected"
+                    : statusKey === "connecting"
+                      ? "Connecting"
+                      : statusKey === "error"
+                        ? "Error"
+                        : "Disconnected";
               return (
                 <>
-                  <span className={`status-dot status-dot-${connectionStatus} touch-only`} aria-hidden="true" />
+                  <span className={`status-dot status-dot-${statusKey} touch-only`} aria-hidden="true" />
                   <span
-                    className={`status-badge status-${connectionStatus} pointer-only`}
+                    className={`status-badge status-${statusKey} pointer-only`}
                     role="status"
                     aria-label={statusLabel}
                   >
-                    {connectionStatus === "connecting" ? "..." : connectionStatus}
+                    {statusKey === "connecting" ? "..." : statusKey}
                   </span>
                 </>
               );
@@ -2031,24 +2136,15 @@ export function App() {
                   >
                     Processes
                   </button>
-                  {awaitingStart ? null : connectionStatus === "connected" ? (
+                  {canEndSession ? (
                     <button
                       type="button"
-                      className="toolbar-button overflow-menu-item touch-only"
+                      className="toolbar-button overflow-menu-item danger-text touch-only"
                       onClick={() => overflowAction(() => setEndSessionConfirmOpen(true))}
                     >
                       End Session
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="toolbar-button overflow-menu-item reconnect-button touch-only"
-                      onClick={() => overflowAction(reconnect)}
-                      disabled={connectionStatus === "connecting"}
-                    >
-                      Reconnect
-                    </button>
-                  )}
+                  ) : null}
                   <button
                     type="button"
                     className="toolbar-button overflow-menu-item"
@@ -2066,8 +2162,8 @@ export function App() {
                   {authEnabled ? (
                     <button
                       type="button"
-                      className="toolbar-button overflow-menu-item logout-button touch-only"
-                      onClick={() => overflowAction(handleLogout)}
+                      className="toolbar-button overflow-menu-item danger-text touch-only"
+                      onClick={() => overflowAction(requestLogout)}
                     >
                       Log Out
                     </button>
@@ -2078,26 +2174,17 @@ export function App() {
             <button type="button" className="toolbar-button pointer-only" onClick={() => void inspectProcesses()}>
               Processes
             </button>
-            {awaitingStart ? null : connectionStatus === "connected" ? (
+            {canEndSession ? (
               <button
                 type="button"
-                className="toolbar-button pointer-only"
+                className="toolbar-button danger-text pointer-only"
                 onClick={() => setEndSessionConfirmOpen(true)}
               >
                 End Session
               </button>
-            ) : (
-              <button
-                type="button"
-                className="toolbar-button reconnect-button pointer-only"
-                onClick={reconnect}
-                disabled={connectionStatus === "connecting"}
-              >
-                Reconnect
-              </button>
-            )}
+            ) : null}
             {authEnabled ? (
-              <button type="button" className="toolbar-button pointer-only logout-button" onClick={handleLogout}>
+              <button type="button" className="toolbar-button pointer-only danger-text" onClick={requestLogout}>
                 Log Out
               </button>
             ) : null}
@@ -2114,31 +2201,18 @@ export function App() {
 
           {awaitingStart ? (
             hasStoredSession ? (
-              <div
-                className="disconnect-overlay"
-                role="button"
-                tabIndex={0}
-                ref={focusOnMountRef}
-                onClick={resumeSession}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    resumeSession();
-                  }
-                }}
-              >
-                <div className="disconnect-overlay-text start-overlay-text start-overlay-resume">
-                  <span>
-                    <span className="pointer-only">Click or press Enter to</span>
-                    <span className="touch-only">Tap to</span> resume
-                  </span>
-                </div>
-              </div>
+              <ResumeCard
+                session={storedSession}
+                targetLabel={describeTarget(storedSession ? storedSession.target : sshTarget)}
+                onResume={resumeSession}
+                onRequestEnd={() => setEndSessionConfirmOpen(true)}
+              />
             ) : (
               <div className="disconnect-overlay start-overlay-static">
                 <div className="disconnect-overlay-text start-overlay-text start-overlay-menu">
                   {startStep === "choice" ? (
                     <>
+                      {startNotice ? <span className="start-overlay-notice">{startNotice}</span> : null}
                       <span className="start-overlay-heading">Start a session</span>
                       <button
                         type="button"
@@ -2218,30 +2292,14 @@ export function App() {
               </div>
             )
           ) : (
-            connectionStatus !== "connected" &&
-            (connectionStatus === "connecting" ? (
-              <div className="disconnect-overlay">
-                <p className="disconnect-overlay-text disconnect-overlay-connecting">Connecting...</p>
-              </div>
-            ) : (
-              <div
-                className="disconnect-overlay"
-                role="button"
-                tabIndex={0}
-                onClick={() => reconnect()}
-                onKeyDown={(e) => {
-                  if (e.key === " " || e.key === "Enter") {
-                    e.preventDefault();
-                    reconnect();
-                  }
-                }}
-              >
-                <p className="disconnect-overlay-text">
-                  <span className="pointer-only">Click or press Space to</span>
-                  <span className="touch-only">Tap to</span> reconnect
-                </p>
-              </div>
-            ))
+            <SessionOverlay
+              connectionStatus={connectionStatus}
+              disconnectInfo={disconnectInfo}
+              targetLabel={targetLabel}
+              onReconnect={reconnect}
+              onLeave={leaveSession}
+              onRequestEnd={() => setEndSessionConfirmOpen(true)}
+            />
           )}
 
           {horizontalOverflow && (
@@ -2548,7 +2606,10 @@ export function App() {
         >
           <div className="settings-dialog confirm-dialog">
             <p className="settings-dialog-label">End this session?</p>
-            <p className="copy-sheet-hint">The shell is killed and you return to the start screen.</p>
+            <code className="session-card-target">
+              {describeTarget(awaitingStart && storedSession ? storedSession.target : sshTarget)}
+            </code>
+            <p className="copy-sheet-hint">Anything still running in it is killed. This cannot be undone.</p>
             <div className="settings-dialog-options">
               <button
                 type="button"
@@ -2558,8 +2619,54 @@ export function App() {
               >
                 Cancel
               </button>
-              <button type="button" className="toolbar-button settings-dialog-option" onClick={confirmEndSession}>
+              <button
+                type="button"
+                className="toolbar-button toolbar-button-danger settings-dialog-option"
+                onClick={confirmEndSession}
+              >
                 End Session
+              </button>
+            </div>
+          </div>
+        </dialog>
+      )}
+      {logoutConfirm !== null && (
+        <dialog
+          className="settings-dialog-backdrop"
+          open
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLogoutConfirm(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setLogoutConfirm(null);
+          }}
+        >
+          <div className="settings-dialog confirm-dialog">
+            <p className="settings-dialog-label">Log out?</p>
+            <p className="copy-sheet-hint">
+              {logoutConfirm.sessionCount === 0
+                ? "No sessions are running. You will need to sign in again."
+                : logoutConfirm.sessionCount === 1
+                  ? "This signs out every tab and device and kills the 1 running session."
+                  : logoutConfirm.sessionCount === null
+                    ? "This signs out every tab and device and kills all running sessions."
+                    : `This signs out every tab and device and kills all ${logoutConfirm.sessionCount} running sessions.`}
+            </p>
+            <div className="settings-dialog-options">
+              <button
+                type="button"
+                className="toolbar-button settings-dialog-option"
+                ref={focusOnMountRef}
+                onClick={() => setLogoutConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="toolbar-button toolbar-button-danger settings-dialog-option"
+                onClick={handleLogout}
+              >
+                Log Out
               </button>
             </div>
           </div>

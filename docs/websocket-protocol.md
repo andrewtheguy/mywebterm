@@ -34,7 +34,7 @@ control message closes the socket with code `1002`).
 |---|---|---|
 | `session_info` | `sessionId` | Sent after handshake/reconnect; client stores the id |
 | `ping` | `timestamp` | Heartbeat; expects a `pong` within 10s |
-| `session_ended` | `exitCode`, `signal` | Shell exited (one or the other is non-null) |
+| `session_ended` | `exitCode`, `signal` | Shell exited. Reports the child process's own exit code or terminating signal (not the PTY's); both are `null` if the status could not be read in time |
 | `error` | `message` | e.g. "Session not found or already dead" |
 
 Serialized by `encodeServerControl` (`ttyProtocol.ts:69`) — a plain
