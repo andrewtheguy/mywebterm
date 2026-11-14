@@ -64,10 +64,6 @@ export function isValidSession(token: string): boolean {
   return true;
 }
 
-export function invalidateSession(token: string): void {
-  validTokens.delete(token);
-}
-
 export function invalidateAllSessions(): void {
   validTokens.clear();
 }

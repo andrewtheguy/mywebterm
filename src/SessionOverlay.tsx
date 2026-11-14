@@ -32,7 +32,8 @@ function formatDuration(ms: number): string {
 
 function describeExit(info: Extract<DisconnectInfo, { kind: "exited" }>): string {
   if (info.signal !== null) return `was terminated (${info.signal})`;
-  if (info.exitCode === null || info.exitCode === 0) return "exited";
+  if (info.exitCode === null) return "ended (exit status unknown)";
+  if (info.exitCode === 0) return "exited";
   return `exited with code ${info.exitCode}`;
 }
 
@@ -221,11 +222,13 @@ export function SessionOverlay({
       );
 
     case "exited": {
-      const clean = disconnectInfo.signal === null && (disconnectInfo.exitCode ?? 0) === 0;
+      // No status at all (the server could not resolve one) is not a clean exit.
+      const unknown = disconnectInfo.signal === null && disconnectInfo.exitCode === null;
+      const clean = disconnectInfo.signal === null && disconnectInfo.exitCode === 0;
       return (
         <SessionCard
           key="exited"
-          tone={clean ? "ok" : "danger"}
+          tone={clean ? "ok" : unknown ? "warn" : "danger"}
           title="Session ended"
           dimLess
           actions={

@@ -114,9 +114,9 @@ and offers only the actions that make sense (`src/SessionOverlay.tsx`):
 | State | Cause | Actions |
 |---|---|---|
 | Session still running | page load with a stored id (see above) | Resume · End Session |
-| Connecting… | first attempt, or a resume, in flight | Cancel, once it has taken more than a moment (a resume returns to its card; a fresh start to the picker) |
+| Connecting… | first attempt, or a resume, in flight | Cancel, once it has taken more than a moment (a resume returns to its card; a fresh start goes back to the picker, sending `terminate` first so a shell the server already spawned is killed rather than left detached) |
 | Connection lost | socket dropped (`4001`, `1006`, …); retried with backoff, countdown shown | Retry Now · End Session |
-| Session ended | shell exited (`1000`); exit code or signal shown | Start Again · Back to Start |
+| Session ended | shell exited (`1000`); exit code or signal shown, or "exit status unknown" when the server reported neither | Start Again · Back to Start |
 | Session moved | evicted by another viewer (`4002`) | Use Here · Back to Start |
 | Could not start session | spawn failed or bad ssh target (`1011`, `1008`); not retried | Try Again · Back to Start |
 
@@ -126,7 +126,9 @@ connection lost) it calls `DELETE /api/sessions/:id` and returns to the start
 screen only once the server confirms. If the request fails or is refused, the
 page keeps the session and says so; End Session can be tried again, or the
 notice's **Leave Anyway** forgets the session locally and leaves it to the
-stale sweep.
+stale sweep. A reconnect that is pending or in flight while the session is
+being ended, and is then refused because the session is gone, goes to the
+start screen instead of falling back to a fresh shell.
 **Back to Start** never kills anything.
 
 A dropped connection also probes `/api/auth/check`; a `401` means the login
@@ -145,15 +147,18 @@ These act on different concepts — this is the key distinction.
 ### Logout flow (current behavior)
 
 Logout is a deliberate **whole-browser / whole-account sign-out**, not a
-per-tab action. The auth token is invalidated and the cookie is cleared
-origin-wide, so *every* tab and device immediately loses access. To match that,
+per-tab action. Every login has its own auth token, so *all* of them are
+invalidated (`invalidateAllSessions`), and the cookie is cleared origin-wide:
+*every* tab and device immediately loses access. To match that,
 logout also destroys **all** PTY sessions — not just the current tab's. This is
 intentional for the single-user model: if the same user forgot to log out on
 another device, logging out anywhere guarantees no live shell is left behind,
 which makes logout robust and unambiguous.
 
-- **Server** (`handleLogout`, `index.ts:311`): invalidates the token, then calls
-  `destroyAllSessions()` (`sessionManager.ts:360`), killing every shell and
+- **Server** (`handleLogout` in `index.ts`): sits behind the auth gate like the
+  rest of the API, so a request that is not signed in gets `401` and changes
+  nothing. Otherwise it invalidates every auth token and calls
+  `destroyAllSessions()` (`sessionManager.ts`), killing every shell and
   closing its socket. Responds with a cleared cookie.
 - **Client** (`handleLogout`, `App.tsx:1616`): removes `mywebterm-session-id`
   from `sessionStorage`, then navigates to `/login`.
@@ -162,8 +167,8 @@ Because the stored id is gone and the PTY is destroyed, logging back in always
 sends a **handshake** (fresh shell), never a **reconnect**.
 
 > Cross-tab effect (by design): other open tabs have their sockets closed with
-> code `4000` and will briefly try to reconnect, but the cleared cookie makes
-> those upgrades `401`; the failed attempt probes `/api/auth/check` and sends
+> code `4000` and will briefly try to reconnect, but the cleared cookie (or, on
+> another device, its invalidated token) makes those upgrades `401`; the failed attempt probes `/api/auth/check` and sends
 > the tab to `/login` — so they end up signed out too, as intended. This is
 > distinct from the per-`sessionId` eviction (4002) above: logout ends *all*
 > sessions globally; 4002 only swaps the viewer of a *single* shell.

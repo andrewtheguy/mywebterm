@@ -288,6 +288,9 @@ export function useTerminal({
   const sessionIdRestoredRef = useRef(false);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The session End Session is currently killing, so that a resume refused
+  // because of it is not answered by starting a replacement.
+  const endingSessionIdRef = useRef<string | null>(null);
 
   if (!sessionIdRestoredRef.current && typeof window !== "undefined") {
     sessionIdRef.current = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -945,7 +948,7 @@ export function useTerminal({
     // Set once a resume is refused because the session is gone and a fresh
     // one is requested in its place, so the swap can be announced.
     let replacedExpiredSession = false;
-    let sentReconnect = false;
+    let resumingSessionId: string | null = null;
     let exitInfo: { exitCode: number | null; signal: string | null } | null = null;
 
     const handleFrame = (arrayBuffer: ArrayBuffer) => {
@@ -1018,19 +1021,32 @@ export function useTerminal({
           exitInfo = { exitCode: msg.exitCode, signal: msg.signal };
           break;
 
-        case "error":
+        case "error": {
           // Only a refused resume is recoverable here; a failed start is
           // reported through the close code instead.
-          if (!sentReconnect) break;
-          sentReconnect = false;
-          replacedExpiredSession = true;
-          // Session not found — clear stored session and retry as fresh handshake
+          if (resumingSessionId === null) break;
+          const endedOnRequest = resumingSessionId === endingSessionIdRef.current;
+          resumingSessionId = null;
+          // Session not found — clear stored session
           sessionIdRef.current = null;
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
           terminal.reset();
           imageAddonRef.current?.reset();
+          if (endedOnRequest) {
+            // End Session got there first, and the session being gone is what
+            // was asked for: go to the start screen, not into a new shell.
+            closeSocket();
+            reconnectAttemptRef.current = 0;
+            setConnectionStatus("disconnected");
+            setDisconnectInfo(null);
+            onSessionEndRef.current?.();
+            break;
+          }
+          // Otherwise retry as a fresh handshake
+          replacedExpiredSession = true;
           socket.send(buildHandshakeMessage());
           break;
+        }
       }
     };
 
@@ -1043,7 +1059,7 @@ export function useTerminal({
         // Reconnecting to existing session — reset terminal for scrollback replay
         terminal.reset();
         imageAddonRef.current?.reset();
-        sentReconnect = true;
+        resumingSessionId = sessionIdRef.current;
         socket.send(
           JSON.stringify({
             type: "reconnect",
@@ -1199,6 +1215,10 @@ export function useTerminal({
   // Forget the session locally and hand control back to the start screen.
   const returnToStart = useCallback(() => {
     clearReconnectTimer();
+    // Drop an attempt still in flight too: left to open, it would find no
+    // session id and start a shell that nobody is looking at.
+    closeSocket();
+    setConnectionStatus("disconnected");
     reconnectAttemptRef.current = 0;
     sessionIdRef.current = null;
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
@@ -1206,20 +1226,27 @@ export function useTerminal({
     imageAddonRef.current?.reset();
     setDisconnectInfo(null);
     onSessionEndRef.current?.();
-  }, [clearReconnectTimer]);
+  }, [clearReconnectTimer, closeSocket]);
 
   // Kill the current PTY and return to the start screen (no auth change).
   const endSession = useCallback(() => {
     const sessionId = sessionIdRef.current;
     const socket = socketRef.current;
-    if (sessionId && socket && socket.readyState === WebSocket.OPEN) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "terminate" }));
+      if (!sessionId) {
+        // A start being cancelled before the server named the session: it may
+        // be running already, and closing the socket would only detach it.
+        returnToStart();
+        return;
+      }
       clearReconnectTimer();
       reconnectAttemptRef.current = 0;
+      endingSessionIdRef.current = sessionId;
       sessionIdRef.current = null;
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
       // Server destroys the session and closes with CLOSE_CODE_ENDED, which
       // drives the start-screen transition via onSessionEnd.
-      socket.send(JSON.stringify({ type: "terminate" }));
       return;
     }
 
@@ -1232,7 +1259,10 @@ export function useTerminal({
     // Not attached (start screen, dropped connection): end the session by id
     // over HTTP, and leave only once the server confirms. If it does not, the
     // shell may still be running, so keep the session and its End Session
-    // button rather than pretend it is gone.
+    // button rather than pretend it is gone. A reconnect may be pending or in
+    // flight meanwhile; endingSessionIdRef keeps it from starting a new shell
+    // when it finds the session already killed.
+    endingSessionIdRef.current = sessionId;
     void (async () => {
       let ended = false;
       try {
@@ -1244,6 +1274,8 @@ export function useTerminal({
         ended = res.ok;
       } catch {
         // Server unreachable.
+      } finally {
+        if (!ended && endingSessionIdRef.current === sessionId) endingSessionIdRef.current = null;
       }
       // Resumed, left or ended by other means while the request was in flight.
       if (sessionIdRef.current !== sessionId) return;

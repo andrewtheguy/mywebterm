@@ -52,7 +52,7 @@ Defined in the `routes` table at `src/index.ts:387`.
 | `/` | GET | yes | The terminal app (HTML) |
 | `/login` | GET | no | Login page |
 | `/api/auth/login` | POST | no | Verify credentials, set session cookie |
-| `/api/auth/logout` | POST | cookie | Invalidate token, clear cookie, **destroy PTYs** |
+| `/api/auth/logout` | POST | cookie | Invalidate every login token, clear cookie, **destroy PTYs** |
 | `/api/auth/check` | GET | no | Report whether the request is authenticated |
 | `/api/config` | GET | yes | Version, app title, shell command, `authEnabled` |
 | `/api/sessions` | GET | yes | List active PTY sessions + child processes |

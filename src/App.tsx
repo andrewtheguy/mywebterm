@@ -623,6 +623,19 @@ function DesktopPcKeyboardGrid({
   );
 }
 
+// What logging out will do, given how many sessions are running (null while
+// the count is unknown).
+function describeLogout(sessionCount: number | null): string {
+  if (sessionCount === 0) return "No sessions are running. You will need to sign in again.";
+  const sessions =
+    sessionCount === null
+      ? "all running sessions"
+      : sessionCount === 1
+        ? "the 1 running session"
+        : `all ${sessionCount} running sessions`;
+  return `This signs out every tab and device and kills ${sessions}.`;
+}
+
 function formatShellCommand(args: string[]): string {
   if (args.length === 0) return "shell";
   return args.map((a) => (/[^a-zA-Z0-9_\-./=:@]/.test(a) ? `'${a.replace(/'/g, "'\\''")}'` : a)).join(" ");
@@ -1178,9 +1191,10 @@ export function App() {
       setHasStoredSession(true);
       setAwaitingStart(true);
     } else {
-      leaveSession();
+      // Nothing to resume later, so whatever the attempt started is killed.
+      endSession();
     }
-  }, [leaveSession]);
+  }, [endSession]);
 
   // In-app confirmation rather than window.confirm(), which iOS Safari
   // suppresses (it returns false without showing a dialog), making End Session
@@ -2705,15 +2719,7 @@ export function App() {
         >
           <div className="settings-dialog confirm-dialog">
             <p className="settings-dialog-label">Log out?</p>
-            <p className="copy-sheet-hint">
-              {logoutConfirm.sessionCount === 0
-                ? "No sessions are running. You will need to sign in again."
-                : logoutConfirm.sessionCount === 1
-                  ? "This signs out every tab and device and kills the 1 running session."
-                  : logoutConfirm.sessionCount === null
-                    ? "This signs out every tab and device and kills all running sessions."
-                    : `This signs out every tab and device and kills all ${logoutConfirm.sessionCount} running sessions.`}
-            </p>
+            <p className="copy-sheet-hint">{describeLogout(logoutConfirm.sessionCount)}</p>
             <div className="settings-dialog-options">
               <button
                 type="button"
